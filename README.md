@@ -13,13 +13,23 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 
 ## Visual
 
-- O app usa o tema **VS Code Dark+**: fundo `#1e1e1e`, azul `#007acc`/`#0e639c` nos botões e status bar,
-  e o código com as cores exatas do editor (palavras-chave `#569cd6`, controle `#c586c0`, strings `#ce9178`,
-  funções `#dcdcaa`, números `#b5cea8`, comentários `#6a9955`, tipos `#4ec9b0`).
-- A área gráfica usa o **dark mode do Excalidraw**: canvas quase preto (`#121212`) com pontilhado sutil,
-  traço claro (`#e3e3e3`) e o traço "desenhado à mão" determinístico do projeto; cores em tons claros
-  (azul, verde, amarelo, lilás, laranja e rosa) com preenchimentos translúcidos, cantos irregulares e
-  fonte manuscrita nos rótulos.
+- Tema escuro neutro com **tokens centralizados** em `css/styles.css` (`--bg-primary`, `--bg-surface`,
+  `--border`, `--text-primary`, `--text-secondary`, `--accent`…); as três regiões são planas e separadas
+  por divisórias de 1px, e o roxo (`#8957e5`) é a cor de **destaque**, usada só no botão de execução, na
+  linha em execução, no elemento afetado pela operação e na timeline.
+- O editor tem **abas de arquivo** (os exemplos abertos ficam em abas, com a ativa destacada), mantendo o
+  **syntax highlighting do VS Code Dark+** (palavras-chave `#569cd6`, controle `#c586c0`,
+  strings `#ce9178`, funções `#dcdcaa`, números `#b5cea8`, comentários `#6a9955`, tipos `#4ec9b0`), com
+  números de linha, `▶` na margem e a linha em execução destacada de forma discreta.
+- A área de visualização é uma **área de trabalho quase preta** com grid pontilhado sutil, muito espaço
+  negativo e a estrutura centralizada. A estrutura pode ser **arrastada** (pan) e **ampliada com a roda
+  do mouse** (zoom) — os controles no topo do painel mostram o zoom atual, permitem aumentar/diminuir,
+  redefinir para 100% e ajustar à tela. O grid acompanha o pan/zoom.
+- Pilha, fila, array, lista e árvore compartilham a mesma linguagem
+  visual: superfícies escuras, borda de 1px, tipografia monoespaçada e destaque roxo no elemento ativo
+  (topo da pilha, frente da fila, célula alterada, nó visitado/atual).
+- O painel direito mostra **Comandos** (as operações `push/pop/shift…` da execução, clicáveis para pular
+  ao passo), **Variáveis**, **Chamadas** e **Saída** — no estilo de painéis de debug.
 
 ## Como abrir
 
@@ -37,14 +47,18 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 
 ## Como usar
 
-1. Escolha um exemplo no seletor **Código** ou cole seu próprio código.
+1. Escolha um exemplo no seletor (cada exemplo vira uma aba; clique na aba para trocar e no `×` para
+   fechar) ou escreva seu próprio código no editor.
 2. Clique em **Executar ▶** (ou `Ctrl+Enter`).
 3. Navegue com **▶/❚❚**, os botões de passo, a **barra de progresso** ou o teclado:
    - `←` / `→` — passo anterior / próximo
    - `Espaço` — play/pause
    - `Home` / `End` — primeiro / último passo
    - `F10` — **modo debug** (passo a passo por tecla)
-4. No painel **Saída**, clique no `#passo` de uma linha para pular até ele.
+4. Na visualização, **arraste** para mover o desenho e use a **roda do mouse** para dar zoom (ou os
+   controles no topo do painel: `−`, `100%`, `+` e ajustar à tela).
+5. No painel **Comandos**, clique em uma operação para pular ao passo em que ela aconteceu; no painel
+   **Saída**, clique no `#passo` de uma linha para pular até ele.
 
 ## Modo debug (passo a passo com tecla)
 

@@ -162,6 +162,7 @@
   }
 
   function animDur(ctx) {
+    if (DSV.anim && DSV.anim.reducedMotion) return 0;
     if (ctx && ctx.animMs) return ctx.animMs;
     return (DSV.anim && DSV.anim.defaultDur) || 280;
   }
@@ -387,10 +388,10 @@
   /* ------------------------------------------------------------------ */
 
   function head(title, sub, badge) {
-    return '<div class="viz-head">' +
-      '<span class="viz-title">' + esc(title) + '</span>' +
-      (sub ? '<span class="viz-sub">' + esc(sub) + '</span>' : '') +
-      (badge ? '<span class="op-badge">' + esc(badge) + '</span>' : '') +
+    return '<div class="canvas-toolbar">' +
+      '<span class="canvas-title">' + esc(title) + '</span>' +
+      (sub ? '<span class="canvas-sub">' + esc(sub) + '</span>' : '') +
+      (badge ? '<span class="canvas-badge">' + esc(badge) + '</span>' : '') +
       '</div>';
   }
 
@@ -412,10 +413,12 @@
 
     DSV.flipRender(container, function () {
       var html = head('Pilha', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="stack-wrap">';
       if (n === 0) {
         html += '<div class="empty-inline">pilha vazia</div>';
       } else {
+        html += '<div class="stack-side stack-side-top">Topo <span class="stack-arrow">↓</span></div>';
         html += '<div class="stack-col">';
         for (var i = n - 1; i >= 0; i--) {
           var cls = 'stack-cell' + (i === n - 1 ? ' top' : '');
@@ -426,8 +429,10 @@
             '</div>';
         }
         html += '</div>';
+        html += '<div class="stack-side stack-side-base">base</div>';
       }
-      html += '<div class="stack-base">base</div>';
+      html += '</div>';
+      html += '</div>';
       html += '</div>';
       container.innerHTML = html;
     }, dur);
@@ -445,6 +450,7 @@
 
     DSV.flipRender(container, function () {
       var html = head('Fila', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="queue-wrap">';
       if (n === 0) {
         html += '<div class="empty-inline">fila vazia</div>';
@@ -464,6 +470,8 @@
         html += '</div>';
         html += '<div class="queue-side">' + esc(rightLabel) + '</div>';
       }
+      html += '</div>';
+      html += '</div>';
       html += '</div>';
       container.innerHTML = html;
     }, dur);
@@ -489,6 +497,7 @@
 
     DSV.flipRender(container, function () {
       var html = head('Array', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="array-wrap">';
       if (n === 0) {
         html += '<div class="empty-inline">array vazio</div>';
@@ -504,6 +513,8 @@
         }
         html += '</div>';
       }
+      html += '</div>';
+      html += '</div>';
       html += '</div>';
       container.innerHTML = html;
     }, dur);
@@ -527,6 +538,7 @@
 
     DSV.flipRender(container, function () {
       var html = head('Lista encadeada', sel.label + ' · ' + nodes.length + (nodes.length === 1 ? ' nó' : ' nós'), badge);
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap">';
 
       for (var i = 0; i < nodes.length; i++) {
@@ -553,6 +565,8 @@
         html += '<div class="list-unit" data-k="null"><div class="cell list-null">null</div></div>';
       }
       html += '</div>';
+      html += '</div>';
+      html += '</div>';
       container.innerHTML = html;
     }, dur);
   }
@@ -575,12 +589,12 @@
     }
     walk(v, 0);
 
-    var HGAP = 68;
-    var VGAP = 78;
-    var R = 20;
-    var PADX = 40;
-    var PADY = 46;
-    var width = Math.max(nodes.length * HGAP + PADX * 2, 340);
+    var HGAP = 72;
+    var VGAP = 84;
+    var R = 23;
+    var PADX = 48;
+    var PADY = 48;
+    var width = Math.max(nodes.length * HGAP + PADX * 2, 360);
     var height = (maxDepth + 1) * VGAP + PADY + 40;
 
     var pos = {};
@@ -625,21 +639,21 @@
       /* stubs de filhos nulos para nós com ponteiro */
       if (tagged) {
         if (!n.left) {
-          circles += '<circle cx="' + (p.cx - R - 18) + '" cy="' + p.cy + '" r="9" class="tree-null-stub" />' +
-            '<text x="' + (p.cx - R - 18) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
+          circles += '<circle cx="' + (p.cx - R - 20) + '" cy="' + p.cy + '" r="10" class="tree-null-stub" />' +
+            '<text x="' + (p.cx - R - 20) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
         }
         if (!n.right) {
-          circles += '<circle cx="' + (p.cx + R + 18) + '" cy="' + p.cy + '" r="9" class="tree-null-stub" />' +
-            '<text x="' + (p.cx + R + 18) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
+          circles += '<circle cx="' + (p.cx + R + 20) + '" cy="' + p.cy + '" r="10" class="tree-null-stub" />' +
+            '<text x="' + (p.cx + R + 20) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
         }
       }
 
       /* chips de ponteiros */
       chips.forEach(function (chip, i) {
-        var w = chip.length * 7 + 12;
+        var w = chip.length * 7 + 14;
         var x = p.cx - w / 2;
-        var y = p.cy - R - 10 - i * 17;
-        circles += '<rect x="' + x + '" y="' + (y - 12) + '" width="' + w + '" height="16" rx="8" class="ptr-chip-bg" />' +
+        var y = p.cy - R - 12 - i * 18;
+        circles += '<rect x="' + x + '" y="' + (y - 13) + '" width="' + w + '" height="18" rx="4" class="ptr-chip-bg" />' +
           '<text x="' + p.cx + '" y="' + (y) + '" class="ptr-chip-text">' + esc(chip) + '</text>';
       });
 
@@ -651,7 +665,7 @@
 
     var badge = eventsBadge(sel, ctx);
     container.innerHTML = head('Árvore binária', sel.label + ' · ' + nodes.length + (nodes.length === 1 ? ' nó' : ' nós'), badge) +
-      '<div class="tree-wrap">' + svg + '</div>';
+      '<div class="canvas-viewport"><div class="canvas-stage"><div class="tree-wrap">' + svg + '</div></div></div>';
   }
 
   /* ------------------------------------------------------------------ */
@@ -682,9 +696,15 @@
     container.innerHTML = '';
     var headEl = document.createElement('div');
     container.appendChild(headEl);
+    var viewport = document.createElement('div');
+    viewport.className = 'canvas-viewport';
+    container.appendChild(viewport);
+    var body = document.createElement('div');
+    body.className = 'canvas-stage';
+    viewport.appendChild(body);
     var wrap = document.createElement('div');
     wrap.className = 'tree-wrap';
-    container.appendChild(wrap);
+    body.appendChild(wrap);
 
     var svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'tree-svg');
@@ -724,11 +744,11 @@
     var layout = treeLayout(v);
     var nodes = layout.nodes;
 
-    var HGAP = 68;
-    var VGAP = 78;
-    var PADX = 40;
-    var PADY = 46;
-    var width = Math.max(nodes.length * HGAP + PADX * 2, 340);
+    var HGAP = 72;
+    var VGAP = 84;
+    var PADX = 48;
+    var PADY = 48;
+    var width = Math.max(nodes.length * HGAP + PADX * 2, 360);
     var height = (layout.maxDepth + 1) * VGAP + PADY + 40;
 
     scene.svg.setAttribute('width', width);
@@ -766,17 +786,18 @@
       if (!n) {
         n = createNodeEls(id);
         n.x = t.x;
-        n.y = t.y - 22;
+        n.y = t.y - 26;
         n.sc = 0.55;
         n.op = 0;
         scene.nodes[id] = n;
+        n.g.setAttribute('transform', 'translate(' + round2(t.x) + ',' + round2(t.y - 26) + ') scale(0.55)');
         scene.gNodes.appendChild(n.g);
       }
       n.exiting = false;
       n.anim = {
         x0: n.x, y0: n.y, s0: n.sc, o0: n.op,
         x1: t.x, y1: t.y, s1: 1, o1: 1,
-        start: t0, dur: Math.max(60, dur)
+        start: t0, dur: dur > 0 ? Math.max(60, dur) : 0
       };
       updateNodeContent(n, t, visitMap, ctx);
     });
@@ -791,7 +812,7 @@
       n.anim = {
         x0: n.x, y0: n.y, s0: n.sc, o0: n.op,
         x1: n.x, y1: n.y, s1: 0.7, o1: 0,
-        start: t0, dur: Math.max(60, dur)
+        start: t0, dur: dur > 0 ? Math.max(60, dur) : 0
       };
     });
   }
@@ -800,14 +821,16 @@
     var g = document.createElementNS(SVGNS, 'g');
     g.setAttribute('class', 'tree-group');
 
-    var circle = document.createElementNS(SVGNS, 'path');
+    var circle = document.createElementNS(SVGNS, 'circle');
     circle.setAttribute('class', 'tree-node');
-    circle.setAttribute('d', DSV.rough.ellipse(21, 18, DSV.rough.seedOf(id, 1), 1.7));
+    circle.setAttribute('r', '23');
+    circle.setAttribute('cx', '0');
+    circle.setAttribute('cy', '0');
     circle.setAttribute('vector-effect', 'non-scaling-stroke');
 
     var val = document.createElementNS(SVGNS, 'text');
     val.setAttribute('class', 'tree-val');
-    val.setAttribute('dy', '5');
+    val.setAttribute('dy', '4.5');
 
     g.appendChild(circle);
     g.appendChild(val);
@@ -820,9 +843,11 @@
   function createStub(g, dx) {
     var sg = document.createElementNS(SVGNS, 'g');
     sg.setAttribute('transform', 'translate(' + dx + ',0)');
-    var c = document.createElementNS(SVGNS, 'path');
+    var c = document.createElementNS(SVGNS, 'circle');
     c.setAttribute('class', 'tree-null-stub');
-    c.setAttribute('d', DSV.rough.ellipse(9, 8, DSV.rough.seedOf(Math.abs(dx) + 17, 3), 1.2));
+    c.setAttribute('r', '10');
+    c.setAttribute('cx', '0');
+    c.setAttribute('cy', '0');
     c.setAttribute('vector-effect', 'non-scaling-stroke');
     var tx = document.createElementNS(SVGNS, 'text');
     tx.setAttribute('x', 0);
@@ -851,8 +876,8 @@
       if (!n.visit) {
         n.visit = document.createElementNS(SVGNS, 'text');
         n.visit.setAttribute('class', 'tree-visit-num');
-        n.visit.setAttribute('x', 12);
-        n.visit.setAttribute('y', -12);
+        n.visit.setAttribute('x', 14);
+        n.visit.setAttribute('y', -14);
         n.g.appendChild(n.visit);
       }
       n.visit.textContent = visitedNum;
@@ -861,9 +886,9 @@
       n.visit = null;
     }
 
-    if (tagged && !t.left && !n.stubL) n.stubL = createStub(n.g, -38);
+    if (tagged && !t.left && !n.stubL) n.stubL = createStub(n.g, -43);
     else if ((!tagged || t.left) && n.stubL) { n.stubL.remove(); n.stubL = null; }
-    if (tagged && !t.right && !n.stubR) n.stubR = createStub(n.g, 38);
+    if (tagged && !t.right && !n.stubR) n.stubR = createStub(n.g, 43);
     else if ((!tagged || t.right) && n.stubR) { n.stubR.remove(); n.stubR = null; }
   }
 
@@ -883,8 +908,7 @@
         path.setAttribute('vector-effect', 'non-scaling-stroke');
         e = scene.edges[cid] = {
           line: path,
-          parentId: null,
-          seed: DSV.rough.seedOf(Number(cid), 7)
+          parentId: null
         };
         scene.gEdges.appendChild(path);
       }
@@ -916,7 +940,7 @@
         scene.wrap.appendChild(el);
         var t = targets[d.id];
         chip = scene.chips[key] = {
-          el: el, x: t.x, y: t.y - 36, op: 0, opTo: 1, nodeId: d.id, idx: 0
+          el: el, x: t.x, y: t.y - 42, op: 0, opTo: 1, nodeId: d.id, idx: 0
         };
       }
       chip.nodeId = d.id;
@@ -992,7 +1016,7 @@
         delete scene.edges[cid];
         return;
       }
-      e.line.setAttribute('d', DSV.rough.line(p.x, p.y + 18, c.x, c.y - 18, e.seed, 1.3));
+      e.line.setAttribute('d', 'M' + round2(p.x) + ' ' + round2(p.y + 23) + ' L' + round2(c.x) + ' ' + round2(c.y - 23));
       var o = Math.min(p.op, c.op);
       e.line.setAttribute('opacity', round3(o));
       if (o < 0.99) active = true;
@@ -1004,7 +1028,7 @@
       var chip = scene.chips[key];
       var n = scene.nodes[chip.nodeId];
       var tx = n ? n.x : chip.x;
-      var ty = n ? n.y - 30 - chip.idx * 17 : chip.y;
+      var ty = n ? n.y - 34 - chip.idx * 18 : chip.y;
       chip.x = DSV.anim.lerp(chip.x, tx, k);
       chip.y = DSV.anim.lerp(chip.y, ty, k);
       chip.op = DSV.anim.lerp(chip.op, chip.opTo, k);
@@ -1038,7 +1062,7 @@
   }
 
   function renderMessage(container, msg, kind) {
-    container.innerHTML = '<div class="empty ' + (kind || '') + '">' + msg + '</div>';
+    container.innerHTML = '<div class="canvas-viewport"><div class="canvas-stage"><div class="empty ' + (kind || '') + '">' + msg + '</div></div></div>';
   }
 
   /**

@@ -10,13 +10,23 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="logo">▦</span>
-    <div>
-      <h1>ED Viz — Visualizador de Estruturas de Dados</h1>
-      <p>Escreva (ou escolha) um código JS e veja a estrutura ser montada passo a passo, com a linha em execução destacada.</p>
-    </div>
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M12 2.6 20 7.1v9.8L12 21.4 4 16.9V7.1Z"/>
+        <path d="M12 8.2 15.7 10.3v4.2L12 16.6 8.3 14.5v-4.2Z" fill="currentColor" stroke="none" opacity=".35"/>
+      </svg>
+    </span>
+    <span class="brand-name">ED Viz</span>
+    <span class="brand-sep" aria-hidden="true"></span>
+    <span class="brand-sub">Visualizador de Estruturas de Dados</span>
   </div>
-  <button id="btnHelp" class="btn ghost">Como usar</button>
+  <div class="topbar-actions">
+    <select id="structureSelect" class="select" title="Estrutura exibida"></select>
+    <button id="btnHelp" class="btn ghost small" title="Como usar">
+      <svg class="ico" aria-hidden="true"><use href="#i-help"></use></svg>
+      Como usar
+    </button>
+  </div>
 </header>
 
 <div id="banner" class="banner hidden"></div>
@@ -24,12 +34,18 @@
 <main class="layout">
 
   <section class="panel code-panel">
-    <div class="panel-head">
-      <h2>Código</h2>
-      <div class="row">
-        <select id="exampleSelect" title="Exemplos prontos"></select>
-        <button id="btnRun" class="btn primary" title="Executar (Ctrl+Enter)">Executar ▶</button>
-        <button id="btnDebug" class="btn debug" title="Execução passo a passo com tecla (F10)">🐞 Depurar</button>
+    <div class="panel-head code-head">
+      <div id="tabs" class="tabs" role="tablist"></div>
+      <div class="row code-actions">
+        <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"></select>
+        <button id="btnRun" class="btn primary small" title="Executar (Ctrl+Enter)">
+          <svg class="ico fill" aria-hidden="true"><use href="#i-play"></use></svg>
+          <span class="btn-label">Executar</span>
+        </button>
+        <button id="btnDebug" class="btn ghost small debug" title="Execução passo a passo com tecla (F10)">
+          <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
+          <span class="btn-label">Depurar</span>
+        </button>
       </div>
     </div>
     <div class="editor" id="editor">
@@ -37,20 +53,29 @@
       <div class="code-viewport">
         <pre id="highlight" class="code-highlight" aria-hidden="true"></pre>
         <div id="lineHilite" class="line-hilite"></div>
-        <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+        <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" aria-label="Editor de código JavaScript"></textarea>
       </div>
     </div>
     <div class="statusbar">
-      <span id="statusLine">linha —</span>
-      <span class="tip">Ctrl+Enter executa · ←/→ navega · espaço dá play</span>
+      <span id="statusLine" class="status-line">linha —</span>
+      <span class="status-lang">JavaScript</span>
     </div>
   </section>
 
   <section class="panel viz-panel">
     <div class="panel-head">
       <h2>Visualização</h2>
-      <div class="row">
-        <select id="structureSelect" title="Estrutura exibida"></select>
+      <div class="canvas-controls">
+        <button id="btnZoomOut" class="zbtn" title="Diminuir zoom" aria-label="Diminuir zoom">
+          <svg class="ico" aria-hidden="true"><use href="#i-minus"></use></svg>
+        </button>
+        <button id="btnZoomReset" class="zoom-label" title="Redefinir zoom para 100%">100%</button>
+        <button id="btnZoomIn" class="zbtn" title="Aumentar zoom" aria-label="Aumentar zoom">
+          <svg class="ico" aria-hidden="true"><use href="#i-plus"></use></svg>
+        </button>
+        <button id="btnZoomFit" class="zbtn" title="Ajustar à tela" aria-label="Ajustar à tela">
+          <svg class="ico" aria-hidden="true"><use href="#i-fit"></use></svg>
+        </button>
       </div>
     </div>
     <div id="debugBar" class="debug-bar hidden">
@@ -59,31 +84,20 @@
       <button id="btnExitDebug" class="btn ghost small">Sair (Esc)</button>
     </div>
     <div id="structure" class="structure"></div>
-    <div class="controls">
-      <button id="btnFirst" class="btn icon" title="Primeiro passo">⏮</button>
-      <button id="btnPrev" class="btn icon" title="Passo anterior (←)">◀</button>
-      <button id="btnPlay" class="btn icon primary" title="Play/Pause (espaço)">▶</button>
-      <button id="btnNext" class="btn icon" title="Próximo passo (→)">▶❙</button>
-      <button id="btnLast" class="btn icon" title="Último passo">⏭</button>
-      <input type="range" id="slider" min="0" max="0" value="0">
-      <span id="stepLabel" class="step-label">passo 0/0</span>
-      <select id="speedSelect" title="Velocidade">
-        <option value="0.5">0,5×</option>
-        <option value="1" selected>1×</option>
-        <option value="2">2×</option>
-        <option value="4">4×</option>
-      </select>
-    </div>
   </section>
 
   <section class="panel side-panel">
-    <div class="side-block">
-      <h3>Chamadas <span class="hint">pilha de execução</span></h3>
-      <div id="callstack" class="side-content"></div>
+    <div class="side-block commands-block">
+      <h3>Comandos</h3>
+      <div id="commands" class="side-content"></div>
     </div>
-    <div class="side-block">
+    <div class="side-block vars-block">
       <h3>Variáveis</h3>
       <div id="vars" class="side-content"></div>
+    </div>
+    <div class="side-block frames-block">
+      <h3>Chamadas <span class="hint">pilha de execução</span></h3>
+      <div id="callstack" class="side-content"></div>
     </div>
     <div class="side-block grow">
       <h3>Saída <span class="hint">console.log</span></h3>
@@ -93,15 +107,62 @@
 
 </main>
 
+<footer class="transport">
+  <div class="transport-group">
+    <button id="btnPlay" class="tbtn tbtn-play" title="Play/Pause (espaço)" aria-label="Reproduzir">▶</button>
+    <button id="btnFirst" class="tbtn" title="Primeiro passo (Home)">
+      <svg class="ico" aria-hidden="true"><use href="#i-first"></use></svg>
+    </button>
+    <button id="btnPrev" class="tbtn" title="Passo anterior (←)">
+      <svg class="ico" aria-hidden="true"><use href="#i-prev"></use></svg>
+    </button>
+    <button id="btnNext" class="tbtn" title="Próximo passo (→)">
+      <svg class="ico" aria-hidden="true"><use href="#i-next"></use></svg>
+    </button>
+    <button id="btnLast" class="tbtn" title="Último passo (End)">
+      <svg class="ico" aria-hidden="true"><use href="#i-last"></use></svg>
+    </button>
+  </div>
+  <select id="speedSelect" class="select speed" title="Velocidade">
+    <option value="0.5">0,5×</option>
+    <option value="1" selected>1×</option>
+    <option value="2">2×</option>
+    <option value="4">4×</option>
+  </select>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Progresso da execução">
+  <span id="stepLabel" class="step-label">passo 0/0</span>
+</footer>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M5.2 3.4 12.4 8l-7.2 4.6Z"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 16 16">
+    <path d="M8 5.3a3.1 3.1 0 0 1 3.1 3.1v2.4a3.1 3.1 0 0 1-6.2 0V8.4A3.1 3.1 0 0 1 8 5.3Z"/>
+    <path d="M8 5.3V3.6M5.1 6.4 3.7 5M10.9 6.4 12.3 5M4.9 8.9H2.6M11.1 8.9h2.3M5.2 11.5 3.8 12.9M10.8 11.5l1.4 1.4"/>
+  </symbol>
+  <symbol id="i-help" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6"/>
+    <path d="M6.4 6.4a1.8 1.8 0 1 1 2.4 1.8c-.5.3-.7.6-.7 1.1v.3"/>
+    <path d="M8 12h.01"/>
+  </symbol>
+  <symbol id="i-first" viewBox="0 0 16 16"><path d="M4.4 4v8"/><path d="M12.6 4.6 7 8l5.6 3.4Z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 16 16"><path d="M11.2 4.4 5.4 8l5.8 3.6Z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 16 16"><path d="M4.8 4.4 10.6 8l-5.8 3.6Z"/></symbol>
+  <symbol id="i-last" viewBox="0 0 16 16"><path d="M11.6 4v8"/><path d="M3.4 4.6 9 8l-5.6 3.4Z"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 16 16"><path d="M4 8h8"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 4v8M4 8h8"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 16 16"><path d="M3.5 6.5V3.5h3M9.5 3.5h3v3M12.5 9.5v3h-3M6.5 12.5h-3v-3"/></symbol>
+</svg>
+
 <dialog id="helpDialog" class="help">
   <h2>Como usar o ED Viz</h2>
   <ol>
     <li>Escolha um exemplo ou escreva seu código JavaScript na área à esquerda.</li>
-    <li>Clique em <b>Executar ▶</b> (ou <b>Ctrl+Enter</b>).</li>
+    <li>Clique em <b>Executar</b> (ou <b>Ctrl+Enter</b>).</li>
     <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura.</li>
+    <li>Na visualização, <b>arraste</b> para mover o desenho e use a <b>roda do mouse</b> para dar zoom — ou os controles no topo do painel (100% e ajustar à tela).</li>
   </ol>
 
-  <p><b>🐞 Depurar (F10):</b> execução passo a passo como em um debugger. O código pausa na primeira
+  <p><b>Depurar (F10):</b> execução passo a passo como em um debugger. O código pausa na primeira
   linha e, a cada <b>tecla</b> pressionada, ele executa a próxima linha e atualiza o desenho na hora
   (com animações). <kbd>←</kbd> volta uma linha, <kbd>Esc</kbd> sai e libera o editor.</p>
 

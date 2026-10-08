@@ -17,7 +17,8 @@
     ease: easeOutCubic,
     lerp: lerp,
     now: now,
-    defaultDur: 280
+    defaultDur: 280,
+    reducedMotion: !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches)
   };
 
   DSV.supportsFlip = function (container) {
@@ -34,6 +35,14 @@
       case 'right': return { dx: 18, dy: 0, sc: 0.92 };
       default: return { dx: 0, dy: 0, sc: 0.8 };
     }
+  }
+
+  /* zoom atual do canvas (as medidas de tela precisam ser convertidas
+   * para o espaço local do palco, que é escalado por transform) */
+  function containerZoom(container) {
+    if (!global.getComputedStyle || !container) return 1;
+    var z = parseFloat(global.getComputedStyle(container).getPropertyValue('--canvas-zoom'));
+    return z > 0 ? z : 1;
   }
 
   function exitEnd(dir) {
@@ -56,7 +65,7 @@
   DSV.flipRender = function (container, build, dur) {
     dur = dur || DSV.anim.defaultDur;
 
-    if (!DSV.supportsFlip(container)) {
+    if (!DSV.supportsFlip(container) || DSV.anim.reducedMotion) {
       build();
       return;
     }
@@ -73,6 +82,7 @@
 
     var newEls = container.querySelectorAll('[data-k]');
     var seen = Object.create(null);
+    var zoom = containerZoom(container);
     for (i = 0; i < newEls.length; i++) {
       var nel = newEls[i];
       var key = nel.getAttribute('data-k');
@@ -80,8 +90,8 @@
       var prev = old[key];
       if (prev) {
         var rect = nel.getBoundingClientRect();
-        var dx = prev.rect.left - rect.left;
-        var dy = prev.rect.top - rect.top;
+        var dx = (prev.rect.left - rect.left) / zoom;
+        var dy = (prev.rect.top - rect.top) / zoom;
         if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
           nel.animate(
             [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'translate(0,0)' }],
@@ -90,6 +100,7 @@
         }
       } else {
         var es = enterStart(nel.getAttribute('data-enter'));
+        if (nel.classList && nel.classList.add) nel.classList.add('anim-enter');
         nel.animate(
           [{
             opacity: 0,
