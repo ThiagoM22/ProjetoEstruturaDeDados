@@ -415,6 +415,9 @@
       if (canvasHome()) canvasView.key = key;
       return;
     }
+    /* a fila cresce na horizontal: recentralizar a cada passo deslocaria a
+     * linha inteira de uma vez (salto). O enquadramento fica com o usuário. */
+    if (sel && sel.type === 'queue') return;
     if (!canvasView.moved) canvasCenter(canvasView.zoom);
   }
 

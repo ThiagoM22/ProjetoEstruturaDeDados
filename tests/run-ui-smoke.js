@@ -24,7 +24,10 @@ function makeEl(id) {
     id: id,
     tagName: id === 'code' ? 'TEXTAREA' : 'DIV',
     children: [],
-    style: {},
+    style: {
+      setProperty(k, v) { this[k] = v; },
+      getPropertyValue(k) { return this[k] || ''; }
+    },
     value: '',
     innerHTML: '',
     textContent: '',
@@ -32,7 +35,10 @@ function makeEl(id) {
     max: '0',
     scrollTop: 0,
     scrollLeft: 0,
+    clientWidth: 0,
     clientHeight: 400,
+    offsetWidth: 0,
+    offsetHeight: 0,
     scrollHeight: 800,
     classList: {
       _set: {},
@@ -49,6 +55,21 @@ function makeEl(id) {
     appendChild(c) { this.children.push(c); },
     setAttribute() {},
     getAttribute() { return null; },
+    getBoundingClientRect() {
+      return { left: 0, top: 0, width: this.clientWidth || 0, height: this.clientHeight || 0 };
+    },
+    /* devolve um filho simulado por seletor — o suficiente para o canvas
+     * (viewport/stage) e para os guards de scrollIntoView do app */
+    querySelector(sel) {
+      if (!this._q) this._q = Object.create(null);
+      if (!this._q[sel]) {
+        const child = makeEl('__q' + sel);
+        if (sel.indexOf('viewport') >= 0) { child.clientWidth = 800; child.clientHeight = 420; }
+        if (sel.indexOf('stage') >= 0) { child.offsetWidth = 600; child.offsetHeight = 300; }
+        this._q[sel] = child;
+      }
+      return this._q[sel];
+    },
     showModal() {},
     close() {}
   };
@@ -147,21 +168,25 @@ test('markCurrentLineInGutter é seguro', () => {
     assert(local && local.innerHTML.indexOf('gline') >= 0, 'gutter numerado');
 });
 
-function percorrerExemplo(exId) {
+function snapshotExample(exId) {
   $('exampleSelect').value = exId;
   fire('exampleSelect', 'change');
   const total = parseInt($('slider').max, 10);
   assert(total > 0, 'exemplo ' + exId + ' gerou passos');
-  let all = $('structure').innerHTML;
-  for (let i = 0; i < total; i++) {
-    fire('btnNext', 'click');
-    all += '\n' + $('structure').innerHTML;
+  const snaps = [];
+  for (let i = 0; i <= total; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    snaps.push($('structure').innerHTML);
   }
   assert(parseInt($('slider').value, 10) === total, 'navegou até o último passo');
   assert($('btnNext').disabled === true, 'botão próximo desabilitado no fim');
   assert($('vars').innerHTML.length > 10, 'painel de variáveis preenchido');
   assert($('callstack').innerHTML.length > 5, 'painel de chamadas preenchido');
-  return all;
+  return snaps;
+}
+
+function percorrerExemplo(exId) {
+  return snapshotExample(exId).join('\n');
 }
 
 test('percorre TODOS os passos do exemplo padrão (pilha)', () => {
@@ -177,11 +202,121 @@ test('pilha com classe: detecta this.itens', () => {
   assert(all.indexOf('Pilha') >= 0, 'título Pilha');
 });
 
-test('fila: frente/traseira e shift', () => {
+test('fila: FRONT/REAR e shift', () => {
   const all = percorrerExemplo('fila-array');
-  assert(all.indexOf('frente (início)') >= 0, 'rótulo frente');
-  assert(all.indexOf('fim (traseira)') >= 0, 'rótulo fim');
+  assert(all.indexOf('ptr-front') >= 0, 'indicador FRONT');
+  assert(all.indexOf('ptr-rear') >= 0, 'indicador REAR');
   assert(all.indexOf('shift() → ') >= 0, 'badge shift');
+  assert(all.indexOf('queue-cell') >= 0, 'células da fila');
+});
+
+test('fila: FRONT no primeiro nó e REAR no último (A, B e C)', () => {
+  const snaps = snapshotExample('fila-array');
+  const h = snaps.find((s) => s.indexOf('&quot;Ana&quot;') >= 0 && s.indexOf('&quot;Bruno&quot;') >= 0 && s.indexOf('&quot;Carla&quot;') >= 0);
+  assert(h, 'passo com Ana, Bruno e Carla');
+  const parts = h.split('queue-unit');
+  assert(parts.length === 4, 'três nós na fila');
+  assert(parts[1].indexOf('ptr-front') >= 0 && parts[1].indexOf('&quot;Ana&quot;') >= 0, 'FRONT aponta para Ana');
+  assert(parts[3].indexOf('ptr-rear') >= 0 && parts[3].indexOf('&quot;Carla&quot;') >= 0, 'REAR aponta para Carla');
+  assert(parts[2].indexOf('ptr-') < 0, 'Bruno (meio) sem indicador');
+  assert(h.indexOf('[0]') >= 0 && h.indexOf('[2]') >= 0, 'índices discretos');
+});
+
+test('fila: um único elemento mostra FRONT e REAR no mesmo nó', () => {
+  const snaps = snapshotExample('fila-array');
+  const um = snaps.filter((s) => s.split('queue-cell').length - 1 === 1);
+  assert(um.length >= 1, 'existe passo com um item');
+  const parts = um[0].split('queue-unit');
+  assert(parts.length === 2, 'um nó desenhado');
+  assert(parts[1].indexOf('ptr-front') >= 0 && parts[1].indexOf('ptr-rear') >= 0, 'FRONT e REAR no mesmo nó');
+});
+
+test('fila vazia: mensagem discreta sem indicadores', () => {
+  const snaps = snapshotExample('fila-array');
+  const vazio = snaps[0];
+  assert(vazio.indexOf('A fila está vazia neste passo.') >= 0, 'mensagem de fila vazia');
+  assert(vazio.indexOf('ptr-front') < 0 && vazio.indexOf('ptr-rear') < 0, 'sem FRONT/REAR');
+  assert(vazio.indexOf('queue-cell') < 0, 'sem nós');
+});
+
+test('fila: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('fila-array');
+  const idx = snaps.findIndex((s) => s.indexOf('&quot;Ana&quot;') >= 0 && s.indexOf('&quot;Carla&quot;') >= 0);
+  assert(idx > 0, 'passo com A, B e C existe');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+});
+
+test('fila: comandos, variáveis e console acompanham o mesmo passo', () => {
+  $('exampleSelect').value = 'fila-array';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let encontrado = false;
+  for (let i = 0; i < total && !encontrado; i++) {
+    fire('btnNext', 'click');
+    if ($('structure').innerHTML.indexOf('shift() → ') < 0) continue;
+    encontrado = true;
+    const cur = $('commands').innerHTML;
+    assert(cur.indexOf('command current') >= 0, 'comando do passo marcado como atual');
+    assert(cur.indexOf('shift() → ') >= 0, 'comando atual é o shift');
+    assert($('vars').innerHTML.indexOf('fila') >= 0, 'variáveis mostram a fila');
+    const passo = parseInt($('slider').value, 10);
+    assert($('stepLabel').textContent === 'passo ' + (passo + 1) + '/' + (total + 1), 'rótulo do passo');
+    assert($('console').innerHTML.indexOf('Atendendo:') >= 0, 'console já mostra o atendimento do passo');
+    const html = $('structure').innerHTML;
+    assert(html.indexOf('cell-val">&quot;Ana&quot;') < 0, 'Ana já saiu das células do passo');
+    const parts = html.split('queue-unit');
+    assert(parts[1].indexOf('ptr-front') >= 0 && parts[1].indexOf('cell-val">&quot;Bruno&quot;') >= 0, 'FRONT passou para Bruno no mesmo passo');
+  }
+  assert(encontrado, 'encontrou um passo de shift');
+});
+
+test('fila com classe: detecta this.itens e mantém FRONT/REAR', () => {
+  const all = percorrerExemplo('fila-classe');
+  assert(all.indexOf('Fila') >= 0, 'título Fila');
+  assert(all.indexOf('ptr-front') >= 0 && all.indexOf('ptr-rear') >= 0, 'indicadores FRONT/REAR');
+  assert(all.indexOf('itens') >= 0, 'mostra os itens');
+  assert(all.indexOf('push(') >= 0 && all.indexOf('shift() → ') >= 0, 'operações de enqueue/dequeue');
+});
+
+test('fila: zoom (botões e roda) e pan funcionam durante a visualização', () => {
+  $('exampleSelect').value = 'fila-array';
+  fire('exampleSelect', 'change');
+  fire('btnNext', 'click');
+  fire('btnNext', 'click');
+
+  const zoom0 = $('btnZoomReset').textContent;
+  fire('btnZoomIn', 'click');
+  assert($('btnZoomReset').textContent !== zoom0, 'botão + altera o zoom');
+
+  const vp = { closest: (s) => (s === '.canvas-viewport' ? vp : null) };
+  const zoom1 = $('btnZoomReset').textContent;
+  fire('structure', 'wheel', { deltaY: -120, clientX: 200, clientY: 150, target: vp, preventDefault() {} });
+  assert($('btnZoomReset').textContent !== zoom1, 'roda do mouse altera o zoom');
+
+  const x0 = $('structure').style['--canvas-x'];
+  fire('structure', 'pointerdown', { button: 0, pointerId: 7, clientX: 100, clientY: 100, target: vp, preventDefault() {} });
+  fire('structure', 'pointermove', { pointerId: 7, clientX: 140, clientY: 120 });
+  fire('structure', 'pointerup', { pointerId: 7 });
+  assert($('structure').style['--canvas-x'] !== x0, 'arrasto move o canvas sem tocar na fila');
+});
+
+test('fila extensa: linha única, navegável e com ajuste à tela', () => {
+  $('code').value = 'const fila = [];\nfor (let i = 1; i <= 30; i++) {\n  fila.push(i);\n}';
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  const html = $('structure').innerHTML;
+  const celulas = html.split('queue-cell').length - 1;
+  assert(celulas === 30, '30 nós na fila (obtido: ' + celulas + ')');
+  assert(html.split('queue-row').length - 1 === 1, 'um único contêiner de linha');
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 30 * 88;
+  stage.offsetHeight = 120;
+  fire('btnZoomFit', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1 && zoom >= 0.25, 'ajuste reduz o zoom para caber (zoom: ' + zoom + ')');
 });
 
 test('lista encadeada: nós, chips e null', () => {

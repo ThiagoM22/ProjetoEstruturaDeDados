@@ -773,7 +773,7 @@ kbd {
 
 .stack-cell.top .cell-val { color: var(--accent-text); }
 
-/* fila */
+/* fila — horizontal, sem quebra: filas extensas são exploradas pelo canvas */
 .queue-wrap {
   display: flex;
   flex-direction: column;
@@ -781,19 +781,60 @@ kbd {
   gap: var(--sp-2);
 }
 
-.queue-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; }
+.queue-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.queue-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.queue-ptrs {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 17px;
+}
+
+.queue-ptr {
+  font: 600 9.5px/15px var(--font-mono);
+  letter-spacing: 0.4px;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+}
+
+.queue-ptr.ptr-front {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-muted);
+}
+
+.queue-ptr.ptr-rear {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
 
 .queue-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-3);
-  min-height: 44px;
-  padding: 0 var(--sp-4);
+  min-width: 78px;
+  height: 44px;
+  padding: 0 var(--sp-3);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+
+.queue-idx { font: 10.5px var(--font-mono); color: var(--text-muted); }
 
 .queue-cell.front {
   background: var(--accent-soft);
@@ -801,11 +842,6 @@ kbd {
 }
 
 .queue-cell.front .cell-val { color: var(--accent-text); }
-
-.queue-side {
-  font: 11px var(--font-mono);
-  color: var(--text-muted);
-}
 
 .arrow { color: var(--text-muted); font-size: 13px; }
 

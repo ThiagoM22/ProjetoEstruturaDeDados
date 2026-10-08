@@ -456,12 +456,15 @@
   function renderQueue(container, v, sel, ctx) {
     var n = v.items.length;
     var ops = (ctx.opsMap || {})[sel.id] || {};
+    /* fila implementada com unshift/pop: a frente fica na outra extremidade */
     var reverse = !!(ops.unshift && ops.pop && !ops.shift);
     var badge = eventsBadge(sel, ctx);
     var keys = itemKeys(v.items);
     var dur = animDur(ctx);
     var enterDir = reverse ? 'left' : 'right';
     var exitDir = reverse ? 'right' : 'left';
+    var frontIdx = reverse ? n - 1 : 0;
+    var rearIdx = reverse ? 0 : n - 1;
 
     DSV.flipRender(container, function () {
       var html = head('Fila', structureSub(sel, n, 'item', 'itens'), badge);
@@ -470,20 +473,23 @@
       if (n === 0) {
         html += '<div class="empty-inline">A fila está vazia neste passo.</div>';
       } else {
-        var leftLabel = reverse ? 'fim (traseira) →' : 'frente (início) →';
-        var rightLabel = reverse ? '← frente (início)' : '← fim (traseira)';
-        html += '<div class="queue-side">' + esc(leftLabel) + '</div>';
         html += '<div class="queue-row">';
         for (var i = 0; i < n; i++) {
-          var isFront = reverse ? i === n - 1 : i === 0;
-          html += '<div class="queue-cell' + (isFront ? ' front' : '') + '" data-k="' + esc(keys[i]) + '" data-enter="' + enterDir + '" data-exit="' + exitDir + '">' +
-            '<span class="cell-val">' + esc(DSV.fmtSerializedShort(v.items[i])) + '</span>' +
-            (isFront ? '<span class="cell-flag">próximo a sair</span>' : '') +
+          var isFront = i === frontIdx;
+          var isRear = i === rearIdx;
+          html += '<div class="queue-unit" data-k="' + esc(keys[i]) + '"' +
+            ' data-enter="' + enterDir + '" data-exit="' + exitDir + '">';
+          html += '<div class="queue-ptrs">' +
+            (isFront ? '<span class="queue-ptr ptr-front" title="primeiro a sair">FRONT</span>' : '') +
+            (isRear ? '<span class="queue-ptr ptr-rear" title="último a entrar">REAR</span>' : '') +
             '</div>';
-          if (i < n - 1) html += '<div class="arrow">' + (reverse ? '←' : '→') + '</div>';
+          html += '<div class="queue-cell' + (isFront ? ' front' : '') + '" title="índice ' + i + '">' +
+            '<span class="cell-val">' + esc(DSV.fmtSerializedShort(v.items[i])) + '</span>' +
+            '</div>';
+          html += '<div class="queue-idx">[' + i + ']</div>';
+          html += '</div>';
         }
         html += '</div>';
-        html += '<div class="queue-side">' + esc(rightLabel) + '</div>';
       }
       html += '</div>';
       html += '</div>';

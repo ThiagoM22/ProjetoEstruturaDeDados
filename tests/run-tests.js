@@ -59,6 +59,21 @@ function lastStep(trace) {
   return trace.steps[trace.steps.length - 1];
 }
 
+/* Renderiza a fila de um passo num contêiner sem DOM (fallback do flipRender)
+ * e devolve o HTML gerado — permite testar a visualização no núcleo. */
+function renderQueueStep(trace, step) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'queue')[0];
+  assert(sel, 'fila detectada para o render');
+  const container = {};
+  DSV.renderStructure(container, sel, step, {
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || []
+  });
+  return container.innerHTML;
+}
+
 /* ---------------------------------------------------------------- */
 console.log('\n[tokenizar/parsear/executar básico]');
 
@@ -188,6 +203,122 @@ test('fila: ordem FIFO', () => {
   eq(outs[2], 'Fila agora: Carla');
   const events = t.steps.flatMap((s) => s.events);
   eq(events.filter((e) => e.type === 'shift').length, 2);
+});
+
+test('fila: FIFO completo (A,B,C → dequeue A → front B → enqueue D)', () => {
+  const t = run([
+    'const fila = [];',
+    "console.log('vazia?', fila.length === 0);",
+    "fila.push('A');",
+    "fila.push('B');",
+    "fila.push('C');",
+    "console.log('ordem:', fila.join(','));",
+    "console.log('saiu:', fila.shift());",
+    "console.log('frente:', fila[0]);",
+    "console.log('tamanho:', fila.length);",
+    "fila.push('D');",
+    "console.log('ordem:', fila.join(','));",
+    "console.log('tamanho:', fila.length);"
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], 'vazia? true', 'fila vazia no começo');
+  eq(outs[1], 'ordem: A,B,C', 'ordem FIFO A,B,C');
+  eq(outs[2], 'saiu: A', 'dequeue devolve o primeiro');
+  eq(outs[3], 'frente: B', 'B passa a ser o primeiro');
+  eq(outs[4], 'tamanho: 2', 'tamanho depois do dequeue');
+  eq(outs[5], 'ordem: B,C,D', 'D entra no fim da fila');
+  eq(outs[6], 'tamanho: 3', 'tamanho depois do enqueue');
+});
+
+test('fila vazia: dequeue e front devolvem undefined (contrato do projeto)', () => {
+  const t = run([
+    'const fila = [];',
+    "console.log('saiu:', fila.shift());",
+    "console.log('frente:', fila[0]);",
+    "console.log('tamanho:', fila.length);"
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], 'saiu: undefined', 'dequeue de fila vazia');
+  eq(outs[1], 'frente: undefined', 'front de fila vazia');
+  eq(outs[2], 'tamanho: 0', 'tamanho continua 0');
+  const events = t.steps.flatMap((s) => s.events);
+  eq(events.filter((e) => e.type === 'shift').length, 0, 'shift vazio não registra operação');
+});
+
+test('fila (classe): API enfileirar/desenfileirar/frente/estaVazia/tamanho', () => {
+  const example = DSV.EXAMPLES.find((e) => e.id === 'fila-classe');
+  assert(example, 'exemplo fila-classe existe');
+  const t = run(example.code);
+  noError(t, 'exemplo fila-classe');
+  const outs = outputs(t);
+  assert(outs.some((o) => o === 'Vazia no começo? true'), 'estaVazia() com fila vazia');
+  assert(outs.some((o) => o === 'Frente: A'), 'frente() devolve A');
+  assert(outs.some((o) => o === 'Tamanho: 3'), 'tamanho() antes do dequeue');
+  assert(outs.some((o) => o === 'Desenfileirando: A'), 'desenfileirar() devolve A');
+  assert(outs.some((o) => o === 'Agora a frente é: B'), 'frente() passa a ser B');
+  assert(outs.some((o) => o === 'Vazia? false'), 'estaVazia() false');
+  assert(outs.some((o) => o === 'Tamanho: 2'), 'tamanho() depois do dequeue');
+  const last = lastStep(t);
+  eq(last.globals.fila.props.itens.items.map((i) => i.v).join(','), 'B,C', 'restam B e C na ordem FIFO');
+});
+
+test('detecção: push/shift vira fila; push/pop continua pilha', () => {
+  const tq = run("const fila = [];\nfila.push(1);\nfila.shift();");
+  noError(tq);
+  const cq = DSV.detectStructures(lastStep(tq), DSV.buildOpsMap(tq.steps));
+  assert(cq.some((c) => c.type === 'queue'), 'fila detectada: ' + cq.map((c) => c.type).join(', '));
+  const ts = run("const pilha = [];\npilha.push(1);\npilha.pop();");
+  noError(ts);
+  const cs = DSV.detectStructures(lastStep(ts), DSV.buildOpsMap(ts.steps));
+  assert(cs.some((c) => c.type === 'stack'), 'pilha continua pilha');
+  assert(!cs.some((c) => c.type === 'queue'), 'pilha não é confundida com fila');
+});
+
+test('render da fila: FRONT no início, REAR no fim e índices visíveis', () => {
+  const t = run(["const fila = [];", "fila.push('A');", "fila.push('B');", "fila.push('C');"].join('\n'));
+  noError(t);
+  const step = t.steps.filter((s) => s.globals.fila && s.globals.fila.items.length === 3)[0];
+  assert(step, 'passo com três itens');
+  const html = renderQueueStep(t, step);
+  const parts = html.split('queue-unit');
+  eq(parts.length, 4, 'três nós desenhados');
+  assert(parts[1].indexOf('ptr-front') >= 0 && parts[1].indexOf('&quot;A&quot;') >= 0, 'FRONT aponta para A (índice 0)');
+  assert(parts[3].indexOf('ptr-rear') >= 0 && parts[3].indexOf('&quot;C&quot;') >= 0, 'REAR aponta para C (último)');
+  assert(parts[2].indexOf('ptr-') < 0, 'nó do meio sem indicador');
+  assert(html.indexOf('[0]') >= 0 && html.indexOf('[2]') >= 0, 'índices discretos dos nós');
+  assert(html.indexOf('queue-cell front') >= 0, 'nó da frente destacado');
+  assert(html.indexOf('A fila está vazia') < 0, 'fila com itens não mostra mensagem de vazia');
+});
+
+test('render da fila: unshift/pop inverte as extremidades (FRONT à direita)', () => {
+  const t = run(["const fila = [];", "fila.unshift('A');", "fila.unshift('B');", "fila.unshift('C');", 'fila.pop();'].join('\n'));
+  noError(t);
+  const step = t.steps.filter((s) => s.globals.fila && s.globals.fila.items.length === 3)[0];
+  assert(step, 'passo com três itens');
+  const html = renderQueueStep(t, step);
+  const parts = html.split('queue-unit');
+  eq(parts.length, 4, 'três nós desenhados');
+  assert(parts[1].indexOf('ptr-rear') >= 0 && parts[1].indexOf('&quot;C&quot;') >= 0, 'REAR no nó C (índice 0)');
+  assert(parts[3].indexOf('ptr-front') >= 0 && parts[3].indexOf('&quot;A&quot;') >= 0, 'FRONT no nó A (índice 2, próximo pop)');
+});
+
+test('render da fila vazia: mensagem discreta e nenhum indicador', () => {
+  const t = run("const fila = [];\nfila.push(1);\nfila.shift();");
+  noError(t);
+  const html = renderQueueStep(t, t.steps[0]);
+  assert(html.indexOf('A fila está vazia neste passo.') >= 0, 'mensagem de fila vazia');
+  assert(html.indexOf('ptr-front') < 0 && html.indexOf('ptr-rear') < 0, 'sem indicadores para nós inexistentes');
+  assert(html.indexOf('queue-cell') < 0, 'sem nós');
+});
+
+test('CSS da fila: linha única sem quebra (fila extensa é navegada pelo canvas)', () => {
+  const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+  const m = css.match(/\.queue-row\s*\{[^}]*\}/);
+  assert(m, 'regra .queue-row existe');
+  assert(/nowrap/.test(m[0]), 'fila em linha única: ' + m[0]);
+  assert(!/flex-wrap:\s*wrap/.test(m[0]), 'não quebra linha');
 });
 
 test('lista encadeada: visita 10, 20, 30 e tem ponteiro atual', () => {

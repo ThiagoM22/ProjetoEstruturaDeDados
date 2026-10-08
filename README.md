@@ -28,6 +28,11 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 - Pilha, fila, array, lista e árvore compartilham a mesma linguagem
   visual: superfícies escuras, borda de 1px, tipografia monoespaçada e destaque roxo no elemento ativo
   (topo da pilha, frente da fila, célula alterada, nó visitado/atual).
+- A **fila** é desenhada na horizontal, com os nós lado a lado e índices discretos; os indicadores
+  **FRONT** (primeiro a sair) e **REAR** (último a entrar) acompanham as posições reais a cada passo.
+  Com um único elemento, os dois apontam para o mesmo nó; com a fila vazia, nenhum indicador aparece.
+  `enqueue` entra pela extremidade REAR e `dequeue` sai pela FRONT (na variante `unshift/pop`, as
+  extremidades se invertem).
 - O painel direito mostra **Comandos** (as operações `push/pop/shift…` da execução, clicáveis para pular
   ao passo), **Variáveis**, **Chamadas** e **Saída** — no estilo de painéis de debug.
 
@@ -92,7 +97,8 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 |---|---|
 | Pilha com array (push/pop) | LIFO, topo, eventos de push/pop |
 | Pilha com classe | encapsulamento em `this.itens` |
-| Fila com array (push/shift) | FIFO, frente/traseira |
+| Fila com array (push/shift) | FIFO, indicadores FRONT/REAR |
+| Fila com classe | API `enfileirar`/`desenfileirar`/`frente`/`estaVazia`/`tamanho` |
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
