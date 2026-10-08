@@ -11,6 +11,7 @@
     highlight: $('highlight'),
     gutter: $('gutterInner'),
     lineHilite: $('lineHilite'),
+    tabs: $('tabs'),
     exampleSelect: $('exampleSelect'),
     btnRun: $('btnRun'),
     btnDebug: $('btnDebug'),
@@ -24,11 +25,16 @@
     btnPlay: $('btnPlay'),
     btnNext: $('btnNext'),
     btnLast: $('btnLast'),
+    btnZoomOut: $('btnZoomOut'),
+    btnZoomIn: $('btnZoomIn'),
+    btnZoomReset: $('btnZoomReset'),
+    btnZoomFit: $('btnZoomFit'),
     slider: $('slider'),
     stepLabel: $('stepLabel'),
     speedSelect: $('speedSelect'),
     callstack: $('callstack'),
     vars: $('vars'),
+    commands: $('commands'),
     consoleEl: $('console'),
     statusLine: $('statusLine'),
     banner: $('banner'),
@@ -36,7 +42,7 @@
     helpDialog: $('helpDialog')
   };
 
-  var LINE_HEIGHT = 20;
+  var LINE_HEIGHT = 22;
   var PAD_TOP = 10;
   var STORAGE_CODE = 'edviz.code';
   var STORAGE_EX = 'edviz.example';
@@ -53,7 +59,9 @@
     candidates: [],
     opsMap: {},
     visit: { order: [], map: {} },
-    errorLine: null
+    errorLine: null,
+    tabs: [],          /* exemplos abertos como abas */
+    activeTab: null    /* aba ativa (id do exemplo) */
   };
 
   /* ------------------------------------------------------------------ */
@@ -243,6 +251,173 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Abas do editor (exemplos abertos)                                   */
+  /* ------------------------------------------------------------------ */
+
+  function exampleById(id) {
+    return DSV.EXAMPLES.filter(function (e) { return e.id === id; })[0] || null;
+  }
+
+  function renderTabs() {
+    var html = '';
+    state.tabs.forEach(function (id) {
+      var ex = exampleById(id);
+      var active = id === state.activeTab;
+      html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" title="' + esc(ex ? ex.name : id) + '">' +
+        '<span class="file-badge" aria-hidden="true">JS</span>' +
+        '<span class="tab-name">' + esc(id + '.js') + '</span>' +
+        '<button type="button" class="tab-close" data-close="' + esc(id) + '" title="Fechar aba" aria-label="Fechar ' + esc(id + '.js') + '">×</button>' +
+        '</div>';
+    });
+    els.tabs.innerHTML = html;
+    if (typeof els.tabs.querySelector === 'function') {
+      var active = els.tabs.querySelector('.tab.active');
+      if (active && typeof active.scrollIntoView === 'function') {
+        try { active.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* ignora */ }
+      }
+    }
+  }
+
+  function loadExample(id) {
+    var ex = exampleById(id);
+    if (!ex) return;
+    els.code.value = ex.code;
+    els.exampleSelect.value = ex.id;
+    els.exampleSelect.title = ex.name;
+    try { localStorage.setItem(STORAGE_EX, ex.id); } catch (e) { /* ignora */ }
+    onEdit();
+    run();
+  }
+
+  function openTab(id) {
+    if (!exampleById(id)) return;
+    if (state.tabs.indexOf(id) < 0) {
+      state.tabs.push(id);
+      while (state.tabs.length > 4) state.tabs.shift();
+    }
+    state.activeTab = id;
+    renderTabs();
+    loadExample(id);
+  }
+
+  function closeTab(id) {
+    var i = state.tabs.indexOf(id);
+    if (i < 0 || state.tabs.length <= 1) return;
+    state.tabs.splice(i, 1);
+    if (state.activeTab === id) {
+      openTab(state.tabs[Math.max(0, i - 1)]);
+    } else {
+      renderTabs();
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Canvas: pan e zoom (arrastar, roda do mouse e controles)            */
+  /* ------------------------------------------------------------------ */
+
+  var ZOOM_MIN = 0.25;
+  var ZOOM_MAX = 3;
+  var ZOOM_FIT_MAX = 1.5;
+  var canvasView = { x: 0, y: 0, zoom: 1, key: null, moved: false };
+  var canvasDrag = null;
+
+  function canvasSupported() {
+    return !!(els.structure &&
+      typeof els.structure.getBoundingClientRect === 'function' &&
+      typeof els.structure.querySelector === 'function');
+  }
+
+  function canvasParts() {
+    return {
+      vp: els.structure.querySelector('.canvas-viewport'),
+      stage: els.structure.querySelector('.canvas-stage')
+    };
+  }
+
+  function applyCanvasView() {
+    var st = els.structure.style;
+    if (st && typeof st.setProperty === 'function') {
+      st.setProperty('--canvas-x', canvasView.x + 'px');
+      st.setProperty('--canvas-y', canvasView.y + 'px');
+      st.setProperty('--canvas-zoom', String(canvasView.zoom));
+    }
+    els.btnZoomReset.textContent = Math.round(canvasView.zoom * 100) + '%';
+  }
+
+  function canvasCenter(zoom) {
+    var e = canvasParts();
+    if (!e.vp || !e.stage) return false;
+    var vw = e.vp.clientWidth || 0;
+    var vh = e.vp.clientHeight || 0;
+    var sw = e.stage.offsetWidth || 0;
+    var sh = e.stage.offsetHeight || 0;
+    if (!vw || !vh) return false;
+    canvasView.zoom = zoom;
+    canvasView.x = Math.round((vw - sw * zoom) / 2);
+    canvasView.y = Math.round((vh - sh * zoom) / 2);
+    applyCanvasView();
+    return true;
+  }
+
+  /* enquadra sem ampliar: 100% quando cabe, reduz quando a estrutura é maior */
+  function canvasHome() {
+    var e = canvasParts();
+    if (!e.vp || !e.stage) return false;
+    var vw = e.vp.clientWidth || 0;
+    var vh = e.vp.clientHeight || 0;
+    var sw = e.stage.offsetWidth || 0;
+    var sh = e.stage.offsetHeight || 0;
+    if (!vw || !vh || !sw || !sh) return false;
+    var pad = 64;
+    var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
+    return canvasCenter(fit < 1 ? Math.max(ZOOM_MIN, fit) : 1);
+  }
+
+  /* ajusta à tela (pode ampliar até ZOOM_FIT_MAX) */
+  function canvasFit() {
+    var e = canvasParts();
+    if (!e.vp || !e.stage) return;
+    var vw = e.vp.clientWidth || 0;
+    var vh = e.vp.clientHeight || 0;
+    var sw = e.stage.offsetWidth || 0;
+    var sh = e.stage.offsetHeight || 0;
+    if (!vw || !vh || !sw || !sh) return;
+    var pad = 64;
+    var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
+    canvasCenter(Math.max(ZOOM_MIN, Math.min(ZOOM_FIT_MAX, fit)));
+    canvasView.moved = true;
+  }
+
+  function canvasZoomAt(cx, cy, factor) {
+    var z0 = canvasView.zoom;
+    var z1 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z0 * factor));
+    if (z1 === z0) return;
+    canvasView.x = cx - (cx - canvasView.x) * (z1 / z0);
+    canvasView.y = cy - (cy - canvasView.y) * (z1 / z0);
+    canvasView.zoom = z1;
+    canvasView.moved = true;
+    applyCanvasView();
+  }
+
+  function canvasZoomCenter(factor) {
+    var e = canvasParts();
+    if (!e.vp) return;
+    canvasZoomAt((e.vp.clientWidth || 0) / 2, (e.vp.clientHeight || 0) / 2, factor);
+  }
+
+  /* chamado a cada renderização: acompanha a estrutura até o usuário mexer */
+  function canvasAfterRender(sel) {
+    if (!canvasSupported()) return;
+    var key = sel && sel.id != null ? (sel.type + '|' + sel.id) : 'none';
+    if (key !== canvasView.key) {
+      canvasView.moved = false;
+      if (canvasHome()) canvasView.key = key;
+      return;
+    }
+    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Modo debug (passo a passo com tecla)                                */
   /* ------------------------------------------------------------------ */
 
@@ -342,6 +517,18 @@
 
   function updatePlayButton() {
     els.btnPlay.textContent = state.playing ? '❚❚' : '▶';
+    els.btnPlay.classList.toggle('playing', state.playing);
+    els.btnPlay.setAttribute('aria-label', state.playing ? 'Pausar' : 'Reproduzir');
+    els.btnPlay.title = state.playing ? 'Pausar (espaço)' : 'Play (espaço)';
+  }
+
+  /* preenche a trilha do slider até o passo atual */
+  function updateSliderFill() {
+    var max = Math.max(steps().length - 1, 0);
+    var pct = max > 0 ? (state.index / max) * 100 : 0;
+    if (els.slider.style && typeof els.slider.style.setProperty === 'function') {
+      els.slider.style.setProperty('--fill', pct.toFixed(2) + '%');
+    }
   }
 
   function goto(i) {
@@ -351,8 +538,10 @@
       els.statusLine.textContent = 'linha —';
       setCurrentLine(null);
       DSV.renderStructure(els.structure, null, null, {});
+      canvasAfterRender(null);
       els.callstack.innerHTML = '<div class="muted">—</div>';
       els.vars.innerHTML = '<div class="muted">—</div>';
+      els.commands.innerHTML = '<div class="muted">—</div>';
       els.consoleEl.innerHTML = '';
       updateButtons();
       return;
@@ -361,8 +550,12 @@
     var step = st[state.index];
 
     els.slider.value = state.index;
+    updateSliderFill();
     els.stepLabel.textContent = 'passo ' + (state.index + 1) + '/' + st.length;
-    els.statusLine.textContent = 'linha ' + step.line + ' · passo ' + (state.index + 1) + ' de ' + st.length;
+
+    var srcLines = els.code.value.split('\n');
+    var lineText = srcLines[step.line - 1] ? srcLines[step.line - 1].trim() : '';
+    els.statusLine.textContent = 'linha ' + step.line + (lineText ? ' : ' + lineText : '');
 
     var isErrorStep = state.errorLine === step.line && state.index === st.length - 1 && !!state.trace.error;
     setCurrentLine(step.line, isErrorStep);
@@ -372,6 +565,7 @@
     renderCallstack(step);
     renderVars(step);
     renderConsole();
+    renderCommands();
     updateButtons();
     updateDebugBar(step);
   }
@@ -426,6 +620,7 @@
       /* animações mais curtas quando está tocando em velocidade alta */
       animMs: state.playing ? Math.max(90, Math.min(360, Math.round(430 / state.speed))) : 300
     });
+    canvasAfterRender(sel);
   }
 
   /* ------------------------------------------------------------------ */
@@ -502,6 +697,43 @@
     }
   });
 
+  /* lista de operações de estrutura (push/pop/shift/...) da execução */
+  function renderCommands() {
+    if (!state.trace) { els.commands.innerHTML = ''; return; }
+    var html = '';
+    var count = 0;
+    state.trace.steps.forEach(function (s, si) {
+      (s.events || []).forEach(function (ev) {
+        count++;
+        var cls = 'command';
+        if (si === state.index) cls += ' current';
+        else if (si > state.index) cls += ' future';
+        html += '<button type="button" class="' + cls + '" data-step="' + si + '" title="ir para o passo ' + (si + 1) + '">' +
+          '<span class="command-num">' + count + '</span>' +
+          '<span class="command-text">' + esc(ev.text) + '</span>' +
+          '</button>';
+      });
+    });
+    if (!count) {
+      els.commands.innerHTML = '<div class="muted">Nenhuma operação de estrutura neste código.</div>';
+      return;
+    }
+    els.commands.innerHTML = html;
+    if (typeof els.commands.querySelector === 'function') {
+      var cur = els.commands.querySelector('.command.current');
+      if (cur && typeof cur.scrollIntoView === 'function') {
+        try { cur.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignora */ }
+      }
+    }
+  }
+
+  els.commands.addEventListener('click', function (ev) {
+    var btn = ev.target && typeof ev.target.closest === 'function' ? ev.target.closest('.command') : null;
+    if (!btn) return;
+    stopPlay();
+    goto(parseInt(btn.getAttribute('data-step'), 10));
+  });
+
   /* ------------------------------------------------------------------ */
   /* Eventos de UI                                                       */
   /* ------------------------------------------------------------------ */
@@ -545,13 +777,74 @@
   });
 
   els.exampleSelect.addEventListener('change', function () {
-    var ex = DSV.EXAMPLES.filter(function (e) { return e.id === this.value; }.bind(this))[0];
-    if (!ex) return;
-    els.code.value = ex.code;
-    try { localStorage.setItem(STORAGE_EX, ex.id); } catch (e2) { /* ignora */ }
-    onEdit();
-    run();
+    openTab(this.value);
   });
+
+  els.tabs.addEventListener('click', function (ev) {
+    var t = ev.target;
+    var closeId = t && typeof t.getAttribute === 'function' ? t.getAttribute('data-close') : null;
+    if (closeId) { closeTab(closeId); return; }
+    var tab = t && typeof t.closest === 'function' ? t.closest('.tab') : null;
+    if (tab) openTab(tab.getAttribute('data-tab'));
+  });
+
+  /* canvas: controles, roda do mouse e arrasto */
+  els.btnZoomIn.addEventListener('click', function () { canvasZoomCenter(1.25); });
+  els.btnZoomOut.addEventListener('click', function () { canvasZoomCenter(0.8); });
+  els.btnZoomReset.addEventListener('click', function () { canvasCenter(1); canvasView.moved = false; });
+  els.btnZoomFit.addEventListener('click', canvasFit);
+
+  els.structure.addEventListener('wheel', function (ev) {
+    if (!canvasSupported()) return;
+    var t = ev.target;
+    if (!t || typeof t.closest !== 'function' || !t.closest('.canvas-viewport')) return;
+    var e = canvasParts();
+    if (!e.vp) return;
+    if (ev.preventDefault) ev.preventDefault();
+    var r = typeof e.vp.getBoundingClientRect === 'function' ? e.vp.getBoundingClientRect() : { left: 0, top: 0 };
+    canvasZoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-(ev.deltaY || 0) * 0.0015));
+  }, { passive: false });
+
+  els.structure.addEventListener('pointerdown', function (ev) {
+    if (!canvasSupported() || (ev.button !== 0 && ev.button !== 1)) return;
+    var t = ev.target;
+    if (!t || typeof t.closest !== 'function') return;
+    if (t.closest('button') || !t.closest('.canvas-viewport')) return;
+    canvasDrag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+    els.structure.classList.add('panning');
+    if (typeof els.structure.setPointerCapture === 'function') {
+      try { els.structure.setPointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
+    }
+    if (ev.preventDefault) ev.preventDefault();
+  });
+
+  els.structure.addEventListener('pointermove', function (ev) {
+    if (!canvasDrag || ev.pointerId !== canvasDrag.id) return;
+    canvasView.x += ev.clientX - canvasDrag.x;
+    canvasView.y += ev.clientY - canvasDrag.y;
+    canvasDrag.x = ev.clientX;
+    canvasDrag.y = ev.clientY;
+    canvasView.moved = true;
+    applyCanvasView();
+  });
+
+  function endCanvasDrag(ev) {
+    if (!canvasDrag || (ev && ev.pointerId !== canvasDrag.id)) return;
+    canvasDrag = null;
+    els.structure.classList.remove('panning');
+    if (ev && typeof els.structure.releasePointerCapture === 'function') {
+      try { els.structure.releasePointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
+    }
+  }
+  els.structure.addEventListener('pointerup', endCanvasDrag);
+  els.structure.addEventListener('pointercancel', endCanvasDrag);
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('resize', function () {
+      if (!canvasSupported() || canvasView.moved) return;
+      canvasHome();
+    });
+  }
 
   els.btnHelp.addEventListener('click', function () {
     if (els.helpDialog.showModal) els.helpDialog.showModal();
@@ -614,13 +907,17 @@
 
     var example = null;
     if (savedEx) {
-      example = DSV.EXAMPLES.filter(function (ex) { return ex.id === savedEx; })[0] || null;
+      example = exampleById(savedEx);
     }
     if (!example) {
-      example = DSV.EXAMPLES.filter(function (ex) { return ex.id === DSV.DEFAULT_EXAMPLE; })[0] || DSV.EXAMPLES[0];
+      example = exampleById(DSV.DEFAULT_EXAMPLE) || DSV.EXAMPLES[0];
     }
 
     els.exampleSelect.value = example.id;
+    els.exampleSelect.title = example.name;
+    state.tabs = [example.id];
+    state.activeTab = example.id;
+    renderTabs();
     els.code.value = savedCode && savedCode.trim() ? savedCode : example.code;
 
     onEdit();
