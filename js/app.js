@@ -39,7 +39,9 @@
     statusLine: $('statusLine'),
     banner: $('banner'),
     btnHelp: $('btnHelp'),
-    helpDialog: $('helpDialog')
+    helpDialog: $('helpDialog'),
+    splitLeft: $('splitLeft'),
+    splitRight: $('splitRight')
   };
 
   var LINE_HEIGHT = 22;
@@ -264,7 +266,6 @@
       var ex = exampleById(id);
       var active = id === state.activeTab;
       html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" title="' + esc(ex ? ex.name : id) + '">' +
-        '<span class="file-badge" aria-hidden="true">JS</span>' +
         '<span class="tab-name">' + esc(id + '.js') + '</span>' +
         '<button type="button" class="tab-close" data-close="' + esc(id) + '" title="Fechar aba" aria-label="Fechar ' + esc(id + '.js') + '">×</button>' +
         '</div>';
@@ -418,6 +419,118 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Divisórias redimensionáveis entre os painéis                        */
+  /* ------------------------------------------------------------------ */
+
+  var SPLIT_MIN_CODE = 280;
+  var SPLIT_MIN_VIZ = 320;
+  var SPLIT_MIN_SIDE = 224;
+  var splitDrag = null;
+
+  function layoutEl() {
+    if (typeof document.querySelector !== 'function') return null;
+    var el = document.querySelector('.layout');
+    if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+    return el;
+  }
+
+  /* aplica larguras medidas (px) como proporções fr — a janela segue responsiva */
+  function splitApply(codeW, vizW, sideW, splitW) {
+    var layout = layoutEl();
+    var total = codeW + vizW + sideW;
+    if (!layout || total <= 0) return;
+    var toFr = function (w) { return (Math.round(w / total * 10000) / 100) + 'fr'; };
+    layout.style.gridTemplateColumns =
+      'minmax(' + SPLIT_MIN_CODE + 'px,' + toFr(codeW) + ') ' + splitW + 'px ' +
+      'minmax(0,' + toFr(vizW) + ') ' + splitW + 'px ' +
+      'minmax(' + SPLIT_MIN_SIDE + 'px,' + toFr(sideW) + ')';
+  }
+
+  function splitDelta(which, dx) {
+    var layout = layoutEl();
+    if (!layout || !dx) return;
+    var codeEl = document.querySelector('.code-panel');
+    var vizEl = document.querySelector('.viz-panel');
+    var sideEl = document.querySelector('.side-panel');
+    if (!codeEl || !vizEl || !sideEl) return;
+    var rect = layout.getBoundingClientRect();
+    var code = codeEl.getBoundingClientRect().width;
+    var viz = vizEl.getBoundingClientRect().width;
+    var side = sideEl.getBoundingClientRect().width;
+    var total = code + viz + side;
+    /* largura de cada divisória (o que sobra da grade) */
+    var splitW = Math.round(Math.max(1, (rect.width - total) / 2) * 100) / 100;
+
+    if (which === 'left') {
+      var maxCode = Math.max(SPLIT_MIN_CODE, total - side - SPLIT_MIN_VIZ);
+      code = DSV.clamp(code + dx, SPLIT_MIN_CODE, maxCode);
+      viz = Math.max(SPLIT_MIN_VIZ, total - code - side);
+    } else {
+      var maxViz = Math.max(SPLIT_MIN_VIZ, total - code - SPLIT_MIN_SIDE);
+      viz = DSV.clamp(viz + dx, SPLIT_MIN_VIZ, maxViz);
+      side = Math.max(SPLIT_MIN_SIDE, total - code - viz);
+    }
+    splitApply(code, viz, side, splitW);
+  }
+
+  function splitterDown(ev, which) {
+    if (ev.button !== 0) return;
+    var el = ev.currentTarget;
+    splitDrag = { id: ev.pointerId, which: which, x: ev.clientX, el: el };
+    if (el && el.classList) el.classList.add('dragging');
+    if (el && typeof el.setPointerCapture === 'function') {
+      try { el.setPointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
+    }
+    if (ev.preventDefault) ev.preventDefault();
+  }
+
+  function splitterMove(ev) {
+    if (!splitDrag || ev.pointerId !== splitDrag.id) return;
+    var dx = ev.clientX - splitDrag.x;
+    splitDrag.x = ev.clientX;
+    splitDelta(splitDrag.which, dx);
+  }
+
+  function splitterUp(ev) {
+    if (!splitDrag) return;
+    var el = splitDrag.el;
+    splitDrag = null;
+    if (el && el.classList) el.classList.remove('dragging');
+    if (el && ev && typeof el.releasePointerCapture === 'function') {
+      try { el.releasePointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
+    }
+    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+  }
+
+  function splitterKeys(ev, which) {
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    if (ev.preventDefault) ev.preventDefault();
+    splitDelta(which, ev.key === 'ArrowLeft' ? -16 : 16);
+    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+  }
+
+  /* duplo clique devolve as proporções padrão (32 / 48 / 20) */
+  function splitterReset() {
+    var layout = layoutEl();
+    if (layout && layout.style) layout.style.gridTemplateColumns = '';
+    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+  }
+
+  function setupSplitters() {
+    [[els.splitLeft, 'left'], [els.splitRight, 'right']].forEach(function (pair) {
+      var el = pair[0];
+      var which = pair[1];
+      if (!el || typeof el.addEventListener !== 'function') return;
+      el.addEventListener('pointerdown', function (ev) { splitterDown(ev, which); });
+      el.addEventListener('pointermove', splitterMove);
+      el.addEventListener('pointerup', splitterUp);
+      el.addEventListener('pointercancel', splitterUp);
+      el.addEventListener('dblclick', splitterReset);
+      el.addEventListener('keydown', function (ev) { splitterKeys(ev, which); });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Modo debug (passo a passo com tecla)                                */
   /* ------------------------------------------------------------------ */
 
@@ -472,7 +585,7 @@
     if (atEnd && err) {
       els.debugInfo.innerHTML = 'A execução parou por <b>erro na linha ' + err.line + '</b> — veja a mensagem acima · <kbd>Esc</kbd> sai';
     } else if (atEnd) {
-      els.debugInfo.innerHTML = '<b>Fim do programa</b> 🎉 · <kbd>Esc</kbd> sai · <kbd>←</kbd> volta uma linha';
+      els.debugInfo.innerHTML = '<b>Fim do programa</b> · <kbd>Esc</kbd> sai · <kbd>←</kbd> volta uma linha';
     } else {
       var next = st[state.index + 1];
       els.debugInfo.innerHTML = 'Linha <b>' + step.line + '</b> · pressione <kbd>qualquer tecla</kbd> para executar a próxima' +
@@ -920,6 +1033,7 @@
     renderTabs();
     els.code.value = savedCode && savedCode.trim() ? savedCode : example.code;
 
+    setupSplitters();
     onEdit();
     run();
   }

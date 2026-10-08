@@ -62,6 +62,8 @@
     </div>
   </section>
 
+  <div id="splitLeft" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor e visualização" tabindex="0"></div>
+
   <section class="panel viz-panel">
     <div class="panel-head">
       <h2>Visualização</h2>
@@ -86,6 +88,8 @@
     <div id="structure" class="structure"></div>
   </section>
 
+  <div id="splitRight" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar visualização e painel lateral" tabindex="0"></div>
+
   <section class="panel side-panel">
     <div class="side-block commands-block">
       <h3>Comandos</h3>
@@ -109,28 +113,28 @@
 
 <footer class="transport">
   <div class="transport-group">
-    <button id="btnPlay" class="tbtn tbtn-play" title="Play/Pause (espaço)" aria-label="Reproduzir">▶</button>
-    <button id="btnFirst" class="tbtn" title="Primeiro passo (Home)">
+    <button id="btnFirst" class="tbtn" title="Primeiro passo (Home)" aria-label="Primeiro passo">
       <svg class="ico" aria-hidden="true"><use href="#i-first"></use></svg>
     </button>
-    <button id="btnPrev" class="tbtn" title="Passo anterior (←)">
+    <button id="btnPrev" class="tbtn" title="Passo anterior (←)" aria-label="Passo anterior">
       <svg class="ico" aria-hidden="true"><use href="#i-prev"></use></svg>
     </button>
-    <button id="btnNext" class="tbtn" title="Próximo passo (→)">
+    <button id="btnPlay" class="tbtn tbtn-play" title="Play/Pause (espaço)" aria-label="Reproduzir">▶</button>
+    <button id="btnNext" class="tbtn" title="Próximo passo (→)" aria-label="Próximo passo">
       <svg class="ico" aria-hidden="true"><use href="#i-next"></use></svg>
     </button>
-    <button id="btnLast" class="tbtn" title="Último passo (End)">
+    <button id="btnLast" class="tbtn" title="Último passo (End)" aria-label="Último passo">
       <svg class="ico" aria-hidden="true"><use href="#i-last"></use></svg>
     </button>
   </div>
-  <select id="speedSelect" class="select speed" title="Velocidade">
+  <select id="speedSelect" class="select speed" title="Velocidade de reprodução" aria-label="Velocidade de reprodução">
     <option value="0.5">0,5×</option>
     <option value="1" selected>1×</option>
     <option value="2">2×</option>
     <option value="4">4×</option>
   </select>
-  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Progresso da execução">
   <span id="stepLabel" class="step-label">passo 0/0</span>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Progresso da execução">
 </footer>
 
 <svg class="sprite" aria-hidden="true" focusable="false">

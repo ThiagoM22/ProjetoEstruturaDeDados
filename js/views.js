@@ -395,6 +395,22 @@
       '</div>';
   }
 
+  /* comparação tolerante a acentos e maiúsculas (arvore x Árvore binária) */
+  function normLabel(s) {
+    var t = String(s).toLowerCase();
+    if (t.normalize) t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return t.trim();
+  }
+
+  /* subtítulo do canvas: "label · N unidade", sem repetir o título */
+  function structureSub(sel, n, one, many, title) {
+    var count = n + ' ' + (n === 1 ? one : many);
+    var label = normLabel(sel.label || '');
+    var t = normLabel(title || DSV.typeLabel(sel.type));
+    if (label && label !== t && t.indexOf(label) !== 0) return sel.label + ' · ' + count;
+    return count;
+  }
+
   function eventsBadge(sel, ctx) {
     var evs = (ctx.events || []).filter(function (e) { return e.targetId === sel.id; });
     return evs.map(function (e) { return e.text; }).join(' · ');
@@ -412,13 +428,12 @@
     var dur = animDur(ctx);
 
     DSV.flipRender(container, function () {
-      var html = head('Pilha', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      var html = head('Pilha', structureSub(sel, n, 'item', 'itens'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="stack-wrap">';
       if (n === 0) {
-        html += '<div class="empty-inline">pilha vazia</div>';
+        html += '<div class="empty-inline">A pilha está vazia neste passo.</div>';
       } else {
-        html += '<div class="stack-side stack-side-top">Topo <span class="stack-arrow">↓</span></div>';
         html += '<div class="stack-col">';
         for (var i = n - 1; i >= 0; i--) {
           var cls = 'stack-cell' + (i === n - 1 ? ' top' : '');
@@ -429,7 +444,7 @@
             '</div>';
         }
         html += '</div>';
-        html += '<div class="stack-side stack-side-base">base</div>';
+        html += '<div class="stack-side">base</div>';
       }
       html += '</div>';
       html += '</div>';
@@ -449,11 +464,11 @@
     var exitDir = reverse ? 'right' : 'left';
 
     DSV.flipRender(container, function () {
-      var html = head('Fila', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      var html = head('Fila', structureSub(sel, n, 'item', 'itens'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="queue-wrap">';
       if (n === 0) {
-        html += '<div class="empty-inline">fila vazia</div>';
+        html += '<div class="empty-inline">A fila está vazia neste passo.</div>';
       } else {
         var leftLabel = reverse ? 'fim (traseira) →' : 'frente (início) →';
         var rightLabel = reverse ? '← frente (início)' : '← fim (traseira)';
@@ -496,11 +511,11 @@
     if (prev && prev.t !== 'a') prev = null;
 
     DSV.flipRender(container, function () {
-      var html = head('Array', sel.label + ' · ' + n + (n === 1 ? ' item' : ' itens'), badge);
+      var html = head('Array', structureSub(sel, n, 'item', 'itens'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="array-wrap">';
       if (n === 0) {
-        html += '<div class="empty-inline">array vazio</div>';
+        html += '<div class="empty-inline">O array está vazio neste passo.</div>';
       } else {
         html += '<div class="array-grid">';
         for (var i = 0; i < n; i++) {
@@ -537,7 +552,7 @@
     var dur = animDur(ctx);
 
     DSV.flipRender(container, function () {
-      var html = head('Lista encadeada', sel.label + ' · ' + nodes.length + (nodes.length === 1 ? ' nó' : ' nós'), badge);
+      var html = head('Lista encadeada', structureSub(sel, nodes.length, 'nó', 'nós', 'Lista encadeada'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap">';
 
@@ -664,7 +679,7 @@
       lines + circles + '</svg>';
 
     var badge = eventsBadge(sel, ctx);
-    container.innerHTML = head('Árvore binária', sel.label + ' · ' + nodes.length + (nodes.length === 1 ? ' nó' : ' nós'), badge) +
+    container.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), badge) +
       '<div class="canvas-viewport"><div class="canvas-stage"><div class="tree-wrap">' + svg + '</div></div></div>';
   }
 
@@ -768,7 +783,7 @@
       };
     });
 
-    scene.head.innerHTML = head('Árvore binária', sel.label + ' · ' + nodes.length + (nodes.length === 1 ? ' nó' : ' nós'), eventsBadge(sel, ctx));
+    scene.head.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), eventsBadge(sel, ctx));
 
     syncTreeNodes(scene, targets, dur, ctx);
     syncTreeEdges(scene, targets);
@@ -1062,6 +1077,9 @@
   }
 
   function renderMessage(container, msg, kind) {
+    /* a mensagem substitui a cena da árvore: descarta a referência para
+     * que o próximo passo recrie a cena em vez de atualizar um DOM antigo */
+    container.__treeScene = null;
     container.innerHTML = '<div class="canvas-viewport"><div class="canvas-stage"><div class="empty ' + (kind || '') + '">' + msg + '</div></div></div>';
   }
 
