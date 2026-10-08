@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ED Viz — Visualizador de Estruturas de Dados</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">▦</span>
+    <div>
+      <h1>ED Viz — Visualizador de Estruturas de Dados</h1>
+      <p>Escreva (ou escolha) um código JS e veja a estrutura ser montada passo a passo, com a linha em execução destacada.</p>
+    </div>
+  </div>
+  <button id="btnHelp" class="btn ghost">Como usar</button>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main class="layout">
+
+  <section class="panel code-panel">
+    <div class="panel-head">
+      <h2>Código</h2>
+      <div class="row">
+        <select id="exampleSelect" title="Exemplos prontos"></select>
+        <button id="btnRun" class="btn primary" title="Executar (Ctrl+Enter)">Executar ▶</button>
+        <button id="btnDebug" class="btn debug" title="Execução passo a passo com tecla (F10)">🐞 Depurar</button>
+      </div>
+    </div>
+    <div class="editor" id="editor">
+      <div class="gutter"><div id="gutterInner"></div></div>
+      <div class="code-viewport">
+        <pre id="highlight" class="code-highlight" aria-hidden="true"></pre>
+        <div id="lineHilite" class="line-hilite"></div>
+        <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+    </div>
+    <div class="statusbar">
+      <span id="statusLine">linha —</span>
+      <span class="tip">Ctrl+Enter executa · ←/→ navega · espaço dá play</span>
+    </div>
+  </section>
+
+  <section class="panel viz-panel">
+    <div class="panel-head">
+      <h2>Visualização</h2>
+      <div class="row">
+        <select id="structureSelect" title="Estrutura exibida"></select>
+      </div>
+    </div>
+    <div id="debugBar" class="debug-bar hidden">
+      <span class="debug-dot"></span>
+      <span id="debugInfo" class="debug-info"></span>
+      <button id="btnExitDebug" class="btn ghost small">Sair (Esc)</button>
+    </div>
+    <div id="structure" class="structure"></div>
+    <div class="controls">
+      <button id="btnFirst" class="btn icon" title="Primeiro passo">⏮</button>
+      <button id="btnPrev" class="btn icon" title="Passo anterior (←)">◀</button>
+      <button id="btnPlay" class="btn icon primary" title="Play/Pause (espaço)">▶</button>
+      <button id="btnNext" class="btn icon" title="Próximo passo (→)">▶❙</button>
+      <button id="btnLast" class="btn icon" title="Último passo">⏭</button>
+      <input type="range" id="slider" min="0" max="0" value="0">
+      <span id="stepLabel" class="step-label">passo 0/0</span>
+      <select id="speedSelect" title="Velocidade">
+        <option value="0.5">0,5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel side-panel">
+    <div class="side-block">
+      <h3>Chamadas <span class="hint">pilha de execução</span></h3>
+      <div id="callstack" class="side-content"></div>
+    </div>
+    <div class="side-block">
+      <h3>Variáveis</h3>
+      <div id="vars" class="side-content"></div>
+    </div>
+    <div class="side-block grow">
+      <h3>Saída <span class="hint">console.log</span></h3>
+      <div id="console" class="side-content console"></div>
+    </div>
+  </section>
+
+</main>
+
+<dialog id="helpDialog" class="help">
+  <h2>Como usar o ED Viz</h2>
+  <ol>
+    <li>Escolha um exemplo ou escreva seu código JavaScript na área à esquerda.</li>
+    <li>Clique em <b>Executar ▶</b> (ou <b>Ctrl+Enter</b>).</li>
+    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura.</li>
+  </ol>
+
+  <p><b>🐞 Depurar (F10):</b> execução passo a passo como em um debugger. O código pausa na primeira
+  linha e, a cada <b>tecla</b> pressionada, ele executa a próxima linha e atualiza o desenho na hora
+  (com animações). <kbd>←</kbd> volta uma linha, <kbd>Esc</kbd> sai e libera o editor.</p>
+
+  <h3>O que é detectado automaticamente</h3>
+  <ul>
+    <li><b>Pilha</b> — array com <code>push/pop</code>, ou classe <code>Pilha</code>/<code>Stack</code> com um array interno.</li>
+    <li><b>Fila</b> — array com <code>push/shift</code> (ou <code>unshift/pop</code>), ou classe <code>Fila</code>/<code>Queue</code>.</li>
+    <li><b>Lista encadeada</b> — nós com <code>proximo</code>/<code>next</code>; início em <code>inicio</code>/<code>head</code>.</li>
+    <li><b>Árvore binária</b> — nós com <code>esquerda</code>/<code>direita</code> (ou <code>left/right</code>); raiz em <code>raiz</code>/<code>root</code>.</li>
+    <li><b>Array</b> — qualquer vetor comum (mostra índices e células alteradas).</li>
+  </ul>
+
+  <h3>Ponteiros e visita</h3>
+  <p>Variáveis que apontam para nós viram etiquetas sobre o nó (ex.: <code>atual</code>, <code>no</code>, <code>raiz</code>). Nós já visitados por um ponteiro recebem o número de ordem de visita.</p>
+
+  <h3>Limites (subconjunto didático de JS)</h3>
+  <p>Sem herança de classes, regex, async/await e try/catch. Proteções: 20.000 passos e 150 chamadas aninhadas — se estourar, provavelmente há laço ou recursão sem fim.</p>
+
+  <form method="dialog"><button class="btn primary">Entendi</button></form>
+</dialog>
+
+<script src="js/util.js"></script>
+<script src="js/tokenizer.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/interpreter.js"></script>
+<script src="js/examples.js"></script>
+<script src="js/anim.js"></script>
+<script src="js/rough.js"></script>
+<script src="js/views.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
