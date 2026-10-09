@@ -158,13 +158,16 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
+| Árvore binária de busca (BST) — inserção, busca e percursos | regra menor→esquerda / maior-ou-igual→direita, busca `true/false`, raiz privada `#root` e percursos em/pré/pós |
+| Árvore binária de busca (BST) — remoção | folha, um filho, dois filhos (sucessor = menor da direita), raiz, duplicados e árvore vazia |
 | Árvore binária simples — inserção por nível | BFS preenchendo da esquerda para a direita + percursos pré/em/pós |
 | Árvore binária simples — remoção com promoção | folha, um filho, dois filhos e raiz; descendentes preservados |
 
 > **Árvore binária simples × de busca:** os dois exemplos "simples" não ordenam por valor — a
 > inserção procura a primeira vaga livre em ordem de nível e a remoção promove os filhos segundo a
-> regra determinística do código (nada de "menor à esquerda"). Os exemplos de percurso em-ordem e
-> busca iterativa continuam sendo de uma árvore binária de busca, para comparar as duas.
+> regra determinística do código (nada de "menor à esquerda"). Os exemplos de percurso em-ordem,
+> busca iterativa e os dois `arvore-bst` são árvores binárias de busca (raiz privada `#root`),
+> para comparar as duas.
 
 ## O que é detectado automaticamente
 
@@ -173,7 +176,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | **Pilha** | variável/classe com nome `pilha`/`stack`, ou array com `push/pop` |
 | **Fila** | nome `fila`/`queue`, array com `push/shift` (ou `unshift/pop`) ou classe com array interno e índices `#inicio`/`#fim` |
 | **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`) |
-| **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (ou classe `Arvore*`/`Tree*`) |
+| **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (inclusive `#root`/`#raiz`, ou classe `Arvore*`/`Tree*`) |
 
 Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
 realce principal; as visitas somem ao trocar de operação). O trace é gravado na ordem real de conclusão
@@ -199,7 +202,8 @@ estrutura de dados na faculdade:
   `Array.isArray/from`, `Number`, `String`, `Boolean`, `parseInt`, `parseFloat`, `isNaN`, `typeof`.
 
 **Não suportado:** herança de classes (`extends`), membros `static`/`get`/`set`/`async`,
-`try/catch`, `async/await`, regex, generators, `switch`, `Map`/`Set`, módulos.
+parâmetros com valor padrão (`function f(x = 1)`), `try/catch`, `async/await`, regex, generators,
+`switch`, `Map`/`Set`, módulos.
 
 **Proteções:** limite de 20.000 passos e 150 chamadas aninhadas — se estourar, a mensagem avisa
 (provavelmente há laço ou recursão sem fim).
@@ -234,10 +238,12 @@ node tests/run-ui-smoke.js
 
 Os testes cobrem: precedência de operadores, classes/campos privados/recursão, erros com linha
 correta, limites de laço/recursão, identidade visual dos itens animados (chaves estáveis), a árvore
-binária simples (inserção por nível, busca, remoção com promoção, percursos, snapshots e explicação
-contextual), a lista simplesmente encadeada (operações, tamanho após cada operação, terminador,
-remoção de duplicados, render VALUE/NEXT/HEAD, destaques e explicação), recolhimento de painéis, os
-11 exemplos e a renderização de todos os passos na interface.
+binária de busca (inserção/busca/percursos, remoção nos três casos, duplicados, raiz privada `#root`
+e explicações), a árvore binária simples (inserção por nível, busca, remoção com promoção,
+percursos, snapshots e explicação contextual), a lista simplesmente encadeada (operações, tamanho
+após cada operação, terminador, remoção de duplicados, render VALUE/NEXT/HEAD, destaques e
+explicação), recolhimento de painéis, os 14 exemplos e a renderização de todos os passos na
+interface.
 
 ## Ideias de evolução
 

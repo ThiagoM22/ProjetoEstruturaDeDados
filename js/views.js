@@ -14,7 +14,7 @@
   var LIST_NEXT = ['proximo', 'próximo', 'next', 'prox', 'seguinte'];
   var NODE_VALUE = ['valor', 'value', 'dado', 'data', 'chave', 'key', 'elemento', 'item', 'nome'];
   var ITEM_KEYS = ['itens', 'items', 'elementos', 'dados', 'valores', 'array', 'lista', 'fila', 'pilha'];
-  var ROOT_KEYS = ['raiz', 'root'];
+  var ROOT_KEYS = ['raiz', 'root', '#root', '#raiz'];
   /* campos privados aparecem serializados com "#" na frente (#head) */
   var HEAD_KEYS = ['inicio', 'início', 'head', '#head', '#inicio', '#início', 'primeiro', 'cabeca', 'cabeça'];
 
@@ -147,7 +147,7 @@
    * do wrapper: normaliza o rótulo para o nome do wrapper, para a identidade
    * (cena, câmera e seletor) ficar estável entre passos e operações. */
   function treeOwnerLabel(label) {
-    var t = String(label).replace(/\.(raiz|root)$/i, '');
+    var t = String(label).replace(/\.(raiz|root|#root|#raiz)$/i, '');
     return t || String(label);
   }
 
@@ -502,11 +502,20 @@
   var OP_NAMES = {
     inserir: 'Inserção',
     inserirNo: 'Inserção',
+    insert: 'Inserção',
+    insertNode: 'Inserção',
     remover: 'Remoção',
+    remove: 'Remoção',
+    removeNode: 'Remoção',
     buscar: 'Busca',
+    search: 'Busca',
+    searchNode: 'Busca',
     preOrdem: 'Percurso pré-ordem',
     emOrdem: 'Percurso em ordem',
     posOrdem: 'Percurso pós-ordem',
+    preOrderTraverse: 'Percurso pré-ordem',
+    inOrderTraverse: 'Percurso em ordem',
+    postOrderTraverse: 'Percurso pós-ordem',
     limpar: 'Limpeza',
     estaVazia: 'Verificação',
     empilhar: 'Empilhamento',
@@ -543,11 +552,17 @@
     }
     var line = lineText || '';
     if (/\.inserir(No)?\s*\(/.test(line)) return 'Inserção';
+    if (/\.insert(No|Node)?\s*\(/.test(line)) return 'Inserção';
     if (/\.remover\s*\(/.test(line)) return 'Remoção';
+    if (/\.remove(No|Node)?\s*\(/.test(line)) return 'Remoção';
     if (/\.buscar\s*\(/.test(line)) return 'Busca';
+    if (/\.search(No|Node)?\s*\(/.test(line)) return 'Busca';
     if (/preOrdem\s*\(/.test(line)) return 'Percurso pré-ordem';
     if (/emOrdem\s*\(/.test(line)) return 'Percurso em ordem';
     if (/posOrdem\s*\(/.test(line)) return 'Percurso pós-ordem';
+    if (/preOrderTraverse\s*\(/.test(line)) return 'Percurso pré-ordem';
+    if (/inOrderTraverse\s*\(/.test(line)) return 'Percurso em ordem';
+    if (/postOrderTraverse\s*\(/.test(line)) return 'Percurso pós-ordem';
     if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
     if (/\.estaVazia\s*\(/.test(line)) return 'Verificação';
     if (/\.enqueue\s*\(/.test(line)) return 'Enfileiramento';
@@ -586,9 +601,52 @@
     return null;
   }
 
+  /* valor numérico de um nó serializado (null quando não é número) */
+  function numericOf(entry) {
+    if (!entry || !entry.ser) return null;
+    var p = propOf(entry.ser, NODE_VALUE);
+    if (p && p.value && p.value.t === 'p' && typeof p.value.v === 'number') return p.value.v;
+    return null;
+  }
+
+  /* número que a operação manipula: variável local típica (value/valor/alvo)
+   * ou o valor de um nó que ainda não faz parte da árvore (newNode/novo) */
+  function frameNumber(step, names, cur) {
+    var scopes = [step.locals, step.globals];
+    var s, i, map, sv;
+    for (s = 0; s < scopes.length; s++) {
+      map = scopes[s] || {};
+      for (i = 0; i < names.length; i++) {
+        sv = map[names[i]];
+        if (sv && sv.t === 'p' && typeof sv.v === 'number') return sv.v;
+      }
+    }
+    for (s = 0; s < scopes.length; s++) {
+      map = scopes[s] || {};
+      var keys = Object.keys(map);
+      for (i = 0; i < keys.length; i++) {
+        sv = map[keys[i]];
+        if (!isTreeNode(sv)) continue;
+        if (cur && sv.id != null && cur[sv.id]) continue; /* já está na árvore */
+        var num = numericOf({ ser: sv });
+        if (num != null) return num;
+      }
+    }
+    return null;
+  }
+
+  function stackHas(step, name) {
+    var stack = (step && step.stack) || [];
+    for (var i = 0; i < stack.length; i++) {
+      if (String(stack[i].name || '').replace(/^#/, '') === name) return true;
+    }
+    return false;
+  }
+
   /* frase para a árvore: compara o passo com o anterior e o próximo —
    * inserção, remoção, promoção, vaga da inserção, nó visitado */
   function treeExplanation(step, sel, opts, op) {
+    var lineText = (opts && opts.lineText) || '';
     var root = sel.id != null ? DSV.findValueById(step, sel.id) : null;
     if (root === null) return 'A árvore está vazia neste passo.';
     if (!isObj(root)) return null;
@@ -602,6 +660,7 @@
       var added = curIds.filter(function (id) { return !prev[id]; });
       var removed = Object.keys(prev).filter(function (id) { return !cur[id]; });
       var moved = curIds.filter(function (id) { return prev[id] && prev[id].parentId !== cur[id].parentId; });
+      var replaced = curIds.filter(function (id) { return prev[id] && prev[id].val !== cur[id].val; });
 
       if (added.length) {
         var a = cur[added[0]];
@@ -626,6 +685,13 @@
         }
         return 'O nó ' + m2.val + ' virou a raiz da árvore.';
       }
+      /* remoção com dois filhos: o nó permanece, mas o valor dá lugar ao
+       * menor da subárvore direita (o sucessor) */
+      if (replaced.length) {
+        var rp = cur[replaced[0]];
+        return 'O valor ' + prev[replaced[0]].val + ' foi substituído por ' + rp.val +
+          ', o menor da subárvore direita; a ocorrência duplicada será removida em seguida.';
+      }
     }
 
     /* vaga que o próximo passo vai preencher */
@@ -644,6 +710,15 @@
           }
           if (occupied) continue;
           if (op === 'Inserção') {
+            var cNum = numericOf(na);
+            var pInfo = cur[na.parentId];
+            var pNum = pInfo ? numericOf(pInfo) : null;
+            var ordered = cNum != null && pNum != null &&
+              ((na.side === 'L' && cNum < pNum) || (na.side === 'R' && cNum >= pNum));
+            if (ordered) {
+              return 'Seguindo a ordem da BST, o valor ' + cNum + ' será inserido como filho ' +
+                sideName(na.side) + ' do nó ' + cur[na.parentId].val + '.';
+            }
             return 'A busca por níveis encontrou a primeira posição disponível: o filho ' + sideName(na.side) + ' do nó ' + cur[na.parentId].val + '.';
           }
           return 'A próxima alteração será no filho ' + sideName(na.side) + ' do nó ' + cur[na.parentId].val + '.';
@@ -651,13 +726,45 @@
       }
     }
 
+    /* busca que chegou a uma referência null */
+    if (op === 'Busca' && /return\s+false/.test(lineText)) {
+      return 'O valor não está na árvore — a busca chegou a uma referência null.';
+    }
+    if (op === 'Remoção' && /return\s+null/.test(lineText)) {
+      return 'O valor não está na árvore; nada foi removido.';
+    }
+
     var aid = activeNodeId(step.pointers || {});
     if (aid != null && cur[aid]) {
-      if (op === 'Busca') return 'Comparando o nó ' + cur[aid].val + ' com o valor procurado.';
+      var nodeNum = numericOf(cur[aid]);
+      if (op === 'Busca') {
+        var target = frameNumber(step, ['value', 'valor', 'alvo', 'target', 'procurado'], cur);
+        if (target != null && nodeNum != null && /(?:value|valor)/.test(lineText)) {
+          if (target === nodeNum) return 'Encontrei o nó ' + nodeNum + ': o valor procurado é igual ao valor do nó.';
+          if (target < nodeNum) return 'No nó ' + nodeNum + ': ' + target + ' < ' + nodeNum + ' — a busca segue para a esquerda.';
+          return 'No nó ' + nodeNum + ': ' + target + ' > ' + nodeNum + ' — a busca segue para a direita.';
+        }
+        return 'Comparando o nó ' + cur[aid].val + ' com o valor procurado.';
+      }
+      if (op === 'Inserção') {
+        var ins = frameNumber(step, ['value', 'valor', 'novoValor', 'newValue'], cur);
+        if (ins != null && nodeNum != null && /(?:value|valor)\s*(?:<|>|<=|>=)/.test(lineText)) {
+          if (ins < nodeNum) return 'Comparando: ' + ins + ' < ' + nodeNum + ' — a inserção desce para o filho esquerdo.';
+          return 'Comparando: ' + ins + ' >= ' + nodeNum + ' — a inserção desce para o filho direito.';
+        }
+        return 'Visitando o nó ' + cur[aid].val + '.';
+      }
+      if (op === 'Remoção' && stackHas(step, 'findMinNode')) {
+        return 'Procurando o menor valor da subárvore direita (o sucessor do nó removido).';
+      }
       return 'Visitando o nó ' + cur[aid].val + '.';
     }
 
-    if (op === 'Inserção') return 'A busca por níveis procura a primeira posição livre.';
+    if (op === 'Inserção') {
+      var pending = frameNumber(step, ['value', 'valor', 'novoValor', 'newValue'], cur);
+      if (pending != null) return 'Inserindo o valor ' + pending + ': a árvore desce comparando os valores até achar a vaga.';
+      return 'A busca por níveis procura a primeira posição livre.';
+    }
     if (op === 'Remoção') return 'Procurando o nó a ser removido.';
     return 'Sem alterações na árvore neste passo.';
   }
@@ -1428,7 +1535,7 @@
     var info = Object.create(null);
     (function walk(n, parentId, side) {
       if (!isObj(n) || info[n.id]) return;
-      info[n.id] = { id: n.id, val: valText(n), parentId: parentId, side: side };
+      info[n.id] = { id: n.id, val: valText(n), parentId: parentId, side: side, ser: n };
       walk(nodeChild(n, 'L'), n.id, 'L');
       walk(nodeChild(n, 'R'), n.id, 'R');
     })(root, null, null);
@@ -1473,9 +1580,14 @@
   /* operações cujo ponteiro ativo descreve um caminho real do algoritmo */
   var TRANSITION_OPS = {
     inserir: 1, inserirNo: 1, remover: 1, buscar: 1,
-    preOrdem: 1, emOrdem: 1, posOrdem: 1
+    preOrdem: 1, emOrdem: 1, posOrdem: 1,
+    insert: 1, insertNode: 1, search: 1, searchNode: 1, remove: 1, removeNode: 1,
+    inOrderTraverse: 1, preOrderTraverse: 1, postOrderTraverse: 1
   };
-  var TRAVERSAL_OPS = { preOrdem: 1, emOrdem: 1, posOrdem: 1 };
+  var TRAVERSAL_OPS = {
+    preOrdem: 1, emOrdem: 1, posOrdem: 1,
+    inOrderTraverse: 1, preOrderTraverse: 1, postOrderTraverse: 1
+  };
 
   function frameNames(stack) {
     var list = stack || [];

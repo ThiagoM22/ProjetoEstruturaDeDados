@@ -930,11 +930,13 @@ kbd {
  * referência); a conexão parte da região NEXT e a linha é navegada por
  * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós).
  * A escala acompanha o tamanho da lista (--list-scale, definido no render):
- * listas curtas desenham maior; longas mantêm o tamanho-base. */
+ * listas curtas desenham maior; longas mantêm o tamanho-base.
+ * O alinhamento vertical é central: as unidades de nó têm a mesma altura e
+ * o terminador, menor, fica centrado em relação ao nó. */
 .list-wrap {
   --list-scale: 1;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: nowrap;
   justify-content: flex-start;
   gap: calc(var(--sp-2) * var(--list-scale));
@@ -1099,8 +1101,8 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(22px * var(--list-scale));
-  height: calc(22px * var(--list-scale));
+  width: calc(30px * var(--list-scale));
+  height: calc(30px * var(--list-scale));
   color: var(--text-muted);
 }
 

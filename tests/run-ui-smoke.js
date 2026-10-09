@@ -724,6 +724,80 @@ test('explicação do passo: remoção com promoção', () => {
   assert(op === 'Remoção', 'operação é Remoção: ' + op);
 });
 
+test('BST: renderiza com #root, destaques e sem vazamentos', () => {
+  const all = percorrerExemplo('arvore-bst');
+  assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');
+  assert(all.indexOf('tree-node') >= 0, 'nós desenhados');
+  assert(/tree-node[^"]*visited/.test(all), 'nós visitados em roxo');
+  assert(/tree-node[^"]*active/.test(all), 'nó ativo com realce principal');
+  assert(all.indexOf('ptr-chip') < 0, 'sem etiquetas de texto nos nós');
+  assert(all.indexOf('tree-null-stub') < 0, 'sem stubs de filhos vazios');
+  assert(all.indexOf('#root') < 0, 'campo privado não vaza para o desenho');
+});
+
+test('BST: saída e variáveis acompanham os percursos', () => {
+  percorrerExemplo('arvore-bst');
+  const saida = $('console').innerHTML;
+  assert(saida.indexOf('Em-ordem (crescente)') >= 0, 'cabeçalho do em-ordem');
+  assert(saida.indexOf('Pré-ordem') >= 0, 'cabeçalho do pré-ordem');
+  assert(saida.indexOf('Pós-ordem') >= 0, 'cabeçalho do pós-ordem');
+  assert(saida.indexOf('Buscar 99 (não existe): false') >= 0, 'resultado da busca');
+  assert($('vars').innerHTML.length > 10, 'painel de variáveis preenchido');
+});
+
+test('BST: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('arvore-bst');
+  const idx = snaps.findIndex((s) => s.indexOf('tree-node') >= 0 && s.indexOf('>40</text>') >= 0);
+  assert(idx > 0, 'passo com o nó 40');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz o próximo estado idêntico');
+});
+
+test('BST: faixa explica comparação, direção, sucessor e substituição', () => {
+  $('exampleSelect').value = 'arvore-bst';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let viuComparacao = false;
+  let viuDirecao = false;
+  for (let i = 0; i <= total; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    const txt = $('stepText').textContent;
+    if (/Comparando: \d+ [<>]=? \d+/.test(txt)) viuComparacao = true;
+    if (txt.indexOf('a busca segue para') >= 0) viuDirecao = true;
+  }
+  assert(viuComparacao, 'comparação numérica na faixa');
+  assert(viuDirecao, 'direção da busca na faixa');
+
+  $('exampleSelect').value = 'arvore-bst-remocao';
+  fire('exampleSelect', 'change');
+  const total2 = parseInt($('slider').max, 10);
+  let viuSucessor = false;
+  let viuSubstituicao = false;
+  for (let i = 0; i <= total2; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    const txt = $('stepText').textContent;
+    if (txt.indexOf('menor valor da subárvore direita') >= 0) viuSucessor = true;
+    if (txt.indexOf('foi substituído por') >= 0) viuSubstituicao = true;
+  }
+  assert(viuSucessor, 'varredura do sucessor na faixa');
+  assert(viuSubstituicao, 'troca de valor na faixa');
+});
+
+test('BST: seletor lista a estrutura e regressão das demais segue ok', () => {
+  $('exampleSelect').value = 'arvore-bst';
+  fire('exampleSelect', 'change');
+  assert($('structureSelect').innerHTML.indexOf('arvore') >= 0, 'seletor lista a árvore');
+  const pilha = percorrerExemplo('pilha-array');
+  assert(pilha.indexOf('stack-cell') >= 0 || pilha.indexOf('A pilha está vazia neste passo.') >= 0, 'pilha desenha');
+  const fila = percorrerExemplo('fila-array');
+  assert(fila.indexOf('ptr-front') >= 0 && fila.indexOf('ptr-rear') >= 0, 'fila com FRONT e REAR');
+  const lista = percorrerExemplo('lista-simples');
+  assert(lista.indexOf('list-head-tag') >= 0, 'lista encadeada continua funcionando');
+});
+
 test('painéis: abas alternam comandos, variáveis, chamadas e saída', () => {
   fire('tabConsole', 'click');
   assert($('pageConsole').classList.contains('active'), 'saída ativa');

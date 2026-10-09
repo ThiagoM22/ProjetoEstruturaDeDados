@@ -2454,6 +2454,204 @@ test('rough: seedOf é estável e espalha ids', () => {
 });
 
 /* ---------------------------------------------------------------- */
+console.log('\n[BST da referência: #root, inserção, busca, remoção e percursos]');
+
+/* raiz serializada do wrapper, lida do campo privado #root */
+function bstRootOf(step, name) {
+  const holder = (step.globals && step.globals[name]) || (step.locals && step.locals[name]);
+  if (!holder || holder.t !== 'o') return undefined;
+  const root = prop(holder, '#root');
+  if (!root) return undefined;
+  return root.t === 'o' ? root : null;
+}
+
+/* forma textual com os nomes da referência: value(left,right) */
+function shapeEn(sv) {
+  if (!sv) return '.';
+  const val = prop(sv, 'value');
+  return String(val ? val.v : '?') + '(' + shapeEn(childOf(sv, 'left')) + ',' + shapeEn(childOf(sv, 'right')) + ')';
+}
+
+/* confere que as formas aparecem na ordem cronológica das operações */
+function assertShapesEn(trace, name, shapes, rotulo) {
+  let cursor = 0;
+  shapes.forEach((sh, i) => {
+    let idx = -1;
+    for (let j = cursor; j < trace.steps.length; j++) {
+      if (shapeEn(bstRootOf(trace.steps[j], name)) === sh) { idx = j; break; }
+    }
+    assert(idx >= 0, (rotulo || 'forma') + ' #' + (i + 1) + ' na ordem esperada: ' + sh);
+    cursor = idx + 1;
+  });
+}
+
+/* frases da faixa de explicação ao longo de um trace (com a linha real) */
+function bstTexts(trace, code) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const lines = code.split('\n');
+  return trace.steps.map((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0] || null;
+    return DSV.explainStep(s, sel, {
+      prevStep: i > 0 ? trace.steps[i - 1] : null,
+      nextStep: i < trace.steps.length - 1 ? trace.steps[i + 1] : null,
+      lineText: lines[s.line - 1] ? lines[s.line - 1].trim() : ''
+    }).text || '';
+  });
+}
+
+test('BST: exemplo arvore-bst executa e guarda a raiz em #root', () => {
+  const ex = treeExample('arvore-bst');
+  const t = run(ex.code);
+  noError(t, 'exemplo arvore-bst');
+  const last = lastStep(t);
+  assert(prop(last.globals.arvore, '#root'), 'wrapper com o campo privado #root');
+  eq(shapeEn(bstRootOf(last, 'arvore')),
+    '50(30(20(.,.),40(.,40(.,.))),70(60(.,.),80(.,.)))',
+    'forma final (o 40 duplicado desce pela direita)');
+});
+
+test('BST: inserção posiciona menores à esquerda e maiores/iguais à direita', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  assertShapesEn(t, 'arvore', [
+    '50(.,.)',
+    '50(30(.,.),.)',
+    '50(30(.,.),70(.,.))',
+    '50(30(20(.,.),.),70(.,.))',
+    '50(30(20(.,.),40(.,.)),70(.,.))',
+    '50(30(20(.,.),40(.,.)),70(60(.,.),.))',
+    '50(30(20(.,.),40(.,.)),70(60(.,.),80(.,.)))'
+  ], 'inserção');
+});
+
+test('BST: busca cobre raiz, subárvores, inexistente e árvore vazia', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  const outs = outputs(t);
+  assert(outs.indexOf('Buscar 10 na árvore vazia: false') >= 0, 'busca na árvore vazia');
+  assert(outs.indexOf('Buscar 40 (subárvore esquerda): true') >= 0, 'busca na subárvore esquerda');
+  assert(outs.indexOf('Buscar 80 (subárvore direita): true') >= 0, 'busca na subárvore direita');
+  assert(outs.indexOf('Buscar 99 (não existe): false') >= 0, 'busca sem resultado');
+});
+
+test('BST: percursos em-ordem, pré-ordem e pós-ordem com os resultados esperados', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  const outs = outputs(t);
+  const iEm = outs.indexOf('Em-ordem (crescente):');
+  const iPre = outs.indexOf('Pré-ordem:');
+  const iPos = outs.indexOf('Pós-ordem:');
+  assert(iEm >= 0 && iPre > iEm && iPos > iPre, 'cabeçalhos na ordem da execução');
+  eq(outs.slice(iEm + 1, iEm + 8).join(','), '20,30,40,50,60,70,80', 'em-ordem');
+  eq(outs.slice(iPre + 1, iPre + 8).join(','), '50,30,20,40,70,60,80', 'pré-ordem');
+  eq(outs.slice(iPos + 1, iPos + 8).join(','), '20,40,30,60,80,70,50', 'pós-ordem');
+});
+
+test('BST: remoção cobre folha, um filho, dois filhos, raiz, inexistente e único nó', () => {
+  const t = run(treeExample('arvore-bst-remocao').code);
+  noError(t, 'exemplo arvore-bst-remocao');
+  assertShapesEn(t, 'arvore', [
+    '50(30(20(.,.),40(.,.)),70(60(.,.),80(.,.)))', /* construção */
+    '50(30(.,40(.,.)),70(60(.,.),80(.,.)))',       /* 20 — folha */
+    '50(30(.,40(.,.)),70(60(.,.),.))',             /* 80 — folha */
+    '50(40(.,.),70(60(.,.),.))',                   /* 30 — só filho direito */
+    '50(40(.,.),60(.,.))',                         /* 70 — só filho esquerdo */
+    '50(40(.,45(.,.)),60(55(.,.),65(.,.)))',       /* preparação dos dois filhos */
+    '55(40(.,45(.,.)),60(.,65(.,.)))',             /* 50 — dois filhos */
+    '55(40(.,.),60(.,65(.,.)))',                   /* 45 — folha */
+    '55(40(.,.),60(.,.))',                         /* 65 — folha */
+    '60(40(.,.),.)',                               /* 55 — dois filhos */
+    '40(.,.)',                                     /* 60 — raiz com um filho */
+    '.'                                            /* 40 — único nó */
+  ], 'remoção');
+});
+
+test('BST: duplicado à direita e remoção da primeira ocorrência do caminho', () => {
+  const t = run(treeExample('arvore-bst-remocao').code);
+  noError(t);
+  assertShapesEn(t, 'duplicada', [
+    '50(30(.,.),50(.,.))', /* o segundo 50 desce pela direita */
+    '50(30(.,.),.)',       /* remove a primeira ocorrência; o duplicado assume o valor */
+    '50(.,.)',             /* remove 30 */
+    '.'                    /* remove o único nó */
+  ], 'duplicada');
+  const outs = outputs(t);
+  const i1 = outs.indexOf('Com o 50 duplicado, em-ordem:');
+  eq(outs.slice(i1 + 1, i1 + 4).join(','), '30,50,50', 'em-ordem com o duplicado');
+  const i2 = outs.indexOf('Remover 50 (primeira ocorrência; o duplicado assume o valor):');
+  eq(outs.slice(i2 + 1, i2 + 3).join(','), '30,50', 'em-ordem após remover a primeira ocorrência');
+  const i3 = outs.indexOf('Remover 30:');
+  eq(outs.slice(i3 + 1, i3 + 2).join(','), '50', 'em-ordem após remover 30');
+});
+
+test('BST: detecção usa o wrapper e não vaza o campo privado', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  const last = lastStep(t);
+  const cands = DSV.detectStructures(last, DSV.buildOpsMap(t.steps));
+  eq(cands[0].type, 'tree', 'melhor candidato é a árvore');
+  eq(cands[0].label, 'arvore', 'rótulo é o nome do wrapper (sem #root)');
+  assert(cands.every((c) => String(c.label).indexOf('#root') < 0), 'nenhum candidato expõe #root');
+});
+
+test('BST: explicações mostram comparação, direção, null, sucessor e substituição', () => {
+  const ex1 = treeExample('arvore-bst');
+  const t1 = run(ex1.code);
+  noError(t1);
+  const txt1 = bstTexts(t1, ex1.code);
+  assert(txt1.some((x) => x.indexOf('Comparando: 30 < 50') >= 0), 'comparação numérica na inserção');
+  assert(txt1.some((x) => x.indexOf('a inserção desce para o filho esquerdo') >= 0), 'direção esquerda na inserção');
+  assert(txt1.some((x) => x.indexOf('a inserção desce para o filho direito') >= 0), 'direção direita na inserção');
+  assert(txt1.some((x) => x.indexOf('Seguindo a ordem da BST') >= 0), 'prévia da vaga pela ordem da BST');
+  assert(txt1.some((x) => x.indexOf('a busca segue para a esquerda') >= 0), 'direção da busca');
+  assert(txt1.some((x) => x.indexOf('Encontrei o nó 40') >= 0), 'busca que encontra o valor');
+  assert(txt1.some((x) => x.indexOf('referência null') >= 0), 'busca que chega a null');
+  assert(txt1.some((x) => x.indexOf('Visitando o nó') >= 0), 'percursos visitando nós');
+
+  const ex2 = treeExample('arvore-bst-remocao');
+  const t2 = run(ex2.code);
+  noError(t2);
+  const txt2 = bstTexts(t2, ex2.code);
+  assert(txt2.some((x) => x.indexOf('menor valor da subárvore direita') >= 0), 'varredura do sucessor');
+  assert(txt2.some((x) => x.indexOf('foi substituído por 55') >= 0), 'troca de valor do nó removido');
+  assert(txt2.some((x) => x.indexOf('não está na árvore; nada foi removido') >= 0), 'remoção inexistente');
+  assert(txt2.some((x) => x.indexOf('subiu para o lugar') >= 0), 'um filho assume o lugar');
+});
+
+test('BST: visitas reiniciam por operação e a seta reconhece as operações', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  const visit = DSV.computeVisitOrder(t.steps);
+  const epochs = {};
+  Object.keys(visit.epochOf).forEach((k) => { epochs[visit.epochOf[k]] = true; });
+  assert(Object.keys(epochs).length >= 5, 'épocas distintas por operação: ' + Object.keys(epochs).length);
+  const trs = transitionsOf(t);
+  assert(trs.some((tr) => tr.op === 'search'), 'seta contextual na busca');
+  assert(trs.some((tr) => tr.op === 'insert'), 'seta contextual na inserção');
+  assert(trs.some((tr) => tr.op === 'inOrderTraverse'), 'seta contextual no percurso em-ordem');
+});
+
+test('BST: render da busca destaca um único nó e não vaza o campo privado', () => {
+  const t = run(treeExample('arvore-bst').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let alvo = -1;
+  for (let i = 0; i < t.steps.length && alvo < 0; i++) {
+    const s = t.steps[i];
+    if (!s.locals || !s.locals.value || s.locals.value.t !== 'p' || s.locals.value.v !== 40) continue;
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0];
+    if (!sel) continue;
+    const html = renderTreeStep(t, s).html;
+    if (/tree-node[^"]*active/.test(html)) alvo = i;
+  }
+  assert(alvo >= 0, 'passo de busca com nó ativo');
+  const html = renderTreeStep(t, t.steps[alvo]).html;
+  eq((html.match(/tree-node[^"]*active/g) || []).length, 1, 'um único nó em destaque por passo');
+  assert(html.indexOf('tree-null-stub') < 0, 'sem stubs de filhos vazios');
+  assert(html.indexOf('#root') < 0, 'campo privado não vaza para o canvas');
+});
+
+/* ---------------------------------------------------------------- */
 console.log('\n[todos os exemplos executam sem erro]');
 DSV.EXAMPLES.forEach((ex) => {
   test('exemplo: ' + ex.name, () => {
