@@ -99,6 +99,82 @@
     return /^[A-Za-z_$]/.test(word) ? word : null;
   };
 
+  /* Segmento imediatamente antes do ponto (aceita espaços entre o nome e o
+   * ponto); inclui o "#" dos nomes privados. Devolve {seg, start} ou null
+   * quando o que vem antes do ponto não é um identificador (ex.: arr[0]). */
+  function memberBefore(s, dotIndex) {
+    var j = dotIndex;
+    while (j > 0 && (s.charAt(j - 1) === ' ' || s.charAt(j - 1) === '\t')) j--;
+    var st = j;
+    while (st > 0 && /[A-Za-z0-9_$]/.test(s.charAt(st - 1))) st--;
+    if (st === j) return null;
+    var seg = s.slice(st, j);
+    if (!/^[A-Za-z_$]/.test(seg)) return null;
+    if (st > 0 && s.charAt(st - 1) === '#') { seg = '#' + seg; st--; }
+    return { seg: seg, start: st };
+  }
+
+  /* Expressão sob a coluna `col` da linha `line`: um identificador simples
+   * ou uma cadeia de acesso a membro (ex.: "node.left.value"), como na
+   * dica de variável do editor. Devolve {name, parts} — name é a expressão
+   * inteira e parts[0] é a base (variável ou this) — ou null quando a
+   * posição não está sobre um identificador. */
+  DSV.expressionAt = function (text, line, col) {
+    var lines = String(text == null ? '' : text).split('\n');
+    if (line < 0 || line >= lines.length) return null;
+    var s = lines[line];
+    if (col < 0 || col >= s.length) return null;
+    if (!/[A-Za-z0-9_$]/.test(s.charAt(col))) return null;
+    var start = col;
+    while (start > 0 && /[A-Za-z0-9_$]/.test(s.charAt(start - 1))) start--;
+    var end = col + 1;
+    while (end < s.length && /[A-Za-z0-9_$]/.test(s.charAt(end))) end++;
+    var word = s.slice(start, end);
+    if (!/^[A-Za-z_$]/.test(word)) return null;
+    var parts = [word];
+    var pos = start;
+    /* nome privado (#root): o "#" faz parte do identificador */
+    if (pos > 0 && s.charAt(pos - 1) === '#') {
+      parts[0] = '#' + parts[0];
+      pos--;
+    }
+    /* sobe a cadeia de acessos a membro (obj.campo.campo...) */
+    while (pos > 0) {
+      var dot = pos;
+      while (dot > 0 && (s.charAt(dot - 1) === ' ' || s.charAt(dot - 1) === '\t')) dot--;
+      if (dot <= 0 || s.charAt(dot - 1) !== '.') break;
+      var before = memberBefore(s, dot - 1);
+      if (!before) return null; /* base não identificável (ex.: arr[0].x) */
+      parts.unshift(before.seg);
+      pos = before.start;
+    }
+    return { name: parts.join('.'), parts: parts };
+  };
+
+  /* Valor da expressão sob o mouse no passo, na mesma serialização do painel
+   * Variáveis: a base é resolvida como variável (ou this) e os demais
+   * segmentos são campos do objeto serializado. Um campo de objeto vale mais
+   * que uma variável de mesmo nome em escopo (ex.: em "node.value", o balão
+   * mostra o campo value do nó, não o parâmetro value). Devolve
+   * {name, scope, sv} ou null quando a expressão não existe neste passo. */
+  DSV.resolveExpression = function (step, expr) {
+    if (!step || !expr || !expr.parts || !expr.parts.length) return null;
+    var info = DSV.resolveVariable(step, expr.parts[0]);
+    if (!info) return null;
+    var sv = info.sv;
+    for (var i = 1; i < expr.parts.length; i++) {
+      var seg = expr.parts[i];
+      if (sv && sv.t === 'o' && sv.props && Object.prototype.hasOwnProperty.call(sv.props, seg)) {
+        sv = sv.props[seg];
+      } else if (sv && sv.t === 'a' && sv.items && /^\d+$/.test(seg) && +seg < sv.items.length) {
+        sv = sv.items[+seg];
+      } else {
+        return null;
+      }
+    }
+    return { name: expr.name || expr.parts.join('.'), scope: info.scope, sv: sv };
+  };
+
   /* Variável visível no passo, na mesma ordem do painel Variáveis:
    * this → locais da função atual → globais. Devolve {name, sv, scope}
    * ou null quando o nome não é uma variável do passo. */

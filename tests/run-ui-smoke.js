@@ -1145,6 +1145,42 @@ test('hover: palavra que não é variável não abre balão', () => {
   fire('code', 'mouseleave', {});
 });
 
+test('hover: campo de objeto mostra o valor do campo, não a variável homônima', () => {
+  $('code').value = [
+    'class Node {',
+    '  constructor(value) {',
+    '    this.value = value;',
+    '  }',
+    '}',
+    '',
+    'const node = new Node(80);',
+    'const value = 99;',
+    'const resultado = node.value < value;'
+  ].join('\n');
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+
+  /* "value" depois do ponto é o campo de node (80), não a variável 99 */
+  hoverAt(8, 24);
+  const timerCampo = pendingTimers.pop();
+  assert(typeof timerCampo === 'function', 'timer agendado para o campo');
+  timerCampo();
+  let html = $('varTip').innerHTML;
+  assert(!$('varTip').classList.contains('hidden'), 'balão visível para o campo');
+  assert(html.indexOf('var-tip-name">node.value') >= 0, 'nome do campo com a base: ' + html);
+  assert(html.indexOf('var-tip-val">80') >= 0, 'valor do campo (80): ' + html);
+
+  /* o "value" solto continua mostrando a variável (99) */
+  hoverAt(8, 33);
+  const timerVariavel = pendingTimers.pop();
+  assert(typeof timerVariavel === 'function', 'timer agendado para a variável');
+  timerVariavel();
+  html = $('varTip').innerHTML;
+  assert(html.indexOf('var-tip-name">value') >= 0, 'nome da variável: ' + html);
+  assert(html.indexOf('var-tip-val">99') >= 0, 'valor da variável (99): ' + html);
+  fire('code', 'mouseleave', {});
+});
+
 /* devolve o DOM simulado ao estado original para os testes seguintes */
 document.createElement = origCreateElement;
 

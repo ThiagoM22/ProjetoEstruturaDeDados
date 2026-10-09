@@ -278,7 +278,7 @@
     return codeCharW;
   }
 
-  /* converte a posição do mouse na palavra sob o cursor (ou null) */
+  /* converte a posição do mouse na expressão sob o cursor (ou null) */
   function codeWordAt(clientX, clientY) {
     if (typeof els.code.getBoundingClientRect !== 'function') return null;
     var cw = measureCharWidth();
@@ -289,9 +289,9 @@
     if (x < 0 || y < 0) return null;
     var line = Math.floor(y / LINE_HEIGHT);
     var col = Math.floor(x / cw);
-    var name = DSV.identifierAt(els.code.value, line, col);
-    if (!name) return null;
-    return { key: line + ':' + name, name: name };
+    var expr = DSV.expressionAt(els.code.value, line, col);
+    if (!expr) return null;
+    return { key: line + ':' + expr.name, name: expr.name, parts: expr.parts };
   }
 
   function positionVarTip(clientX, clientY) {
@@ -312,8 +312,8 @@
   }
 
   function showVarTip(word, clientX, clientY) {
-    var info = DSV.resolveVariable(steps()[state.index], word.name);
-    if (!info) return; /* não é variável visível neste passo */
+    var info = DSV.resolveExpression(steps()[state.index], word);
+    if (!info) return; /* não é variável/expressão visível neste passo */
     els.varTip.innerHTML =
       '<div class="var-tip-head"><span class="var-tip-name">' + esc(info.name) + '</span>' +
       '<span class="var-tip-scope">' + esc(info.scope) + '</span></div>' +

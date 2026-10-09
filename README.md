@@ -8,7 +8,7 @@ código JavaScript e o portal mostra, passo a passo:
 - os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
   árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
 - a **pilha de chamadas** (ótimo para enxergar a recursão da árvore);
-- o **valor de uma variável sob o mouse** — segure o mouse sobre o nome no editor e um balão mostra o valor dela no passo atual (da função, `this` ou global);
+- o **valor de uma variável sob o mouse** — segure o mouse sobre o nome no editor e um balão mostra o valor dela no passo atual (da função, `this` ou global); vale também para **campos de objetos e nós** (`node.value`, `node.left.value`, `this.#root`), resolvidos no objeto real daquele passo;
 - a **saída do `console.log`** ligada ao passo em que foi impressa.
 
 Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
@@ -116,7 +116,7 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
    - `Home` / `End` — primeiro / último passo
    - `F10` — **modo debug** (passo a passo por tecla)
 
-   Durante a execução, **segure o mouse sobre uma variável** no editor: um balão mostra nome, escopo e o valor dela naquele passo (o mesmo que o painel Variáveis exibe).
+   Durante a execução, **segure o mouse sobre uma variável** no editor: um balão mostra nome, escopo e o valor dela naquele passo (o mesmo que o painel Variáveis exibe). Segure sobre um campo de objeto (ex.: `node.value`) e o balão mostra o valor **do campo no objeto apontado pela variável** naquele passo — mesmo que exista uma variável de mesmo nome em escopo.
 4. Na visualização, **arraste** para mover o desenho e use a **roda do mouse** para dar zoom (ou os
    controles no topo do painel: `−`, `100%`, `+` e ajustar à tela). A faixa acima dos controles explica
    a operação do passo atual (nome da operação + o que aconteceu/acontecerá).
@@ -135,7 +135,7 @@ qualquer tecla** para executar a próxima — como um debugger. A cada tecla:
 - a pilha/fila/lista/árvore é atualizada na hora, com as animações;
 - os painéis de variáveis, chamadas e saída acompanham em tempo real.
 
-Segurar o mouse sobre uma variável mostra o valor dela no passo em que a execução está — útil para
+Segurar o mouse sobre uma variável (ou sobre um campo, como `node.value` ou `this.#root`) mostra o valor no passo em que a execução está — útil para
 acompanhar parâmetros e variáveis locais junto com a pilha de chamadas.
 
 `←` volta uma linha · `Home`/`End` vão ao início/fim · `Esc` sai e libera o editor para edição.
@@ -267,8 +267,8 @@ percursos, snapshots e explicação contextual), a lista simplesmente encadeada 
 após cada operação, terminador, remoção de duplicados, render VALUE/NEXT/HEAD, destaques e
 explicação), a lista duplamente encadeada (operações com prev/next, invariantes de `head`/`tail`/
 `length`, setas nos dois sentidos, TAIL, percurso reverso e serialização sem truncamento),
-recolhimento de painéis, a dica de variável do editor (hover), os 15 exemplos e a
-renderização de todos os passos na interface.
+recolhimento de painéis, a dica de variável do editor (hover, inclusive de campos como `node.value`,
+cadeias e `this.#campo`), os 15 exemplos e a renderização de todos os passos na interface.
 
 ## Ideias de evolução
 

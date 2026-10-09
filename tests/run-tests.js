@@ -3103,6 +3103,75 @@ test('resolveVariable: this nas classes', () => {
   eq(DSV.resolveVariable(comThis, 'naoExiste'), null, 'nome desconhecido');
 });
 
+test('expressionAt: identificador simples, membro, privado e cadeia', () => {
+  const code = 'if (value < node.value) {}';
+  eq(DSV.expressionAt(code, 0, 5).name, 'value', 'identificador simples');
+  eq(DSV.expressionAt(code, 0, 1).name, 'if', 'palavra-chave também é localizada');
+  eq(DSV.expressionAt(code, 0, 12).name, 'node', 'cursor sobre a base');
+  eq(DSV.expressionAt(code, 0, 17).name, 'node.value', 'acesso a membro');
+  eq(DSV.expressionAt(code, 0, 17).parts.join('|'), 'node|value', 'base + campo');
+  eq(DSV.expressionAt(code, 0, 16), null, 'ponto não é identificador');
+
+  eq(DSV.expressionAt('this.#root = null;', 0, 7).name, 'this.#root', 'campo privado com #');
+  eq(DSV.expressionAt('this.#root = null;', 0, 7).parts.join('|'), 'this|#root', 'base + campo privado');
+
+  const chain = DSV.expressionAt('return this.#root.left.value;', 0, 24);
+  eq(chain.name, 'this.#root.left.value', 'cadeia completa');
+  eq(chain.parts.join('|'), 'this|#root|left|value', 'partes da cadeia');
+
+  eq(DSV.expressionAt('node . value', 0, 9).name, 'node.value', 'espaços em volta do ponto');
+
+  eq(DSV.expressionAt('arr[0].value', 0, 8), null, 'base computada (arr[0]) não é resolvida');
+  eq(DSV.expressionAt(code, 0, 99), null, 'coluna fora da linha');
+  eq(DSV.expressionAt(code, 5, 0), null, 'linha fora do texto');
+});
+
+test('resolveExpression: campo do objeto vence a variável homônima', () => {
+  const t = run([
+    'class No {',
+    '  constructor(v) {',
+    '    this.v = v;',
+    '    this.left = null;',
+    '    this.right = null;',
+    '  }',
+    '}',
+    'const no = new No(80);',
+    'let value = 99;',
+    'const leitura = no.v;'
+  ].join('\n'));
+  noError(t);
+  const last = lastStep(t);
+  const campo = DSV.resolveExpression(last, { name: 'no.v', parts: ['no', 'v'] });
+  assert(campo, 'no.v resolvido');
+  eq(campo.name, 'no.v', 'nome da expressão');
+  eq(campo.scope, 'global', 'escopo vem da base');
+  eq(campo.sv.v, 80, 'valor do campo, não da variável homônima');
+  const local = DSV.resolveExpression(last, { name: 'value', parts: ['value'] });
+  eq(local.sv.v, 99, 'variável simples mantém o valor dela');
+  eq(DSV.resolveExpression(last, { name: 'no.ausente', parts: ['no', 'ausente'] }), null, 'campo inexistente');
+  eq(DSV.resolveExpression(last, { name: 'naoExiste.v', parts: ['naoExiste', 'v'] }), null, 'base desconhecida');
+  eq(DSV.resolveExpression(null, { name: 'no.v', parts: ['no', 'v'] }), null, 'sem passo');
+});
+
+test('resolveExpression: campo privado via this', () => {
+  const t = run([
+    'class Caixa {',
+    '  #valor = 7;',
+    '  abrir() { return this.#valor; }',
+    '}',
+    'const c = new Caixa();',
+    'c.abrir();'
+  ].join('\n'));
+  noError(t);
+  const dentro = t.steps.filter((s) => s.thisVal).pop();
+  assert(dentro, 'existe passo com this');
+  const info = DSV.resolveExpression(dentro, { name: 'this.#valor', parts: ['this', '#valor'] });
+  assert(info, 'this.#valor resolvido');
+  eq(info.name, 'this.#valor', 'nome com #');
+  eq(info.scope, 'função atual', 'escopo da função atual');
+  eq(info.sv.v, 7, 'valor do campo privado');
+});
+
 /* ---------------------------------------------------------------- */
 console.log('\n[lote 1: semântica e mensagens]');
 
