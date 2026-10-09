@@ -1011,26 +1011,6 @@ test('busca em árvore: encontra 40 e usa ponteiro atual', () => {
   assert(temAtual, 'ponteiro atual presente');
 });
 
-test('bubble sort: ordena e registra trocas', () => {
-  const example = DSV.EXAMPLES.find((e) => e.id === 'bubble-sort');
-  const t = run(example.code);
-  noError(t, 'exemplo bubble');
-  const last = lastStep(t);
-  const vals = last.globals.valores.items.map((i) => i.v);
-  eq(vals.join(','), '1,2,3,5,8,9', 'vetor ordenado');
-  const outs = outputs(t);
-  eq(outs[outs.length - 1], 'Ordenado: 1, 2, 3, 5, 8, 9');
-});
-
-test('busca binária: encontra 23 no índice 5', () => {
-  const example = DSV.EXAMPLES.find((e) => e.id === 'busca-binaria');
-  const t = run(example.code);
-  noError(t, 'exemplo busca binária');
-  const outs = outputs(t);
-  assert(outs.some((o) => o === 'Encontrei o valor 23 no índice 5'), 'acha o alvo');
-  assert(outs.length < 12, 'poucos passos de console (busca binária)');
-});
-
 /* ---------------------------------------------------------------- */
 console.log('\n[árvore binária simples: BFS de inserção, busca, remoção e percursos]');
 

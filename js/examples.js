@@ -867,57 +867,6 @@
         'arvore.limpar();',
         "console.log('Vazia depois de limpar?', arvore.estaVazia());"
       ].join('\n')
-    },
-    {
-      id: 'bubble-sort',
-      name: 'Array — Bubble Sort',
-      code: [
-        '// ORDENAÇÃO — Bubble Sort: compara vizinhos e troca se estiverem fora de ordem.',
-        '',
-        'const valores = [5, 3, 8, 1, 9, 2];',
-        '',
-        'for (let i = 0; i < valores.length - 1; i++) {',
-        '  for (let j = 0; j < valores.length - 1 - i; j++) {',
-        '    if (valores[j] > valores[j + 1]) {',
-        '      const temp = valores[j];',
-        '      valores[j] = valores[j + 1];',
-        '      valores[j + 1] = temp;',
-        "      console.log('Troquei:', temp, 'com', valores[j]);",
-        '    }',
-        '  }',
-        '}',
-        '',
-        "console.log('Ordenado:', valores.join(', '));"
-      ].join('\n')
-    },
-    {
-      id: 'busca-binaria',
-      name: 'Array — Busca binária',
-      code: [
-        '// BUSCA BINÁRIA — a cada passo o algoritmo descarta metade do vetor.',
-        '',
-        'const ordenado = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];',
-        'const alvo = 23;',
-        '',
-        'let inicio = 0;',
-        'let fim = ordenado.length - 1;',
-        '',
-        'while (inicio <= fim) {',
-        '  const meio = Math.floor((inicio + fim) / 2);',
-        "  console.log('Analisando o índice', meio, '→ valor', ordenado[meio]);",
-        '',
-        '  if (ordenado[meio] === alvo) {',
-        "    console.log('Encontrei o valor', alvo, 'no índice', meio);",
-        '    break;',
-        '  }',
-        '',
-        '  if (ordenado[meio] < alvo) {',
-        '    inicio = meio + 1;',
-        '  } else {',
-        '    fim = meio - 1;',
-        '  }',
-        '}'
-      ].join('\n')
     }
   ];
 

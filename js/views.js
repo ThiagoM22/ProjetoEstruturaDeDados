@@ -25,7 +25,7 @@
   var ROOT_RX = /^(raiz|root)$/i;
   var NODE_RX = /^(no|nó|node|atual|current)$/i;
 
-  var TYPE_RANK = { tree: 0, list: 1, stack: 2, queue: 3, array: 4 };
+  var TYPE_RANK = { tree: 0, list: 1, stack: 2, queue: 3 };
 
   /* ------------------------------------------------------------------ */
   /* Utilidades sobre valores serializados                               */
@@ -265,8 +265,6 @@
         push({ type: 'stack', id: v.id, label: label, score: stackScore + 2 });
       } else if (queueScore > 2 && queueScore > stackScore) {
         push({ type: 'queue', id: v.id, label: label, score: queueScore + 2 });
-      } else {
-        push({ type: 'array', id: v.id, label: label, score: 2 + Math.min((ops.push || 0) + (ops.pop || 0) + (ops.shift || 0) + (ops.unshift || 0), 3) * 0.5 });
       }
     }
 
@@ -884,49 +882,6 @@
             '</div>';
           html += '<div class="queue-idx">[' + i + ']</div>';
           html += '</div>';
-        }
-        html += '</div>';
-      }
-      html += '</div>';
-      html += '</div>';
-      html += '</div>';
-      container.innerHTML = html;
-    }, dur);
-  }
-
-  function shallowEq(a, b) {
-    if (!a || !b) return false;
-    if (a.t !== b.t) return false;
-    if (a.t === 'p') return a.v === b.v;
-    if (a.t === 'a' || a.t === 'o') return a.id != null && a.id === b.id;
-    return false;
-  }
-
-  function renderArray(container, v, sel, ctx) {
-    var n = v.items.length;
-    var badge = eventsBadge(sel, ctx);
-    var dur = animDur(ctx);
-    var keys = itemKeys(v.items);
-
-    var prev = null;
-    if (ctx.prevStep) prev = DSV.findValueById(ctx.prevStep, sel.id);
-    if (prev && prev.t !== 'a') prev = null;
-
-    DSV.flipRender(container, function () {
-      var html = head('Array', structureSub(sel, n, 'item', 'itens'), badge);
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
-      html += '<div class="array-wrap">';
-      if (n === 0) {
-        html += '<div class="empty-inline">O array está vazio neste passo.</div>';
-      } else {
-        html += '<div class="array-grid">';
-        for (var i = 0; i < n; i++) {
-          var changed = prev ? !shallowEq(prev.items[i], v.items[i]) : false;
-          html += '<div class="array-cell-wrap">' +
-            '<div class="array-idx">' + i + '</div>' +
-            '<div class="cell array-cell' + (changed ? ' changed' : '') + '" data-k="' + esc(keys[i]) + '" data-enter="pop" data-exit="pop">' +
-            esc(DSV.fmtSerializedShort(v.items[i])) +
-            '</div></div>';
         }
         html += '</div>';
       }
@@ -2376,7 +2331,7 @@
   DSV.renderStructure = function (container, sel, step, ctx) {
     if (!step) { renderMessage(container, 'Execute o código para começar.'); return; }
     if (!sel || sel.type === 'none') {
-      renderMessage(container, 'Nenhuma estrutura detectada ainda. Use um array (pilha/fila), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).');
+      renderMessage(container, 'Nenhuma estrutura detectada ainda. Use uma pilha ou fila (array com <code>push/pop</code> ou <code>push/shift</code>), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).');
       return;
     }
     ctx = ctx || {};
@@ -2401,11 +2356,8 @@
     try {
       if (sel.type === 'stack' && isArr(v)) renderStack(container, v, sel, ctx);
       else if (sel.type === 'queue' && isArr(v)) renderQueue(container, v, sel, ctx);
-      else if (sel.type === 'array' && isArr(v)) renderArray(container, v, sel, ctx);
       else if (sel.type === 'list' && isObj(v)) renderList(container, v, sel, ctx);
       else if (sel.type === 'tree' && isObj(v)) { usedTree = true; renderTree(container, v, sel, ctx); }
-      else if (isArr(v)) renderArray(container, v, sel, ctx);
-      else if (isObj(v)) { usedTree = true; renderTree(container, v, sel, ctx); }
       else renderMessage(container, 'Tipo de estrutura não suportado para este valor.');
     } catch (e) {
       usedTree = false;
@@ -2416,7 +2368,7 @@
 
   DSV.itemKeys = itemKeys;
   DSV.typeLabel = function (t) {
-    return { stack: 'Pilha', queue: 'Fila', list: 'Lista', tree: 'Árvore', array: 'Array' }[t] || t;
+    return { stack: 'Pilha', queue: 'Fila', list: 'Lista', tree: 'Árvore' }[t] || t;
   };
 
   DSV.shortName = shortName;

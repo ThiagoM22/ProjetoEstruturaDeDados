@@ -860,41 +860,6 @@ kbd {
 
 .queue-cell.front .cell-val { color: var(--accent-text); }
 
-/* array */
-.array-wrap { display: flex; }
-
-.array-grid {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 6px;
-}
-
-.array-cell-wrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
-
-.array-idx { font: 10.5px var(--font-mono); color: var(--text-muted); }
-
-.array-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: clamp(44px, 3.4vw, 56px);
-  height: 42px;
-  padding: 0 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font: 600 13.5px var(--font-mono);
-  color: var(--text-primary);
-}
-
-.array-cell.changed {
-  border-color: var(--accent-muted);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
 /* lista encadeada — cada nó tem duas regiões: VALUE (o valor) e NEXT (a
  * referência); a conexão parte da região NEXT e a linha é navegada por
  * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós) */

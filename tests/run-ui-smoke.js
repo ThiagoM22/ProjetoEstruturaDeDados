@@ -717,17 +717,6 @@ test('painéis: recolher e expandir editor e painel lateral', () => {
   assert(!$('sidePanel').classList.contains('collapsed'), 'painel lateral reexpandido');
 });
 
-test('bubble sort: células do array e destaque de troca', () => {
-  const all = percorrerExemplo('bubble-sort');
-  assert(all.indexOf('array-cell') >= 0, 'células do array');
-  assert(all.indexOf('changed') >= 0, 'célula alterada destacada');
-});
-
-test('busca binária: índices visíveis', () => {
-  const all = percorrerExemplo('busca-binaria');
-  assert(all.indexOf('array-idx') >= 0, 'índices do array');
-});
-
 test('erro de código mostra banner com a linha', () => {
   $('code').value = 'const a = 1;\nnull.x;';
   fire('btnRun', 'click');

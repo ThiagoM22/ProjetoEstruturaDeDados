@@ -3,7 +3,7 @@
 Portal para **aprender estrutura de dados vendo o código executar**: você escreve (ou escolhe) um
 código JavaScript e o portal mostra, passo a passo:
 
-- **a estrutura gráfica** — pilha, fila, lista encadeada, árvore binária ou array;
+- **a estrutura gráfica** — pilha, fila, lista encadeada ou árvore binária;
 - **a linha do código que está sendo executada** (destacada no editor);
 - os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
   árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
@@ -26,7 +26,7 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   negativo e a estrutura centralizada. A estrutura pode ser **arrastada** (pan) e **ampliada com a roda
   do mouse** (zoom) — os controles no topo do painel mostram o zoom atual, permitem aumentar/diminuir,
   redefinir para 100% e ajustar à tela. O grid acompanha o pan/zoom.
-- Pilha, fila, array, lista e árvore compartilham a mesma linguagem
+- Pilha, fila, lista e árvore compartilham a mesma linguagem
   visual: superfícies escuras, borda de 1px, tipografia monoespaçada e destaque roxo no elemento ativo
   (topo da pilha, frente da fila, célula alterada, nó visitado/atual).
 - A **fila** é desenhada na horizontal, com os nós lado a lado e índices discretos; os indicadores
@@ -149,8 +149,6 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
 | Árvore binária simples — inserção por nível | BFS preenchendo da esquerda para a direita + percursos pré/em/pós |
 | Árvore binária simples — remoção com promoção | folha, um filho, dois filhos e raiz; descendentes preservados |
-| Array — Bubble Sort | índices e células alteradas a cada troca |
-| Array — Busca binária | descarte de metade do vetor a cada passo |
 
 > **Árvore binária simples × de busca:** os dois exemplos "simples" não ordenam por valor — a
 > inserção procura a primeira vaga livre em ordem de nível e a remoção promove os filhos segundo a
@@ -165,7 +163,6 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | **Fila** | nome `fila`/`queue`, ou array com `push/shift` (ou `unshift/pop`) |
 | **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`) |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (ou classe `Arvore*`/`Tree*`) |
-| **Array** | qualquer vetor comum |
 
 Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
 realce principal; as visitas somem ao trocar de operação). O trace é gravado na ordem real de conclusão
@@ -229,7 +226,7 @@ correta, limites de laço/recursão, identidade visual dos itens animados (chave
 binária simples (inserção por nível, busca, remoção com promoção, percursos, snapshots e explicação
 contextual), a lista simplesmente encadeada (operações, tamanho após cada operação, terminador,
 remoção de duplicados, render VALUE/NEXT/HEAD, destaques e explicação), recolhimento de painéis, os
-13 exemplos e a renderização de todos os passos na interface.
+11 exemplos e a renderização de todos os passos na interface.
 
 ## Ideias de evolução
 
