@@ -9,7 +9,7 @@
     'if', 'else', 'while', 'do', 'for', 'of',
     'return', 'break', 'continue',
     'true', 'false', 'null', 'undefined',
-    'typeof', 'instanceof'
+    'typeof', 'instanceof', 'delete'
   ];
   var KW = Object.create(null);
   KEYWORDS.forEach(function (k) { KW[k] = true; });
@@ -177,6 +177,18 @@
         if (!closedT) fail('Template (`) sem fechamento', lnT);
         parts.push({ type: 'str', value: buf });
         push('tpl', null, lnT, { parts: parts });
+        continue;
+      }
+
+      /* nomes privados de classe (#items, #inicio...) */
+      if (ch === '#') {
+        var s3 = i + 1;
+        if (s3 >= len || !/[A-Za-z_$\u00C0-\u024F]/.test(code[s3])) {
+          fail('Esperado um nome depois de "#" (ex.: #items)');
+        }
+        i = s3;
+        while (i < len && /[A-Za-z0-9_$\u00C0-\u024F]/.test(code[i])) i++;
+        push('priv', '#' + code.slice(s3, i), line);
         continue;
       }
 

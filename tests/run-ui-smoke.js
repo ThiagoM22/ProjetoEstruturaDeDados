@@ -327,19 +327,196 @@ test('lista encadeada: nós, chips e null', () => {
   assert(all.indexOf('Visitando o nó') < 0, 'saída de console não vaza para a estrutura');
 });
 
-test('árvore em-ordem: svg, chips, visita numerada', () => {
+test('árvore em-ordem: svg, destaque roxo e sem etiquetas', () => {
   const all = percorrerExemplo('arvore-em-ordem');
   assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');
-  assert(all.indexOf('ptr-chip') >= 0, 'chip de ponteiro (no/raiz)');
   assert(all.indexOf('tree-node') >= 0, 'nós desenhados');
-  assert(all.indexOf('tree-visit-num') >= 0, 'numeração de visita');
+  assert(/tree-node[^"]*visited/.test(all), 'nó visitado destacado em roxo');
+  assert(all.indexOf('ptr-chip') < 0, 'sem etiquetas de texto nos nós da árvore');
+  assert(all.indexOf('tree-visit-num') < 0, 'sem números decorativos');
+  assert(all.indexOf('tree-null-stub') < 0, 'sem indicadores de filhos vazios');
 });
 
-test('busca em árvore: nó atual destacado (tagged) e stubs nulos', () => {
+test('busca em árvore: nó atual com realce principal e sem stubs', () => {
   const all = percorrerExemplo('arvore-busca');
-  assert(all.indexOf('tagged') >= 0, 'nó destacado');
-  assert(all.indexOf('∅') >= 0, 'filhos nulos para o nó atual');
+  assert(/tree-node[^"]*active/.test(all), 'nó atual destacado');
+  assert(all.indexOf('tree-null-stub') < 0, 'sem filhos vazios pontilhados');
   assert(all.indexOf('Encontrado: 40') >= 0 || all.indexOf('tree-svg') >= 0, 'renderizou');
+});
+
+test('árvore simples: svg, nós e destaques limpos', () => {
+  const all = percorrerExemplo('arvore-simples');
+  assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');
+  assert(all.indexOf('tree-node') >= 0, 'nós desenhados');
+  assert(/tree-node[^"]*visited/.test(all), 'nó visitado destacado em roxo');
+  assert(/tree-node[^"]*active/.test(all), 'nó da operação com realce principal');
+  assert(all.indexOf('A árvore está vazia neste passo.') >= 0, 'mensagem discreta no começo');
+  assert(all.indexOf('tree-visit-num') < 0, 'sem números decorativos');
+  assert(all.indexOf('tree-null-stub') < 0, 'sem indicadores de filhos vazios');
+  assert(all.indexOf('ptr-chip') < 0, 'sem etiquetas de texto (cursor/novo/raiz/…)');
+  assert(all.indexOf('>esquerda<') < 0 && all.indexOf('>direita<') < 0, 'sem rótulos de direção');
+});
+
+test('árvore simples: remoção com promoção, descendentes e estado vazio no fim', () => {
+  const all = percorrerExemplo('arvore-simples-remocao');
+  assert(all.indexOf('tree-svg') >= 0, 'árvore desenhada em algum passo');
+  assert(all.indexOf('A árvore está vazia neste passo.') >= 0, 'mensagem de vazio');
+  assert(all.indexOf('tree-edge') >= 0, 'arestas entre pais e filhos');
+});
+
+test('árvore simples: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('arvore-simples-remocao');
+  const idx = snaps.findIndex((s) => s.indexOf('tree-node') >= 0 && s.indexOf('&quot;A&quot;') >= 0 && s.indexOf('&quot;H&quot;') >= 0);
+  assert(idx > 0, 'passo com A e H existe');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+  /* avança de novo: mesma sequência; volta outra vez: mesmo estado */
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz o próximo estado idêntico');
+  fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'voltar de novo restaura o mesmo estado');
+});
+
+test('árvore simples: variáveis e console acompanham a remoção', () => {
+  $('exampleSelect').value = 'arvore-simples-remocao';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let encontrado = false;
+  for (let i = 0; i < total && !encontrado; i++) {
+    fire('btnNext', 'click');
+    if ($('console').innerHTML.indexOf('Removi F') < 0) continue;
+    encontrado = true;
+    assert($('vars').innerHTML.indexOf('arvore') >= 0, 'painel de variáveis mostra a árvore');
+    assert($('structure').innerHTML.indexOf('tree-node') >= 0, 'árvore desenhada no passo da remoção');
+    assert($('stepLabel').textContent.indexOf('passo ') === 0, 'rótulo do passo');
+  }
+  assert(encontrado, 'encontrou o passo da remoção de F');
+});
+
+test('árvore simples: seletor lista a estrutura e mantém o enquadramento', () => {
+  $('exampleSelect').value = 'arvore-simples';
+  fire('exampleSelect', 'change');
+  const options = $('structureSelect').innerHTML;
+  assert(options.indexOf('Árvore') >= 0, 'drop-down lista a árvore');
+  fire('btnNext', 'click');
+  const zoom = $('structure').style['--canvas-zoom'];
+  assert(zoom !== undefined, 'zoom aplicado pela câmera compartilhada');
+  const x = $('structure').style['--canvas-x'];
+  fire('btnNext', 'click');
+  assert($('structure').style['--canvas-x'] !== undefined, 'câmera continua no lugar (x definido): ' + x);
+  fire('btnZoomFit', 'click');
+  const fit = parseFloat($('structure').style['--canvas-zoom']);
+  assert(fit >= 0.25 && fit <= 1.5, 'ajuste à tela mantém o zoom no intervalo: ' + fit);
+  const panned = $('structure').style['--canvas-x'];
+  const vp = { closest: (s) => (s === '.canvas-viewport' ? vp : null) };
+  fire('structure', 'pointerdown', { button: 0, pointerId: 9, clientX: 100, clientY: 100, target: vp, preventDefault() {} });
+  fire('structure', 'pointermove', { pointerId: 9, clientX: 130, clientY: 110 });
+  fire('structure', 'pointerup', { pointerId: 9 });
+  assert($('structure').style['--canvas-x'] !== panned, 'arrasto movimenta o canvas da árvore');
+});
+
+test('árvore: enquadramento automático mantém a árvore visível', () => {
+  $('exampleSelect').value = 'arvore-simples';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let achou = false;
+  for (let i = 0; i < total && !achou; i++) {
+    fire('btnNext', 'click');
+    if ($('structure').innerHTML.indexOf('tree-node') >= 0) achou = true;
+  }
+  assert(achou, 'chegou a um passo com árvore');
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 1400;
+  stage.offsetHeight = 700;
+  fire('btnNext', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1, 'zoom reduziu para manter a árvore visível (zoom: ' + zoom + ')');
+  const x = parseFloat($('structure').style['--canvas-x']);
+  assert(!isNaN(x), 'árvore centralizada (x definido)');
+});
+
+test('regressão: pilha e fila seguem funcionando depois dos exemplos de árvore', () => {
+  percorrerExemplo('arvore-simples');
+  const pilha = percorrerExemplo('pilha-array');
+  assert(pilha.indexOf('stack-cell') >= 0 || pilha.indexOf('A pilha está vazia neste passo.') >= 0, 'pilha desenha');
+  const fila = percorrerExemplo('fila-array');
+  assert(fila.indexOf('ptr-front') >= 0 && fila.indexOf('ptr-rear') >= 0, 'fila com FRONT e REAR');
+  assert(fila.indexOf('shift() → ') >= 0, 'eventos da fila continuam');
+});
+
+test('explicação do passo: operação e frase acompanham a execução da árvore', () => {
+  $('exampleSelect').value = 'arvore-simples';
+  fire('exampleSelect', 'change');
+  assert(!$('stepExplainer').classList.contains('hidden'), 'faixa visível com execução');
+  const total = parseInt($('slider').max, 10);
+  let viuInsercao = false;
+  let viuPercurso = false;
+  let viuBusca = false;
+  for (let i = 0; i <= total; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    const op = $('stepOp').textContent;
+    const txt = $('stepText').textContent;
+    if (op === 'Inserção' && txt.indexOf('primeira posição disponível') >= 0) viuInsercao = true;
+    if (op === 'Percurso em ordem' && txt.indexOf('Visitando o nó') >= 0) viuPercurso = true;
+    if (op === 'Busca' && txt.indexOf('Comparando o nó') >= 0) viuBusca = true;
+  }
+  assert(viuInsercao, 'frase da vaga de inserção');
+  assert(viuPercurso, 'frase de visita no percurso');
+  assert(viuBusca, 'frase de comparação na busca');
+  assert($('stepCount').textContent === (total + 1) + '/' + (total + 1), 'contador de passos na faixa');
+});
+
+test('explicação do passo: remoção com promoção', () => {
+  $('exampleSelect').value = 'arvore-simples-remocao';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let texto = '';
+  let op = '';
+  for (let i = 0; i <= total && !texto; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    if ($('stepText').textContent.indexOf('removido da árvore') >= 0) {
+      texto = $('stepText').textContent;
+      op = $('stepOp').textContent;
+    }
+  }
+  assert(texto, 'frase de remoção encontrada');
+  assert(op === 'Remoção', 'operação é Remoção: ' + op);
+});
+
+test('painéis: abas alternam comandos, variáveis, chamadas e saída', () => {
+  fire('tabConsole', 'click');
+  assert($('pageConsole').classList.contains('active'), 'saída ativa');
+  assert(!$('pageVars').classList.contains('active'), 'variáveis inativa');
+  assert($('console').innerHTML.length > 0, 'conteúdo do console mantido');
+  fire('tabCallstack', 'click');
+  assert($('pageCallstack').classList.contains('active'), 'chamadas ativa');
+  assert(!$('pageConsole').classList.contains('active'), 'saída inativa');
+  fire('tabVars', 'click');
+  assert($('pageVars').classList.contains('active'), 'variáveis ativa');
+});
+
+test('painéis: recolher e expandir editor e painel lateral', () => {
+  $('layout').clientWidth = 1400;
+  $('codePanel').clientWidth = 420;
+  $('vizPanel').clientWidth = 700;
+  $('sidePanel').clientWidth = 274;
+  fire('btnToggleCode', 'click');
+  assert($('codePanel').classList.contains('collapsed'), 'editor recolhido');
+  assert($('btnToggleCode').classList.contains('active'), 'botão Código marcado');
+  assert($('layout').style.gridTemplateColumns.indexOf('0px 0px') === 0, 'colunas do editor zeradas: ' + $('layout').style.gridTemplateColumns);
+  fire('btnToggleSide', 'click');
+  assert($('sidePanel').classList.contains('collapsed'), 'painel lateral recolhido');
+  assert($('structure').innerHTML.length > 0, 'canvas continua renderizando');
+  const cols = $('layout').style.gridTemplateColumns;
+  assert(cols === '0px 0px minmax(0,1fr) 0px 0px' || cols.indexOf('0px 0px minmax(0,') === 0, 'visualização ocupa todo o espaço: ' + cols);
+  fire('btnToggleCode', 'click');
+  assert(!$('codePanel').classList.contains('collapsed'), 'editor reexpandido');
+  assert(!$('btnToggleCode').classList.contains('active'), 'botão Código desmarcado');
+  assert($('layout').style.gridTemplateColumns.indexOf('minmax(280px,') === 0, 'coluna do editor restaurada: ' + $('layout').style.gridTemplateColumns);
+  fire('btnToggleSide', 'click');
+  assert(!$('sidePanel').classList.contains('collapsed'), 'painel lateral reexpandido');
 });
 
 test('bubble sort: células do array e destaque de troca', () => {

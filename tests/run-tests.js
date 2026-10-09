@@ -264,6 +264,140 @@ test('fila (classe): API enfileirar/desenfileirar/frente/estaVazia/tamanho', () 
   eq(last.globals.fila.props.itens.items.map((i) => i.v).join(','), 'B,C', 'restam B e C na ordem FIFO');
 });
 
+test('campos privados (#): a Fila com #items/#inicio/#fim roda sem mudanças', () => {
+  const t = run([
+    'class Fila {',
+    '  #items = [];',
+    '  #inicio = 0;',
+    '  #fim = 0;',
+    '',
+    '  enqueue(elemento) {',
+    '    this.#items[this.#fim] = elemento;',
+    '    this.#fim++;',
+    '  }',
+    '',
+    '  dequeue() {',
+    '    if (this.estaVazia()) { return undefined; }',
+    '    const item = this.#items[this.#inicio];',
+    '    delete this.#items[this.#inicio];',
+    '    this.#inicio++;',
+    '    if (this.#inicio === this.#fim) { this.#inicio = 0; this.#fim = 0; }',
+    '    return item;',
+    '  }',
+    '',
+    '  front() {',
+    '    if (this.estaVazia()) { return undefined; }',
+    '    return this.#items[this.#inicio];',
+    '  }',
+    '  estaVazia = () => this.#fim === this.#inicio;',
+    '  tamanho = () => this.#fim - this.#inicio;',
+    '',
+    '  limpar() {',
+    '    this.#items = [];',
+    '    this.#inicio = 0;',
+    '    this.#fim = 0;',
+    '  }',
+    '}',
+    '',
+    'const fila = new Fila();',
+    'console.log(fila.estaVazia(), fila.tamanho());',
+    "fila.enqueue('A');",
+    "fila.enqueue('B');",
+    "fila.enqueue('C');",
+    'console.log(fila.front(), fila.tamanho());',
+    'console.log(fila.dequeue());',
+    'console.log(fila.front(), fila.tamanho());',
+    "fila.enqueue('D');",
+    'console.log(fila.dequeue(), fila.dequeue(), fila.dequeue());',
+    'console.log(fila.dequeue(), fila.estaVazia());'
+  ].join('\n'));
+  noError(t, 'Fila com campos privados');
+  const outs = outputs(t);
+  eq(outs[0], 'true 0', 'começa vazia');
+  eq(outs[1], 'A 3', 'frente e tamanho');
+  eq(outs[2], 'A', 'dequeue devolve A');
+  eq(outs[3], 'B 2', 'frente passa a ser B');
+  eq(outs[4], 'B C D', 'ordem FIFO');
+  eq(outs[5], 'undefined true', 'fila esvazia no fim');
+  const last = lastStep(t);
+  const props = last.globals.fila.props;
+  assert(props['#items'] && props['#items'].t === 'a', 'serializa o campo privado #items');
+  eq(props['#items'].items.length, 4, 'o array interno preserva o histórico de posições');
+  eq(props['#inicio'].v, 0, '#inicio volta a zero');
+  eq(props['#fim'].v, 0, '#fim volta a zero');
+  const cands = DSV.detectStructures(last, DSV.buildOpsMap(t.steps));
+  assert(cands.some((c) => c.type === 'queue'), 'portal continua detectando a fila com campo privado');
+});
+
+test('campo privado fora da classe: erro de sintaxe', () => {
+  const t = run([
+    'class Caixa {',
+    '  #segredo = 42;',
+    '  abrir() { return this.#segredo; }',
+    '}',
+    'const c = new Caixa();',
+    'console.log(c.#segredo);'
+  ].join('\n'));
+  assert(t.error, 'deve haver erro');
+  eq(t.error.line, 6, 'linha do erro');
+  assert(/só pode ser usado dentro da classe/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+});
+
+test('campo privado não declarado na classe: erro de sintaxe', () => {
+  const t = run(['class A {', '  ver() { return this.#x; }', '}'].join('\n'));
+  assert(t.error, 'deve haver erro');
+  eq(t.error.line, 2, 'linha do erro');
+  assert(/não foi declarado na classe/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+});
+
+test('método privado (#m) e escrita em campo privado', () => {
+  const t = run([
+    'class Conta {',
+    '  #saldo = 0;',
+    '  depositar(v) {',
+    '    this.#saldo = this.#saldo + v;',
+    '    return this.#saldoComJuros();',
+    '  }',
+    '  #saldoComJuros() { return this.#saldo * 2; }',
+    '}',
+    'const c = new Conta();',
+    'console.log(c.depositar(30));'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '60', 'método privado chamado de dentro da classe');
+});
+
+test('delete em propriedade e em índice de array', () => {
+  const t = run([
+    'const o = { a: 1, b: 2 };',
+    'delete o.a;',
+    'console.log(o.a, o.b);',
+    'const arr = [10, 20, 30];',
+    'delete arr[1];',
+    'console.log(arr.length, arr[1], arr[0], arr[2]);'
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], 'undefined 2', 'propriedade apagada');
+  eq(outs[1], '3 undefined 10 30', 'delete deixa buraco e não mexe no length');
+});
+
+test('delete em campo privado: erro de sintaxe', () => {
+  const t = run(['class A {', '  #x = 1;', '  apagar() { delete this.#x; }', '}'].join('\n'));
+  assert(t.error, 'deve haver erro');
+  eq(t.error.line, 3, 'linha do erro');
+  assert(/não podem ser apagados/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+});
+
+test('static/get/set/async em classe: erro claro (não suportado)', () => {
+  const t = run(['class A {', '  static x = 1;', '}'].join('\n'));
+  assert(t.error, 'static deve dar erro');
+  assert(/não são suportados/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+  const g = run(['class A {', '  get x() { return 1; }', '}'].join('\n'));
+  assert(g.error, 'getter deve dar erro');
+  assert(/não são suportados/.test(g.error.message), 'mensagem: ' + (g.error && g.error.message));
+});
+
 test('detecção: push/shift vira fila; push/pop continua pilha', () => {
   const tq = run("const fila = [];\nfila.push(1);\nfila.shift();");
   noError(tq);
@@ -385,6 +519,413 @@ test('busca binária: encontra 23 no índice 5', () => {
   const outs = outputs(t);
   assert(outs.some((o) => o === 'Encontrei o valor 23 no índice 5'), 'acha o alvo');
   assert(outs.length < 12, 'poucos passos de console (busca binária)');
+});
+
+/* ---------------------------------------------------------------- */
+console.log('\n[árvore binária simples: BFS de inserção, busca, remoção e percursos]');
+
+function treeExample(id) {
+  const ex = DSV.EXAMPLES.find((e) => e.id === id);
+  assert(ex, 'exemplo ' + id + ' existe');
+  return ex;
+}
+
+function prop(sv, name) {
+  return sv && sv.props ? sv.props[name] : null;
+}
+
+function childOf(sv, name) {
+  const p = prop(sv, name);
+  return p && p.t === 'o' ? p : null;
+}
+
+/* forma textual da árvore serializada: valor(esquerda,direita), '.' = vazio */
+function shapeOf(sv) {
+  if (!sv) return '.';
+  const val = prop(sv, 'valor');
+  return String(val ? val.v : '?') + '(' + shapeOf(childOf(sv, 'esquerda')) + ',' + shapeOf(childOf(sv, 'direita')) + ')';
+}
+
+/* raiz serializada guardada na variável "arvore" do passo (null = vazia) */
+function treeRootOf(step, name) {
+  const holder = (step.globals && step.globals[name]) || (step.locals && step.locals[name]);
+  if (!holder || holder.t !== 'o') return undefined;
+  const root = prop(holder, 'raiz');
+  if (!root) return undefined;
+  return root.t === 'o' ? root : null;
+}
+
+function shapeStepAfter(trace, shape, from) {
+  for (let i = from || 0; i < trace.steps.length; i++) {
+    if (shapeOf(treeRootOf(trace.steps[i], 'arvore')) === shape) return i;
+  }
+  return -1;
+}
+
+/* exige que as formas apareçam na ordem cronológica das operações */
+function assertShapesInOrder(trace, shapes, rotulo) {
+  let cursor = 0;
+  shapes.forEach((sh, i) => {
+    const idx = shapeStepAfter(trace, sh, cursor);
+    assert(idx >= 0, (rotulo || 'forma') + ' após a etapa ' + (i + 1) + ' esperada: ' + sh);
+    cursor = idx + 1;
+  });
+}
+
+function renderTreeStep(trace, step) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+  assert(sel, 'árvore detectada para o render');
+  const container = {};
+  DSV.renderStructure(container, sel, step, {
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    visit: DSV.computeVisitOrder(trace.steps)
+  });
+  return { html: container.innerHTML, sel: sel };
+}
+
+/* extrai os nós (valor, cx, cy, classe) do SVG estático renderizado */
+function treeNodesOf(html) {
+  const out = [];
+  const rx = /<g class="tree-group">([\s\S]*?)<\/g>/g;
+  let m;
+  while ((m = rx.exec(html))) {
+    const block = m[1];
+    const c = block.match(/<circle cx="([\d.\-]+)" cy="([\d.\-]+)" r="23" class="(tree-node[^"]*)"/);
+    const t = block.match(/<text x="[\d.\-]+" y="[\d.\-]+" class="tree-val">([^<]*)<\/text>/);
+    if (c && t) {
+      let val = t[1].replace(/&quot;/g, '"');
+      if (val.length > 1 && val[0] === '"' && val[val.length - 1] === '"') val = val.slice(1, -1);
+      out.push({ val: val, cx: parseFloat(c[1]), cy: parseFloat(c[2]), cls: c[3] });
+    }
+  }
+  return out;
+}
+
+test('árvore simples: inserção por nível preenche A, B, C, D, E e F na forma certa', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t, 'exemplo arvore-simples');
+  assertShapesInOrder(t, [
+    'A(.,.)',
+    'A(B(.,.),.)',
+    'A(B(.,.),C(.,.))',
+    'A(B(D(.,.),.),C(.,.))',
+    'A(B(D(.,.),E(.,.)),C(.,.))',
+    'A(B(D(.,.),E(.,.)),C(F(.,.),.))'
+  ], 'inserção');
+  const last = lastStep(t);
+  const finalShape = shapeOf(treeRootOf(last, 'arvore'));
+  eq(finalShape, 'A(B(D(.,.),E(.,.)),C(F(.,.),.))', 'forma final');
+  /* 'D' > 'B' e ainda assim D é filho ESQUERDO de B: não há ordenação por valor */
+  assert(finalShape.indexOf('B(D') >= 0, 'filho à esquerda não segue ordem de valor (não é BST)');
+});
+
+test('árvore simples: percursos pré-ordem, em ordem e pós-ordem exatos', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const outs = outputs(t);
+  const pre = outs.indexOf('Pré-ordem (raiz, esquerda, direita):');
+  const em = outs.indexOf('Em ordem (esquerda, raiz, direita):');
+  const pos = outs.indexOf('Pós-ordem (esquerda, direita, raiz):');
+  assert(pre >= 0 && em > pre && pos > em, 'cabeçalhos dos três percursos em ordem');
+  eq(outs.slice(pre + 1, em).join(','), 'A,B,D,E,C,F', 'pré-ordem');
+  eq(outs.slice(em + 1, pos).join(','), 'D,B,E,A,F,C', 'em ordem');
+  eq(outs.slice(pos + 1, pos + 7).join(','), 'D,E,B,F,C,A', 'pós-ordem');
+});
+
+test('árvore simples: busca encontra, informa ausência e não altera a árvore', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const outs = outputs(t);
+  assert(outs.indexOf('Busca por E: E') >= 0, 'busca encontra E');
+  assert(outs.indexOf('Busca por Z: não encontrei') >= 0, 'busca informa que Z não está');
+  eq(shapeOf(treeRootOf(lastStep(t), 'arvore')), 'A(B(D(.,.),E(.,.)),C(F(.,.),.))', 'árvore intacta após as buscas');
+});
+
+test('árvore simples: remoção cobre folha, um filho, dois filhos, raiz e nó único', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t, 'exemplo arvore-simples-remocao');
+  assertShapesInOrder(t, [
+    'A(B(D(H(.,.),.),E(.,.)),C(F(.,.),G(.,.)))', /* inicial: A..H                    */
+    'A(B(D(H(.,.),.),E(.,.)),C(.,G(.,.)))',     /* F (folha)                        */
+    'A(B(D(H(.,.),.),E(.,.)),G(.,.))',          /* C (só filho direito G)           */
+    'A(D(H(.,.),E(.,.)),G(.,.))',               /* B (dois filhos: D sobe, E anexa) */
+    'A(D(H(.,.),.),G(.,.))',                    /* E (folha)                        */
+    'A(H(.,.),G(.,.))',                         /* D (só filho esquerdo H)          */
+    'H(G(.,.),.)',                              /* A (raiz, dois filhos)            */
+    'G(.,.)',                                   /* H (só filho esquerdo G)          */
+    '.',                                        /* G (único nó)                     */
+    'A(X(.,.),X(.,.))',                         /* duplicados                       */
+    'A(.,X(.,.))'                               /* primeiro X em nível removido     */
+  ], 'remoção');
+  const last = lastStep(t);
+  eq(shapeOf(treeRootOf(last, 'arvore')), '.', 'termina vazia depois de limpar');
+});
+
+test('árvore simples: remoção de valor inexistente não modifica e em-ordem confere', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const outs = outputs(t);
+  const marcador = outs.indexOf('--- remover Z (não existe) ---');
+  assert(marcador >= 0, 'passo da remoção inexistente');
+  assert(outs.indexOf('Não encontrei Z na árvore.') === marcador + 1, 'mensagem de não encontrado');
+  eq(outs.slice(marcador + 2, marcador + 4).join(','), 'G,H', 'descendentes continuam após tentativa inválida');
+  assert(outs.indexOf('Removi X') >= 0, 'removeu o primeiro X duplicado');
+  const idxXF = outs.indexOf('O X da direita continua na árvore.');
+  eq(outs.slice(idxXF + 1, idxXF + 3).join(','), 'A,X', 'sobrou A e o X da direita');
+});
+
+test('árvore simples: passos históricos preservam o estado (snapshots imutáveis)', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const inicial = 'A(B(D(H(.,.),.),E(.,.)),C(F(.,.),G(.,.)))';
+  const imutavel = 'A(B(D(H(.,.),.),E(.,.)),G(.,.))';
+  const iInicial = shapeStepAfter(t, inicial, 0);
+  const iImutavel = shapeStepAfter(t, imutavel, iInicial + 1);
+  assert(iInicial >= 0 && iImutavel > iInicial, 'passos intermediários existem em ordem');
+  /* se os snapshots compartilhassem referência, o passo antigo mostraria o estado final */
+  eq(shapeOf(treeRootOf(t.steps[iInicial], 'arvore')), inicial, 'estado do passo inicial intacto no fim da execução');
+  eq(shapeOf(treeRootOf(t.steps[iImutavel], 'arvore')), imutavel, 'estado parcial intacto no fim da execução');
+  assert(shapeOf(treeRootOf(lastStep(t), 'arvore')) === '.', 'estado final diferente do histórico');
+});
+
+test('render da árvore: layout correto após remoção com promoção', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const alvo = 'A(D(H(.,.),E(.,.)),G(.,.))'; /* após remover B: D sobe com H e E */
+  const step = t.steps.filter((s) => shapeOf(treeRootOf(s, 'arvore')) === alvo)[0];
+  assert(step, 'passo após a remoção de B');
+  const html = renderTreeStep(t, step).html;
+  const nodes = treeNodesOf(html);
+  eq(nodes.length, 5, 'cinco nós');
+  const byVal = {};
+  nodes.forEach((n) => { byVal[n.val] = n; });
+  assert(byVal.D.cx < byVal.A.cx && byVal.A.cx < byVal.G.cx, 'D assume a esquerda de A; G segue à direita');
+  assert(byVal.H.cx < byVal.D.cx && byVal.E.cx > byVal.D.cx, 'H e E em torno de D');
+  assert(byVal.H.cy > byVal.D.cy && byVal.E.cy > byVal.D.cy, 'H e E um nível abaixo de D');
+  eq((html.match(/class="tree-edge"/g) || []).length, 4, 'quatro conexões');
+});
+
+test('render da árvore: nós circulares, arestas atrás e layout por nível', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const alvo = 'A(B(D(.,.),E(.,.)),C(F(.,.),.))';
+  const step = t.steps.filter((s) => shapeOf(treeRootOf(s, 'arvore')) === alvo)[0];
+  assert(step, 'passo com a árvore A..F');
+  const html = renderTreeStep(t, step).html;
+  const nodes = treeNodesOf(html);
+  eq(nodes.length, 6, 'seis nós desenhados');
+  const byVal = {};
+  nodes.forEach((n) => { byVal[n.val] = n; });
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach((v) => assert(byVal[v], 'nó ' + v + ' presente'));
+  assert(byVal.A.cy < byVal.B.cy, 'raiz acima dos filhos');
+  assert(byVal.B.cy === byVal.C.cy, 'B e C no mesmo nível');
+  assert(byVal.D.cy === byVal.E.cy && byVal.E.cy === byVal.F.cy, 'D, E e F no mesmo nível');
+  assert(byVal.B.cx < byVal.A.cx && byVal.C.cx > byVal.A.cx, 'esquerda/direita em relação à raiz');
+  assert(byVal.D.cx < byVal.B.cx && byVal.E.cx > byVal.B.cx, 'D e E em torno de B');
+  assert(byVal.F.cx < byVal.C.cx, 'F à esquerda de C');
+  eq((html.match(/class="tree-edge"/g) || []).length, 5, 'cinco arestas');
+  assert(html.indexOf('tree-edge') < html.indexOf('tree-node'), 'arestas desenhadas atrás dos nós');
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const d = Math.hypot(nodes[i].cx - nodes[j].cx, nodes[i].cy - nodes[j].cy);
+      assert(d >= 44, 'sem sobreposição entre ' + nodes[i].val + ' e ' + nodes[j].val + ' (d=' + d.toFixed(1) + ')');
+    }
+  }
+});
+
+test('render da árvore: árvore assimétrica com lacunas não sobrepõe nem inventa arestas', () => {
+  const t = run([
+    'class No {',
+    '  constructor(valor) {',
+    '    this.valor = valor;',
+    '    this.esquerda = null;',
+    '    this.direita = null;',
+    '  }',
+    '}',
+    "const raiz = new No('A');",
+    "raiz.direita = new No('B');",
+    "raiz.direita.esquerda = new No('C');",
+    "raiz.direita.esquerda.direita = new No('D');",
+    "console.log('fim');"
+  ].join('\n'));
+  noError(t, 'árvore em zigue-zague');
+  const html = renderTreeStep(t, lastStep(t)).html;
+  const nodes = treeNodesOf(html);
+  eq(nodes.length, 4, 'quatro nós');
+  const byVal = {};
+  nodes.forEach((n) => { byVal[n.val] = n; });
+  assert(byVal.A.cx < byVal.B.cx, 'B (único filho, à direita) fica à direita de A');
+  assert(byVal.C.cx < byVal.B.cx, 'C (esquerda de B) fica à esquerda de B');
+  assert(byVal.D.cx > byVal.C.cx, 'D (direita de C) fica à direita de C');
+  assert(byVal.A.cy < byVal.B.cy && byVal.B.cy < byVal.C.cy && byVal.C.cy < byVal.D.cy, 'profundidades crescentes');
+  eq((html.match(/class="tree-edge"/g) || []).length, 3, 'apenas as três conexões reais — nenhuma aresta para referência inexistente');
+  assert(html.indexOf('tree-edge') < html.indexOf('tree-node'), 'arestas atrás dos nós');
+  assert((html.match(/tree-null-stub/g) || []).length === 0, 'sem indicadores pontilhados de filhos vazios');
+  assert(html.indexOf('ptr-chip') < 0, 'sem etiquetas de texto nos nós da árvore');
+});
+
+test('render da árvore vazia: mensagem discreta e nenhum nó', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const vazio = t.steps.filter((s) => treeRootOf(s, 'arvore') === null)[0];
+  assert(vazio, 'existe passo com árvore vazia');
+  const html = renderTreeStep(t, vazio).html;
+  assert(html.indexOf('A árvore está vazia neste passo.') >= 0, 'mensagem de árvore vazia');
+  assert(html.indexOf('tree-node') < 0, 'nenhum nó desenhado');
+});
+
+test('render da árvore: realce principal no nó ativo e visita em roxo, sem números', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const temPonteiro = (nome) => t.steps.filter((s) => {
+    const pointers = s.pointers || {};
+    for (const id of Object.keys(pointers)) {
+      if (pointers[id].some((l) => DSV.shortName(l) === nome)) return true;
+    }
+    return false;
+  })[0];
+  const passoPercurso = temPonteiro('no');
+  assert(passoPercurso, 'passo de percurso com ponteiro "no"');
+  const htmlPercurso = renderTreeStep(t, passoPercurso).html;
+  assert(/tree-node[^"]*visited/.test(htmlPercurso), 'nó visitado destacado em roxo');
+  assert(/tree-node[^"]*active/.test(htmlPercurso), 'nó em visita com realce principal');
+  assert(htmlPercurso.indexOf('tree-visit-num') < 0, 'sem números de ordem de visita');
+  assert(htmlPercurso.indexOf('ptr-chip') < 0, 'sem etiquetas de texto nos nós da árvore');
+  const passoBusca = temPonteiro('atual');
+  assert(passoBusca, 'passo de busca com ponteiro "atual"');
+  const htmlBusca = renderTreeStep(t, passoBusca).html;
+  assert(/tree-node[^"]*active/.test(htmlBusca), 'nó examinado em destaque principal na busca');
+  eq((htmlBusca.match(/tree-node[^"]*active/g) || []).length, 1, 'um único nó em destaque por passo');
+});
+
+test('render da árvore: nenhuma etiqueta de texto — só o realce roxo', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let comEtiqueta = 0;
+  let comAtivo = 0;
+  t.steps.forEach((s) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0];
+    if (!sel || sel.id == null) return;
+    const container = {};
+    DSV.renderStructure(container, sel, s, {
+      opsMap: opsMap,
+      pointers: s.pointers || {},
+      events: s.events || [],
+      visit: visit
+    });
+    if (container.innerHTML.indexOf('ptr-chip') >= 0) comEtiqueta++;
+    if (/tree-node[^"]*active/.test(container.innerHTML)) comAtivo++;
+  });
+  eq(comEtiqueta, 0, 'nenhuma etiqueta (cursor/novo/raiz/…) no canvas da árvore');
+  assert(comAtivo > 0, 'o realce roxo continua aparecendo na operação');
+});
+
+test('render da árvore: vaga da inserção aparece antes do nó e some depois', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let alvo = -1;
+  for (let i = 0; i < t.steps.length - 1; i++) {
+    const s = t.steps[i];
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0];
+    if (!sel || sel.id == null) continue;
+    const info = DSV.explainStep(s, sel, { nextStep: t.steps[i + 1] });
+    if (info.text && info.text.indexOf('primeira posição disponível') >= 0) { alvo = i; break; }
+  }
+  assert(alvo >= 0, 'passo imediatamente antes de uma inserção');
+  const step = t.steps[alvo];
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+  const container = {};
+  DSV.renderStructure(container, sel, step, {
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    visit: DSV.computeVisitOrder(t.steps),
+    nextStep: t.steps[alvo + 1]
+  });
+  const html = container.innerHTML;
+  assert(html.indexOf('tree-preview-slot') >= 0, 'vaga pontilhada marcada');
+  assert(html.indexOf('tree-preview-edge') >= 0, 'conexão futura pontilhada');
+  const html2 = renderTreeStep(t, t.steps[alvo + 1]).html;
+  assert(html2.indexOf('tree-preview-slot') < 0, 'prévia some quando o nó aparece');
+});
+
+test('explicação: nome da operação vem da chamada em execução', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const ops = {};
+  t.steps.forEach((s) => {
+    const sel = DSV.detectStructures(s, DSV.buildOpsMap(t.steps)).filter((c) => c.type === 'tree')[0] || null;
+    const info = DSV.explainStep(s, sel, {});
+    ops[info.op] = (ops[info.op] || 0) + 1;
+  });
+  assert(ops['Inserção'] > 0, 'passos de Inserção');
+  assert(ops['Percurso pré-ordem'] > 0, 'passos de percurso pré-ordem');
+  assert(ops['Percurso em ordem'] > 0, 'passos de percurso em ordem');
+  assert(ops['Percurso pós-ordem'] > 0, 'passos de percurso pós-ordem');
+  assert(ops['Busca'] > 0, 'passos de Busca');
+});
+
+test('explicação: inserção, remoção e promoção descrevem nó e relação', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const textos = t.steps.map((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0] || null;
+    return DSV.explainStep(s, sel, {
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null
+    }).text || '';
+  });
+  assert(textos.some((x) => x.indexOf('foi inserido como filho esquerdo do nó') >= 0), 'frase de inserção com lado');
+  assert(textos.some((x) => x.indexOf('primeira posição disponível') >= 0), 'frase da vaga encontrada');
+  assert(textos.some((x) => x.indexOf('Visitando o nó') >= 0), 'frase de visita');
+
+  const t2 = run(treeExample('arvore-simples-remocao').code);
+  noError(t2);
+  const opsMap2 = DSV.buildOpsMap(t2.steps);
+  const textos2 = t2.steps.map((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap2).filter((c) => c.type === 'tree')[0] || null;
+    return DSV.explainStep(s, sel, {
+      prevStep: i > 0 ? t2.steps[i - 1] : null,
+      nextStep: i < t2.steps.length - 1 ? t2.steps[i + 1] : null
+    }).text || '';
+  });
+  assert(textos2.some((x) => x.indexOf('foi removido da árvore') >= 0), 'frase de remoção');
+  assert(textos2.some((x) => x.indexOf('subiu para o lugar') >= 0 || x.indexOf('foi promovido') >= 0), 'frase de promoção');
+});
+
+test('passos em ordem cronológica: a inserção não pisca para trás', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const shapes = [];
+  t.steps.forEach((s) => {
+    const sh = shapeOf(treeRootOf(s, 'arvore'));
+    if (sh === undefined) return;
+    if (!shapes.length || shapes[shapes.length - 1] !== sh) shapes.push(sh);
+  });
+  const insercoes = [
+    'A(.,.)',
+    'A(B(.,.),.)',
+    'A(B(.,.),C(.,.))',
+    'A(B(D(.,.),.),C(.,.))',
+    'A(B(D(.,.),E(.,.)),C(.,.))',
+    'A(B(D(.,.),E(.,.)),C(F(.,.),.))'
+  ];
+  const vistos = shapes.filter((sh) => insercoes.indexOf(sh) >= 0);
+  eq(vistos.join('|'), insercoes.join('|'), 'sequência monotônica de inserção (sem estados repetidos fora de ordem)');
+});
+
+test('detecção: a árvore tem prioridade sobre arrays internos da BFS dos exemplos', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const cands = DSV.detectStructures(lastStep(t), DSV.buildOpsMap(t.steps));
+  eq(cands[0].type, 'tree', 'melhor candidato é a árvore');
 });
 
 /* ---------------------------------------------------------------- */

@@ -55,6 +55,7 @@
     this.currentLine = 1;
     this.globalEnv = null;
     this.error = null;
+    this.seq = 0; /* ordem real de conclusão dos passos (para o playback) */
   }
 
   Runtime.prototype.run = function () {
@@ -77,6 +78,25 @@
           try { this.fill(this.steps[f]); } catch (e2) { /* ignora */ }
         }
       }
+    }
+    /* Reordena os passos pela conclusão real: um comando que chama uma função
+     * só é "concluído" depois dos passos internos dela, então ele passa a vir
+     * depois deles no trace — o playback acompanha a ordem verdadeira. */
+    var ordered = this.steps.slice().sort(function (a, b) {
+      return (a.__seq || 0) - (b.__seq || 0);
+    });
+    var remap = {};
+    var q;
+    for (q = 0; q < ordered.length; q++) remap[ordered[q].i] = q;
+    for (q = 0; q < ordered.length; q++) {
+      var stp = ordered[q];
+      stp.i = q;
+      delete stp.__seq;
+    }
+    this.steps = ordered;
+    for (q = 0; q < this.output.length; q++) {
+      var oldIdx = this.output[q].step;
+      if (remap[oldIdx] != null) this.output[q].step = remap[oldIdx];
     }
     for (var s = 0; s < this.steps.length; s++) {
       delete this.steps[s].__env;
@@ -128,6 +148,7 @@
   Runtime.prototype.fill = function (step, envOverride) {
     if (step.__filled) return;
     step.__filled = true;
+    step.__seq = this.seq++;
     var env = envOverride || step.__env;
     var g = this.serializeScope(this.globalEnv, true);
     var l = env && env !== this.globalEnv ? this.serializeScope(env, false) : {};
@@ -178,8 +199,19 @@
     var props = {};
     var keys = Object.keys(value);
     var limit = Math.min(keys.length, 100);
+    var count = 0;
     for (var k = 0; k < limit; k++) {
       props[keys[k]] = this.serialize(value[keys[k]], ctx, depth + 1);
+      count++;
+    }
+    /* campos privados entram nos painéis como "#nome" (o valor real fica
+     * no mapa interno __priv da instância) */
+    if (value.__priv) {
+      var pkeys = Object.keys(value.__priv);
+      for (var pk = 0; pk < pkeys.length && count < 100; pk++) {
+        props[pkeys[pk]] = this.serialize(value.__priv[pkeys[pk]], ctx, depth + 1);
+        count++;
+      }
     }
     return { t: 'o', id: value.__id, ctor: value.__class ? value.__class.name : null, props: props };
   };
@@ -436,8 +468,18 @@
 
   Runtime.prototype.execClassDecl = function (stmt, env) {
     var step = this.beginStep(stmt, env);
-    var cls = { __class: true, name: stmt.name, methods: {}, ctor: null };
-    for (var i = 0; i < stmt.methods.length; i++) {
+    var cls = {
+      __class: true,
+      name: stmt.name,
+      methods: {},
+      privMethods: Object.create(null),
+      privFields: Object.create(null),
+      fields: [],
+      ctor: null,
+      env: env
+    };
+    var i;
+    for (i = 0; i < stmt.methods.length; i++) {
       var m = stmt.methods[i];
       var synth = {
         type: 'Method',
@@ -448,10 +490,64 @@
       };
       var fn = this.makeFunction(synth, env);
       if (m.isConstructor) cls.ctor = fn;
+      else if (m.isPrivate) cls.privMethods[m.name] = fn;
       else cls.methods[m.name] = fn;
+    }
+    var fields = stmt.fields || [];
+    for (i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      cls.fields.push({ name: f.name, isPrivate: f.isPrivate, init: f.init, line: f.line });
+      if (f.isPrivate) cls.privFields[f.name] = true;
     }
     env.vars[stmt.name] = cls;
     this.fill(step);
+  };
+
+  /* Campos de instância (#privados e públicos) rodam antes do constructor,
+   * como no JavaScript de verdade. */
+  Runtime.prototype.initFields = function (obj, cls) {
+    if (!cls.fields || !cls.fields.length) return;
+    var hasPrivate = false;
+    for (var i = 0; i < cls.fields.length; i++) {
+      if (cls.fields[i].isPrivate) { hasPrivate = true; break; }
+    }
+    if (hasPrivate) {
+      Object.defineProperty(obj, '__priv', { value: Object.create(null), enumerable: false, configurable: false, writable: false });
+    }
+    var fieldEnv = new Env(cls.env, { isFunctionScope: true, thisVal: obj });
+    for (var j = 0; j < cls.fields.length; j++) {
+      var f = cls.fields[j];
+      var fstep = this.beginStep(f, fieldEnv);
+      var value = f.init ? this.evalExpr(f.init, fieldEnv) : undefined;
+      if (f.isPrivate) obj.__priv[f.name] = value;
+      else obj[f.name] = value;
+      this.fill(fstep);
+    }
+  };
+
+  Runtime.prototype.getPrivateMember = function (obj, name, line) {
+    if (obj === null || obj === undefined) {
+      this.rtError('Não é possível ler "' + name + '" de ' + (obj === null ? 'null' : 'undefined') + '.', line);
+    }
+    var cls = obj.__class;
+    if (cls && cls.privMethods && hasOwn.call(cls.privMethods, name)) return cls.privMethods[name];
+    if (obj.__priv && hasOwn.call(obj.__priv, name)) return obj.__priv[name];
+    this.rtError('O campo privado "' + name + '" não existe' + (cls ? ' na classe "' + cls.name + '"' : '') + '. Ele só pode ser usado dentro da classe que o declara.', line);
+  };
+
+  Runtime.prototype.setPrivateMember = function (obj, name, value, line) {
+    if (obj === null || obj === undefined) {
+      this.rtError('Não é possível definir "' + name + '" em ' + (obj === null ? 'null' : 'undefined') + '.', line);
+    }
+    var cls = obj.__class;
+    if (cls && cls.privFields && hasOwn.call(cls.privFields, name)) {
+      obj.__priv[name] = value;
+      return;
+    }
+    if (cls && cls.privMethods && hasOwn.call(cls.privMethods, name)) {
+      this.rtError('"' + name + '" é um método privado e não pode ser reatribuído.', line);
+    }
+    this.rtError('O campo privado "' + name + '" não foi declarado' + (cls ? ' na classe "' + cls.name + '"' : '') + '.', line);
   };
 
   /* ------------------------------------------------------------------ */
@@ -559,6 +655,7 @@
       }
       case 'Member': {
         var base = this.evalExpr(node.obj, env);
+        if (node.priv) return this.getPrivateMember(base, node.prop, node.line);
         return this.getMember(base, node.prop, node.line);
       }
       case 'Index': {
@@ -583,6 +680,7 @@
         return this.truthy(lv) ? lv : this.evalExpr(node.right, env);
       }
       case 'Unary': return this.evalUnary(node, env);
+      case 'Delete': return this.evalDelete(node, env);
       case 'Assign': return this.evalAssign(node, env);
       case 'Conditional': {
         return this.truthy(this.evalExpr(node.test, env))
@@ -619,6 +717,41 @@
     this.rtError('Operador não suportado: ' + op, node.line);
   };
 
+  Runtime.prototype.evalDelete = function (node, env) {
+    var target = node.arg;
+    if (target.type === 'Member') {
+      var base = this.evalExpr(target.obj, env);
+      if (target.priv) this.rtError('Campos privados não podem ser apagados com "delete"', node.line);
+      if (base === null || base === undefined) {
+        this.rtError('Não é possível apagar "' + target.prop + '" de ' + (base === null ? 'null' : 'undefined') + '.', node.line);
+      }
+      if (typeof base === 'string') {
+        this.rtError('Strings são imutáveis: não é possível apagar "' + target.prop + '"', node.line);
+      }
+      if (base.__class === true) {
+        this.rtError('Não é possível alterar a classe "' + base.name + '" diretamente', node.line);
+      }
+      delete base[target.prop];
+      return true;
+    }
+    if (target.type === 'Index') {
+      var baseI = this.evalExpr(target.obj, env);
+      var key = this.evalExpr(target.prop, env);
+      if (baseI === null || baseI === undefined) {
+        this.rtError('Não é possível apagar um índice de ' + (baseI === null ? 'null' : 'undefined') + '.', node.line);
+      }
+      if (typeof baseI === 'string') {
+        this.rtError('Strings são imutáveis: não é possível apagar um índice', node.line);
+      }
+      if (baseI.__class === true) {
+        this.rtError('Não é possível alterar a classe "' + baseI.name + '" diretamente', node.line);
+      }
+      delete baseI[this.toStr(key)];
+      return true;
+    }
+    this.rtError('"delete" só funciona em propriedades (obj.campo ou obj[índice])', node.line);
+  };
+
   Runtime.prototype.evalAssign = function (node, env) {
     var value;
     if (node.op === '=') {
@@ -640,6 +773,7 @@
     }
     if (target.type === 'Member') {
       var base = this.evalExpr(target.obj, env);
+      if (target.priv) return this.getPrivateMember(base, target.prop, target.line);
       return this.getMember(base, target.prop, target.line);
     }
     if (target.type === 'Index') {
@@ -661,6 +795,7 @@
     }
     if (target.type === 'Member') {
       var base = this.evalExpr(target.obj, env);
+      if (target.priv) { this.setPrivateMember(base, target.prop, value, line); return; }
       this.setMember(base, target.prop, value, line);
       return;
     }
@@ -686,6 +821,7 @@
     var obj = {};
     this.defineId(obj);
     Object.defineProperty(obj, '__class', { value: cls, enumerable: false, configurable: false });
+    this.initFields(obj, cls);
     var args = [];
     for (var i = 0; i < node.args.length; i++) args.push(this.evalExpr(node.args[i], env));
     if (cls.ctor) this.callFunction(cls.ctor, obj, args, node.line, 'new ' + cls.name);
@@ -702,22 +838,28 @@
     if (callee.type === 'Member' || callee.type === 'Index') {
       var obj = this.evalExpr(callee.obj, env);
       var prop = callee.type === 'Member' ? callee.prop : this.toStr(this.evalExpr(callee.prop, env));
+      var isPriv = callee.type === 'Member' && !!callee.priv;
       thisVal = obj;
       errName = prop;
 
       if (obj === null || obj === undefined) {
         this.rtError('Não é possível chamar "' + prop + '" de ' + (obj === null ? 'null' : 'undefined') + '. Verifique se o objeto já foi criado.', node.line);
       }
-      if (typeof obj === 'string' && !hasOwn.call(obj, prop)) {
+      if (isPriv) {
+        fn = this.getPrivateMember(obj, prop, node.line);
         args = this.evalArgs(node, env);
-        return this.callStringMethod(obj, prop, args, node.line);
-      }
-      if (Array.isArray(obj) && !(hasOwn.call(obj, prop) && obj[prop] && obj[prop].__fn)) {
+      } else {
+        if (typeof obj === 'string' && !hasOwn.call(obj, prop)) {
+          args = this.evalArgs(node, env);
+          return this.callStringMethod(obj, prop, args, node.line);
+        }
+        if (Array.isArray(obj) && !(hasOwn.call(obj, prop) && obj[prop] && obj[prop].__fn)) {
+          args = this.evalArgs(node, env);
+          return this.callArrayMethod(obj, prop, args, node.line);
+        }
+        fn = this.getMember(obj, prop, node.line);
         args = this.evalArgs(node, env);
-        return this.callArrayMethod(obj, prop, args, node.line);
       }
-      fn = this.getMember(obj, prop, node.line);
-      args = this.evalArgs(node, env);
     } else {
       fn = this.evalExpr(callee, env);
       if (callee.type === 'Ident') errName = callee.name;
@@ -1417,10 +1559,13 @@
     }
     if (depth >= 3) return '{…}';
     var keys = Object.keys(v);
-    var parts = keys.slice(0, 12).map(function (k) {
-      return k + ': ' + self.inspect(v[k], depth + 1);
+    var privKeys = v.__priv ? Object.keys(v.__priv) : [];
+    var shown = keys.concat(privKeys).slice(0, 12);
+    var parts = shown.map(function (k) {
+      var val = hasOwn.call(v, k) ? v[k] : v.__priv[k];
+      return k + ': ' + self.inspect(val, depth + 1);
     });
-    if (keys.length > 12) parts.push('…');
+    if (keys.length + privKeys.length > 12) parts.push('…');
     var prefix = (v.__class && v.__class.name) ? v.__class.name + ' ' : '';
     return prefix + '{' + parts.join(', ') + '}';
   };

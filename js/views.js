@@ -125,10 +125,21 @@
     return s.replace(/[\[\]]/g, '');
   }
 
+  /* O nó-raiz dentro de um wrapper ("arvore.raiz") representa a mesma árvore
+   * do wrapper: normaliza o rótulo para o nome do wrapper, para a identidade
+   * (cena, câmera e seletor) ficar estável entre passos e operações. */
+  function treeOwnerLabel(label) {
+    var t = String(label).replace(/\.(raiz|root)$/i, '');
+    return t || String(label);
+  }
+
   /* chips de ponteiro: sem duplicatas, prioriza nomes significativos.
    * Retorna {key, text}: key = caminho completo (estável entre passos),
    * text = nome curto exibido. */
   var CHILD_ALIAS_RX = /^(esquerda|direita|left|right|esq|dir|proximo|próximo|next|prox|seguinte)$/i;
+  /* variáveis de trabalho do algoritmo (cursor/índice da BFS) não viram
+   * etiqueta: o nó continua marcado pelo realce roxo, sem texto */
+  var HIDDEN_CHIP_RX = /^(cursor|cur)$/i;
 
   function chipDefs(labels) {
     var seen = Object.create(null);
@@ -139,12 +150,40 @@
       seen[s] = true;
       uniq.push({ key: String(label), text: s });
     });
-    var meaningful = uniq.filter(function (c) { return !CHILD_ALIAS_RX.test(c.text); });
-    return (meaningful.length ? meaningful : uniq).slice(0, 3);
+    /* "esquerda"/"direita"/"proximo" são caminhos de navegação, não estado:
+     * nunca viram etiqueta permanente no canvas; índices de fila ("0") também não */
+    return uniq.filter(function (c) {
+      return !CHILD_ALIAS_RX.test(c.text) && !/^\d+$/.test(c.text) && !HIDDEN_CHIP_RX.test(c.text);
+    }).slice(0, 2);
   }
 
   function chipsFor(labels) {
     return chipDefs(labels).map(function (c) { return c.text; });
+  }
+
+  /* nó em destaque principal do passo: um único nó — o ponteiro da operação
+   * (atual/no/cursor…) tem prioridade sobre o alvo (alvo/removido) */
+  var ACTIVE_POINTER_RX = /^(atual|current|no|nó|node|cur|aux|cursor)$/i;
+  var TARGET_POINTER_RX = /^(alvo|target|removido)$/i;
+
+  function activeNodeId(pointers) {
+    var best = null;
+    var bestRank = 0;
+    Object.keys(pointers || {}).forEach(function (id) {
+      var labels = pointers[id] || [];
+      for (var i = 0; i < labels.length; i++) {
+        var s = shortName(labels[i]);
+        var rank = ACTIVE_POINTER_RX.test(s) ? 2 : TARGET_POINTER_RX.test(s) ? 1 : 0;
+        if (rank > bestRank) { bestRank = rank; best = Number(id); }
+      }
+    });
+    return bestRank > 0 ? best : null;
+  }
+
+  /* marcas de visita visíveis no passo (época atual) */
+  function visitedMapFor(ctx, step) {
+    if (ctx && ctx.visit && ctx.visit.epochOf && step) return DSV.visitAt(ctx.visit, step);
+    return (ctx && ctx.visit && ctx.visit.map) || {};
   }
 
   /* Identidade visual dos itens para animar (valores deslizam entre posições). */
@@ -233,7 +272,7 @@
         push({
           type: 'tree',
           id: v.id,
-          label: shownLabel,
+          label: treeOwnerLabel(shownLabel),
           score: 4 + (ROOT_RX.test(shortName(label)) ? 4 : NODE_RX.test(shortName(label)) ? 1 : 0) + Math.min(size, 12) * 0.35
         });
         return;
@@ -367,20 +406,221 @@
 
     var order = [];
     var map = {};
+    var epochOf = {};
+    var seenInEpoch = Object.create(null);
+    var epoch = 0;
+    var lastOp = null;
+    var inOp = false;
+
     steps.forEach(function (s) {
+      /* cada execução de uma operação (percurso/busca/inserção/remoção) é uma
+       * "época": as marcas de visita recomeçam nela e não iluminam a árvore
+       * inteira em passos sem relação */
+      var op = opFrameName(s.stack);
+      if (op) {
+        if (!inOp || op !== lastOp) epoch++;
+        lastOp = op;
+        inOp = true;
+      } else {
+        inOp = false;
+        lastOp = null;
+      }
+      epochOf[s.i] = epoch;
+
       Object.keys(s.pointers || {}).forEach(function (id) {
-        if (map[id] != null) return;
         var labels = s.pointers[id];
         var relevant = hasCurrentLike
           ? labels.filter(function (l) { return currentRx.test(shortName(l)); })
           : labels;
         if (!relevant.length) return;
-        var num = order.length + 1;
-        order.push({ id: Number(id), num: num, step: s.i });
-        map[id] = num;
+        var epochKey = epoch + ':' + id;
+        if (seenInEpoch[epochKey]) return;
+        seenInEpoch[epochKey] = true;
+        if (map[id] == null) map[id] = order.length + 1;
+        order.push({ id: Number(id), num: map[id], step: s.i, epoch: epoch });
       });
     });
-    return { order: order, map: map, hasCurrentLike: hasCurrentLike };
+    return { order: order, map: map, epochOf: epochOf, hasCurrentLike: hasCurrentLike };
+  };
+
+  /* marcas de visita visíveis no passo: apenas as da mesma operação (época)
+   * e que já aconteceram */
+  DSV.visitAt = function (visit, step) {
+    var out = Object.create(null);
+    if (!visit || !visit.order || !step) return out;
+    var epoch = visit.epochOf ? visit.epochOf[step.i] : null;
+    if (epoch == null) return out;
+    for (var i = 0; i < visit.order.length; i++) {
+      var o = visit.order[i];
+      if (o.epoch === epoch && o.step <= step.i) out[o.id] = true;
+    }
+    return out;
+  };
+
+  /* nome do método de operação mais externo na pilha de chamadas */
+  function opFrameName(stack) {
+    var list = stack || [];
+    for (var i = 0; i < list.length; i++) {
+      var n = String(list[i].name || '');
+      if (OP_NAMES[n]) return n;
+    }
+    return null;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Explicação contextual do passo                                      */
+  /* ------------------------------------------------------------------ */
+
+  var OP_NAMES = {
+    inserir: 'Inserção',
+    inserirNo: 'Inserção',
+    remover: 'Remoção',
+    buscar: 'Busca',
+    preOrdem: 'Percurso pré-ordem',
+    emOrdem: 'Percurso em ordem',
+    posOrdem: 'Percurso pós-ordem',
+    limpar: 'Limpeza',
+    estaVazia: 'Verificação',
+    empilhar: 'Empilhamento',
+    desempilhar: 'Desempilhamento',
+    enfileirar: 'Enfileiramento',
+    desenfileirar: 'Desenfileiramento'
+  };
+
+  /* nome da operação: pela chamada em execução (pilha de chamadas, do
+   * escopo mais externo para o mais interno) e, sem chamada, pela linha */
+  function opNameFrom(step, lineText) {
+    var stack = (step && step.stack) || [];
+    for (var i = 0; i < stack.length; i++) {
+      var n = String(stack[i].name || '');
+      if (OP_NAMES[n]) return OP_NAMES[n];
+    }
+    var line = lineText || '';
+    if (/\.inserir(No)?\s*\(/.test(line)) return 'Inserção';
+    if (/\.remover\s*\(/.test(line)) return 'Remoção';
+    if (/\.buscar\s*\(/.test(line)) return 'Busca';
+    if (/preOrdem\s*\(/.test(line)) return 'Percurso pré-ordem';
+    if (/emOrdem\s*\(/.test(line)) return 'Percurso em ordem';
+    if (/posOrdem\s*\(/.test(line)) return 'Percurso pós-ordem';
+    if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
+    if (/\.estaVazia\s*\(/.test(line)) return 'Verificação';
+    if (/console\.log/.test(line)) return 'Saída';
+    return 'Execução';
+  }
+
+  function sideName(side) {
+    return side === 'L' ? 'esquerdo' : 'direito';
+  }
+
+  function fmtEventValue(v) {
+    return typeof v === 'string' ? v : DSV.fmtPrimitive(v);
+  }
+
+  /* frase curta para estruturas não-árvore: reage à operação do passo */
+  function genericExplanation(step) {
+    var ev = (step.events || [])[0];
+    if (!ev) return null;
+    if (ev.type === 'push') return (ev.values || []).map(fmtEventValue).join(', ') + ' entrou.';
+    if (ev.type === 'pop') return fmtEventValue(ev.value) + ' saiu.';
+    if (ev.type === 'shift') return fmtEventValue(ev.value) + ' saiu da frente.';
+    if (ev.type === 'unshift') return (ev.values || []).map(fmtEventValue).join(', ') + ' entrou na frente.';
+    if (ev.type === 'splice') return 'Um trecho da estrutura foi alterado.';
+    return null;
+  }
+
+  /* frase para a árvore: compara o passo com o anterior e o próximo —
+   * inserção, remoção, promoção, vaga da inserção, nó visitado */
+  function treeExplanation(step, sel, opts, op) {
+    var root = sel.id != null ? DSV.findValueById(step, sel.id) : null;
+    if (root === null) return 'A árvore está vazia neste passo.';
+    if (!isObj(root)) return null;
+
+    var cur = treeInfo(root);
+    var curIds = Object.keys(cur);
+    var prevRoot = opts.prevStep ? DSV.findTreeInStep(opts.prevStep, sel, root) : null;
+    var prev = prevRoot ? treeInfo(prevRoot) : null;
+
+    if (prev) {
+      var added = curIds.filter(function (id) { return !prev[id]; });
+      var removed = Object.keys(prev).filter(function (id) { return !cur[id]; });
+      var moved = curIds.filter(function (id) { return prev[id] && prev[id].parentId !== cur[id].parentId; });
+
+      if (added.length) {
+        var a = cur[added[0]];
+        if (a.parentId != null && cur[a.parentId]) {
+          return 'O nó ' + a.val + ' foi inserido como filho ' + sideName(a.side) + ' do nó ' + cur[a.parentId].val + '.';
+        }
+        return 'O nó ' + a.val + ' é a raiz da árvore.';
+      }
+      if (removed.length) {
+        var r = prev[removed[0]];
+        var txt = 'O nó ' + r.val + ' foi removido da árvore.';
+        if (moved.length) {
+          var m = cur[moved[0]];
+          txt += m.parentId != null ? ' O nó ' + m.val + ' subiu para o lugar.' : ' O nó ' + m.val + ' virou a raiz.';
+        }
+        return txt;
+      }
+      if (moved.length) {
+        var m2 = cur[moved[0]];
+        if (m2.parentId != null && cur[m2.parentId]) {
+          return 'O nó ' + m2.val + ' foi promovido para filho ' + sideName(m2.side) + ' do nó ' + cur[m2.parentId].val + '.';
+        }
+        return 'O nó ' + m2.val + ' virou a raiz da árvore.';
+      }
+    }
+
+    /* vaga que o próximo passo vai preencher */
+    if (opts.nextStep) {
+      var nextRoot = DSV.findTreeInStep(opts.nextStep, sel, root);
+      var next = nextRoot ? treeInfo(nextRoot) : null;
+      if (next) {
+        var nextIds = Object.keys(next);
+        for (var i = 0; i < nextIds.length; i++) {
+          var na = next[nextIds[i]];
+          if (cur[na.id] || na.parentId == null || !cur[na.parentId]) continue;
+          var occupied = false;
+          for (var j = 0; j < curIds.length; j++) {
+            var ci = cur[curIds[j]];
+            if (ci.parentId === na.parentId && ci.side === na.side) { occupied = true; break; }
+          }
+          if (occupied) continue;
+          if (op === 'Inserção') {
+            return 'A busca por níveis encontrou a primeira posição disponível: o filho ' + sideName(na.side) + ' do nó ' + cur[na.parentId].val + '.';
+          }
+          return 'A próxima alteração será no filho ' + sideName(na.side) + ' do nó ' + cur[na.parentId].val + '.';
+        }
+      }
+    }
+
+    var aid = activeNodeId(step.pointers || {});
+    if (aid != null && cur[aid]) {
+      if (op === 'Busca') return 'Comparando o nó ' + cur[aid].val + ' com o valor procurado.';
+      return 'Visitando o nó ' + cur[aid].val + '.';
+    }
+
+    if (op === 'Inserção') return 'A busca por níveis procura a primeira posição livre.';
+    if (op === 'Remoção') return 'Procurando o nó a ser removido.';
+    return 'Sem alterações na árvore neste passo.';
+  }
+
+  /**
+   * Explicação curta e fiel ao estado do passo.
+   * Retorna {op, text} — text pode ser null (nada relevante a dizer).
+   */
+  DSV.explainStep = function (step, sel, opts) {
+    opts = opts || {};
+    if (!step) return { op: 'Execução', text: null };
+    var op = opNameFrom(step, opts.lineText);
+    var text = null;
+    if (sel && sel.type === 'tree' && sel.id != null) {
+      text = treeExplanation(step, sel, opts, op);
+    } else if (sel && sel.type === 'tree') {
+      text = 'A árvore está vazia neste passo.';
+    } else {
+      text = genericExplanation(step);
+    }
+    return { op: op, text: text };
   };
 
   /* ------------------------------------------------------------------ */
@@ -592,39 +832,147 @@
     }, dur);
   }
 
-  /* Renderização estática (fallback para ambientes sem DOM real, ex.: testes) */
-  function renderTreeStatic(container, v, sel, ctx) {
-    var nodes = [];
-    var seen = {};
-    var maxDepth = 0;
+  /* ------------------------------------------------------------------ */
+  /* Árvore: geometria compartilhada (em-ordem × profundidade)           */
+  /* ------------------------------------------------------------------ */
 
-    function walk(node, depth) {
+  var TREE_HGAP = 72;
+  var TREE_VGAP = 84;
+  var TREE_R = 23;
+  var TREE_PADX = 48;
+  var TREE_PADY = 48;
+
+  /* percorre em-ordem: x = ordem horizontal (subárvores não se sobrepõem),
+   * y = profundidade; guarda também pai e lado de cada nó */
+  function treeLayout(v) {
+    var nodes = [];
+    var seen = Object.create(null);
+    var maxDepth = 0;
+    (function walk(node, depth, parentId, side) {
       if (!isObj(node) || seen[node.id]) return;
       seen[node.id] = true;
       var L = nodeChild(node, 'L');
       var R = nodeChild(node, 'R');
-      walk(L, depth + 1);
-      nodes.push({ ser: node, x: nodes.length, depth: depth, left: L, right: R });
+      walk(L, depth + 1, node.id, 'L');
+      nodes.push({ ser: node, x: nodes.length, depth: depth, left: L, right: R, parentId: parentId, side: side });
       if (depth > maxDepth) maxDepth = depth;
-      walk(R, depth + 1);
-    }
-    walk(v, 0);
+      walk(R, depth + 1, node.id, 'R');
+    })(v, 0, null, null);
+    return { nodes: nodes, maxDepth: maxDepth };
+  }
 
-    var HGAP = 72;
-    var VGAP = 84;
-    var R = 23;
-    var PADX = 48;
-    var PADY = 48;
-    var width = Math.max(nodes.length * HGAP + PADX * 2, 360);
-    var height = (maxDepth + 1) * VGAP + PADY + 40;
-
-    var pos = {};
-    nodes.forEach(function (n) {
+  function treePositions(layout) {
+    var pos = Object.create(null);
+    var width = Math.max(layout.nodes.length * TREE_HGAP + TREE_PADX * 2, 360);
+    var height = (layout.maxDepth + 1) * TREE_VGAP + TREE_PADY + 40;
+    layout.nodes.forEach(function (n) {
       pos[n.ser.id] = {
-        cx: PADX + n.x * HGAP + HGAP / 2,
-        cy: PADY + n.depth * VGAP
+        x: TREE_PADX + n.x * TREE_HGAP + TREE_HGAP / 2,
+        y: TREE_PADY + n.depth * TREE_VGAP
       };
     });
+    return { pos: pos, width: width, height: height };
+  }
+
+  function treeIds(root) {
+    var ids = Object.create(null);
+    (function walk(n) {
+      if (!isObj(n) || ids[n.id]) return;
+      ids[n.id] = true;
+      walk(nodeChild(n, 'L'));
+      walk(nodeChild(n, 'R'));
+    })(root);
+    return ids;
+  }
+
+  /* localiza a mesma árvore em outro passo (inclusive quando a raiz mudou de
+   * identidade, por promoção) pelos ids dos nós — nunca pela posição visual */
+  DSV.findTreeInStep = function (step, sel, currentRoot) {
+    if (!step || !isObj(currentRoot)) return null;
+    var curIds = treeIds(currentRoot);
+    var size = Object.keys(curIds).length;
+    var best = null;
+    var bestOv = 0;
+    function consider(sv) {
+      if (!isTreeNode(sv)) return;
+      var ids = treeIds(sv);
+      var candSize = Object.keys(ids).length;
+      var ov = 0;
+      Object.keys(ids).forEach(function (id) { if (curIds[id]) ov++; });
+      /* a mesma árvore pode ter um nó a mais ou a menos entre os passos:
+       * exige que todos os nós da menor delas estejam presentes */
+      if (ov >= Math.min(size, candSize) && ov > bestOv) { bestOv = ov; best = sv; }
+    }
+    function walkVal(sv, depth) {
+      if (!sv || typeof sv !== 'object' || depth > 5) return;
+      if (sv.t === 'fn' || sv.t === 'c') return;
+      if (isTreeNode(sv)) { consider(sv); return; }
+      if (sv.t === 'a') {
+        for (var i = 0; i < sv.items.length; i++) walkVal(sv.items[i], depth + 1);
+      } else if (sv.t === 'o') {
+        var keys = Object.keys(sv.props || {});
+        for (var j = 0; j < keys.length; j++) walkVal(sv.props[keys[j]], depth + 1);
+      }
+    }
+    ['globals', 'locals'].forEach(function (scope) {
+      var map = step[scope] || {};
+      Object.keys(map).forEach(function (name) { walkVal(map[name], 0); });
+    });
+    if (step.thisVal) walkVal(step.thisVal, 0);
+    return best;
+  };
+
+  /* valor do nó em linguagem natural (sem as aspas dos literais string) */
+  function treeValText(node) {
+    var s = nodeValue(node);
+    if (s.length > 1 && s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') return s.slice(1, -1);
+    return s;
+  }
+
+  /* mapa id -> {valor, pai, lado} da árvore serializada */
+  function treeInfo(root) {
+    var info = Object.create(null);
+    (function walk(n, parentId, side) {
+      if (!isObj(n) || info[n.id]) return;
+      info[n.id] = { id: n.id, val: treeValText(n), parentId: parentId, side: side };
+      walk(nodeChild(n, 'L'), n.id, 'L');
+      walk(nodeChild(n, 'R'), n.id, 'R');
+    })(root, null, null);
+    return info;
+  }
+
+  /* vaga que o PRÓXIMO passo vai preencher (inserção): aparece um instante
+   * antes do nó, sem indicadores permanentes de filhos vazios */
+  function insertionPreview(sel, ctx, currentRoot) {
+    if (!ctx || !ctx.nextStep || !sel || sel.type !== 'tree' || !isObj(currentRoot)) return null;
+    var nextRoot = DSV.findTreeInStep(ctx.nextStep, sel, currentRoot);
+    if (!nextRoot) return null;
+    var curIds = treeIds(currentRoot);
+    var curInfo = treeInfo(currentRoot);
+    var nextLayout = treeLayout(nextRoot);
+    var geo = treePositions(nextLayout);
+    var curList = Object.keys(curIds);
+    for (var i = 0; i < nextLayout.nodes.length; i++) {
+      var n = nextLayout.nodes[i];
+      if (n.parentId == null || curIds[n.ser.id] || !curIds[n.parentId]) continue;
+      var occupied = false;
+      for (var j = 0; j < curList.length; j++) {
+        var ci = curInfo[curList[j]];
+        if (ci && ci.parentId === n.parentId && ci.side === n.side) { occupied = true; break; }
+      }
+      if (occupied) continue;
+      return { parentId: n.parentId, side: n.side, pos: geo.pos[n.ser.id] };
+    }
+    return null;
+  }
+
+  /* Renderização estática (fallback para ambientes sem DOM real, ex.: testes) */
+  function renderTreeStatic(container, v, sel, ctx) {
+    var layout = treeLayout(v);
+    var geo = treePositions(layout);
+    var nodes = layout.nodes;
+    var pos = geo.pos;
+    var R = TREE_R;
 
     var lines = '';
     var circles = '';
@@ -634,54 +982,37 @@
       [n.left, n.right].forEach(function (child) {
         if (!isObj(child) || !pos[child.id]) return;
         var cp = pos[child.id];
-        lines += '<line x1="' + p.cx + '" y1="' + (p.cy + R) + '" x2="' + cp.cx + '" y2="' + (cp.cy - R) + '" class="tree-edge" />';
+        lines += '<line x1="' + p.x + '" y1="' + (p.y + R) + '" x2="' + cp.x + '" y2="' + (cp.y - R) + '" class="tree-edge" />';
       });
     });
 
-    var visitMap = (ctx.visit && ctx.visit.map) || {};
+    /* vaga que o próximo passo vai preencher (temporária, só na inserção) */
+    var preview = insertionPreview(sel, ctx, v);
+    if (preview && pos[preview.parentId] && preview.pos) {
+      var pp = pos[preview.parentId];
+      lines += '<line x1="' + pp.x + '" y1="' + pp.y + '" x2="' + preview.pos.x + '" y2="' + preview.pos.y + '" class="tree-preview-edge" />' +
+        '<circle cx="' + preview.pos.x + '" cy="' + preview.pos.y + '" r="' + R + '" class="tree-preview-slot" />';
+    }
+
+    var visitMap = visitedMapFor(ctx, ctx.step);
+    var activeId = activeNodeId(ctx.pointers || {});
 
     nodes.forEach(function (n) {
       var p = pos[n.ser.id];
-      var chips = chipsFor((ctx.pointers || {})[n.ser.id]);
-      var tagged = chips.length > 0;
-      var visitedNum = visitMap[n.ser.id];
+      var visited = !!visitMap[n.ser.id];
+      var active = activeId === n.ser.id;
 
       var cls = 'tree-node';
-      if (visitedNum) cls += ' visited';
-      if (tagged) cls += ' tagged';
+      if (visited) cls += ' visited';
+      if (active) cls += ' active';
 
       circles += '<g class="tree-group">';
-      circles += '<circle cx="' + p.cx + '" cy="' + p.cy + '" r="' + R + '" class="' + cls + '" />';
-      if (visitedNum) {
-        circles += '<text x="' + (p.cx + R - 4) + '" y="' + (p.cy - R + 12) + '" class="tree-visit-num">' + visitedNum + '</text>';
-      }
-      circles += '<text x="' + p.cx + '" y="' + (p.cy + 5) + '" class="tree-val">' + esc(nodeValue(n.ser)) + '</text>';
-
-      /* stubs de filhos nulos para nós com ponteiro */
-      if (tagged) {
-        if (!n.left) {
-          circles += '<circle cx="' + (p.cx - R - 20) + '" cy="' + p.cy + '" r="10" class="tree-null-stub" />' +
-            '<text x="' + (p.cx - R - 20) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
-        }
-        if (!n.right) {
-          circles += '<circle cx="' + (p.cx + R + 20) + '" cy="' + p.cy + '" r="10" class="tree-null-stub" />' +
-            '<text x="' + (p.cx + R + 20) + '" y="' + (p.cy + 4) + '" class="tree-null-text">∅</text>';
-        }
-      }
-
-      /* chips de ponteiros */
-      chips.forEach(function (chip, i) {
-        var w = chip.length * 7 + 14;
-        var x = p.cx - w / 2;
-        var y = p.cy - R - 12 - i * 18;
-        circles += '<rect x="' + x + '" y="' + (y - 13) + '" width="' + w + '" height="18" rx="4" class="ptr-chip-bg" />' +
-          '<text x="' + p.cx + '" y="' + (y) + '" class="ptr-chip-text">' + esc(chip) + '</text>';
-      });
-
+      circles += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + R + '" class="' + cls + '" />';
+      circles += '<text x="' + p.x + '" y="' + (p.y + 5) + '" class="tree-val">' + esc(nodeValue(n.ser)) + '</text>';
       circles += '</g>';
     });
 
-    var svg = '<svg class="tree-svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
+    var svg = '<svg class="tree-svg" width="' + geo.width + '" height="' + geo.height + '" viewBox="0 0 ' + geo.width + ' ' + geo.height + '">' +
       lines + circles + '</svg>';
 
     var badge = eventsBadge(sel, ctx);
@@ -709,9 +1040,7 @@
       key: key,
       nodes: Object.create(null),
       edges: Object.create(null),
-      chips: Object.create(null),
-      raf: null,
-      lastFrame: 0
+      raf: null
     };
 
     container.innerHTML = '';
@@ -730,8 +1059,10 @@
     var svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'tree-svg');
     var gEdges = document.createElementNS(SVGNS, 'g');
+    var gPreview = document.createElementNS(SVGNS, 'g');
     var gNodes = document.createElementNS(SVGNS, 'g');
     svg.appendChild(gEdges);
+    svg.appendChild(gPreview);
     svg.appendChild(gNodes);
     wrap.appendChild(svg);
 
@@ -739,50 +1070,31 @@
     scene.wrap = wrap;
     scene.svg = svg;
     scene.gEdges = gEdges;
+    scene.gPreview = gPreview;
     scene.gNodes = gNodes;
+    scene.previewEls = null;
+    scene.preview = null;
     return scene;
-  }
-
-  function treeLayout(v) {
-    var nodes = [];
-    var seen = Object.create(null);
-    var maxDepth = 0;
-    (function walk(node, depth) {
-      if (!isObj(node) || seen[node.id]) return;
-      seen[node.id] = true;
-      var L = nodeChild(node, 'L');
-      var R = nodeChild(node, 'R');
-      walk(L, depth + 1);
-      nodes.push({ ser: node, x: nodes.length, depth: depth, left: L, right: R });
-      if (depth > maxDepth) maxDepth = depth;
-      walk(R, depth + 1);
-    })(v, 0);
-    return { nodes: nodes, maxDepth: maxDepth };
   }
 
   function updateTreeScene(scene, container, v, sel, ctx) {
     var dur = animDur(ctx);
     var layout = treeLayout(v);
+    var geo = treePositions(layout);
     var nodes = layout.nodes;
 
-    var HGAP = 72;
-    var VGAP = 84;
-    var PADX = 48;
-    var PADY = 48;
-    var width = Math.max(nodes.length * HGAP + PADX * 2, 360);
-    var height = (layout.maxDepth + 1) * VGAP + PADY + 40;
-
-    scene.svg.setAttribute('width', width);
-    scene.svg.setAttribute('height', height);
-    scene.svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
-    scene.wrap.style.minWidth = width + 'px';
-    scene.wrap.style.height = height + 'px';
+    scene.svg.setAttribute('width', geo.width);
+    scene.svg.setAttribute('height', geo.height);
+    scene.svg.setAttribute('viewBox', '0 0 ' + geo.width + ' ' + geo.height);
+    scene.wrap.style.minWidth = geo.width + 'px';
+    scene.wrap.style.height = geo.height + 'px';
 
     var targets = Object.create(null);
     nodes.forEach(function (n) {
+      var p = geo.pos[n.ser.id];
       targets[n.ser.id] = {
-        x: PADX + n.x * HGAP + HGAP / 2,
-        y: PADY + n.depth * VGAP,
+        x: p.x,
+        y: p.y,
         ser: n.ser,
         left: n.left,
         right: n.right
@@ -791,14 +1103,15 @@
 
     scene.head.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), eventsBadge(sel, ctx));
 
-    syncTreeNodes(scene, targets, dur, ctx);
-    syncTreeEdges(scene, targets);
-    syncTreeChips(scene, targets, ctx.pointers || {});
+    var activeId = activeNodeId(ctx.pointers || {});
+    syncTreeNodes(scene, targets, dur, ctx, activeId);
+    syncTreeEdges(scene, targets, ctx, sel, v);
+    syncTreePreview(scene, insertionPreview(sel, ctx, v));
     startTreeFrame(scene);
   }
 
-  function syncTreeNodes(scene, targets, dur, ctx) {
-    var visitMap = (ctx.visit && ctx.visit.map) || {};
+  function syncTreeNodes(scene, targets, dur, ctx, activeId) {
+    var visitMap = visitedMapFor(ctx, ctx.step);
     var t0 = DSV.anim.now();
 
     Object.keys(targets).forEach(function (id) {
@@ -820,7 +1133,7 @@
         x1: t.x, y1: t.y, s1: 1, o1: 1,
         start: t0, dur: dur > 0 ? Math.max(60, dur) : 0
       };
-      updateNodeContent(n, t, visitMap, ctx);
+      updateNodeContent(n, t, visitMap, activeId);
     });
 
     Object.keys(scene.nodes).forEach(function (id) {
@@ -828,8 +1141,6 @@
       var n = scene.nodes[id];
       if (n.exiting) return;
       n.exiting = true;
-      if (n.stubL) { n.stubL.remove(); n.stubL = null; }
-      if (n.stubR) { n.stubR.remove(); n.stubR = null; }
       n.anim = {
         x0: n.x, y0: n.y, s0: n.sc, o0: n.op,
         x1: n.x, y1: n.y, s1: 0.7, o1: 0,
@@ -856,64 +1167,51 @@
     g.appendChild(circle);
     g.appendChild(val);
     return {
-      g: g, circle: circle, val: val, visit: null, stubL: null, stubR: null,
+      g: g, circle: circle, val: val,
       x: 0, y: 0, sc: 1, op: 1, anim: null, exiting: false
     };
   }
 
-  function createStub(g, dx) {
-    var sg = document.createElementNS(SVGNS, 'g');
-    sg.setAttribute('transform', 'translate(' + dx + ',0)');
-    var c = document.createElementNS(SVGNS, 'circle');
-    c.setAttribute('class', 'tree-null-stub');
-    c.setAttribute('r', '10');
-    c.setAttribute('cx', '0');
-    c.setAttribute('cy', '0');
-    c.setAttribute('vector-effect', 'non-scaling-stroke');
-    var tx = document.createElementNS(SVGNS, 'text');
-    tx.setAttribute('x', 0);
-    tx.setAttribute('y', 4);
-    tx.setAttribute('class', 'tree-null-text');
-    tx.textContent = '∅';
-    sg.appendChild(c);
-    sg.appendChild(tx);
-    g.appendChild(sg);
-    return sg;
-  }
-
-  function updateNodeContent(n, t, visitMap, ctx) {
+  function updateNodeContent(n, t, visitMap, activeId) {
     n.val.textContent = nodeValue(t.ser);
 
-    var chips = chipsFor((ctx.pointers || {})[t.ser.id]);
-    var tagged = chips.length > 0;
-    var visitedNum = visitMap[t.ser.id];
+    var visited = !!visitMap[t.ser.id];
+    var active = activeId === t.ser.id;
 
     var cls = 'tree-node';
-    if (visitedNum) cls += ' visited';
-    if (tagged) cls += ' tagged';
+    if (visited) cls += ' visited';
+    if (active) cls += ' active';
     if (n.circle.getAttribute('class') !== cls) n.circle.setAttribute('class', cls);
-
-    if (visitedNum) {
-      if (!n.visit) {
-        n.visit = document.createElementNS(SVGNS, 'text');
-        n.visit.setAttribute('class', 'tree-visit-num');
-        n.visit.setAttribute('x', 14);
-        n.visit.setAttribute('y', -14);
-        n.g.appendChild(n.visit);
-      }
-      n.visit.textContent = visitedNum;
-    } else if (n.visit) {
-      n.visit.remove();
-      n.visit = null;
-    }
-
-    if (tagged && !t.left && !n.stubL) n.stubL = createStub(n.g, -43);
-    else if ((!tagged || t.left) && n.stubL) { n.stubL.remove(); n.stubL = null; }
-    if (tagged && !t.right && !n.stubR) n.stubR = createStub(n.g, 43);
-    else if ((!tagged || t.right) && n.stubR) { n.stubR.remove(); n.stubR = null; }
   }
 
-  function syncTreeEdges(scene, targets) {
+  /* prévia da vaga de inserção: linha tracejada do pai até o lugar exato
+   * onde o nó vai aparecer (some assim que ele aparece) */
+  function syncTreePreview(scene, preview) {
+    if (!preview || !preview.pos) {
+      if (scene.previewEls) {
+        scene.previewEls.line.remove();
+        scene.previewEls.circle.remove();
+        scene.previewEls = null;
+      }
+      scene.preview = null;
+      return;
+    }
+    if (!scene.previewEls) {
+      var line = document.createElementNS(SVGNS, 'line');
+      line.setAttribute('class', 'tree-preview-edge');
+      var circle = document.createElementNS(SVGNS, 'circle');
+      circle.setAttribute('class', 'tree-preview-slot');
+      circle.setAttribute('r', String(TREE_R));
+      scene.gPreview.appendChild(line);
+      scene.gPreview.appendChild(circle);
+      scene.previewEls = { line: line, circle: circle };
+    }
+    scene.previewEls.circle.setAttribute('cx', round2(preview.pos.x));
+    scene.previewEls.circle.setAttribute('cy', round2(preview.pos.y));
+    scene.preview = { parentId: preview.parentId, pos: preview.pos };
+  }
+
+  function syncTreeEdges(scene, targets, ctx, sel, currentRoot) {
     var parentOf = Object.create(null);
     Object.keys(targets).forEach(function (id) {
       var t = targets[id];
@@ -921,7 +1219,28 @@
       if (t.right && targets[t.right.id]) parentOf[t.right.id] = id;
     });
 
+    /* para destacar conexão criada ou alterada, compara com o passo anterior */
+    var prevParent = null;
+    if (ctx && ctx.prevStep) {
+      var prevRoot = DSV.findTreeInStep(ctx.prevStep, sel, currentRoot);
+      if (prevRoot) {
+        prevParent = Object.create(null);
+        (function walk(n) {
+          if (!isObj(n)) return;
+          var L = nodeChild(n, 'L');
+          var R = nodeChild(n, 'R');
+          if (L) prevParent[L.id] = n.id;
+          if (R) prevParent[R.id] = n.id;
+          walk(L);
+          walk(R);
+        })(prevRoot);
+      }
+    }
+
+    var now = DSV.anim.now();
     Object.keys(parentOf).forEach(function (cid) {
+      var pid = parentOf[cid];
+      var changed = prevParent ? prevParent[cid] !== pid : false;
       var e = scene.edges[cid];
       if (!e) {
         var path = document.createElementNS(SVGNS, 'path');
@@ -929,60 +1248,31 @@
         path.setAttribute('vector-effect', 'non-scaling-stroke');
         e = scene.edges[cid] = {
           line: path,
-          parentId: null
+          parentId: null,
+          hlUntil: 0
         };
         scene.gEdges.appendChild(path);
+        changed = true;
       }
-      e.parentId = parentOf[cid];
+      e.parentId = pid;
+      if (changed) {
+        e.line.setAttribute('class', 'tree-edge new');
+        e.hlUntil = now + Math.max(240, animDur(ctx));
+      } else if (e.hlUntil && now >= e.hlUntil) {
+        e.line.setAttribute('class', 'tree-edge');
+        e.hlUntil = 0;
+      }
     });
 
     Object.keys(scene.edges).forEach(function (cid) {
-      if (!parentOf[cid] || !targets[cid]) {
-        scene.edges[cid].line.remove();
+      var e = scene.edges[cid];
+      if (!parentOf[cid]) {
+        /* o nó ainda pode estar saindo: a aresta some junto com ele */
+        var n = scene.nodes[cid];
+        if (n && n.exiting) return;
+        e.line.remove();
         delete scene.edges[cid];
       }
-    });
-  }
-
-  function syncTreeChips(scene, targets, pointers) {
-    var desired = Object.create(null);
-    Object.keys(targets).forEach(function (id) {
-      chipDefs(pointers[id]).forEach(function (c) {
-        desired[c.key] = { id: id, text: c.text };
-      });
-    });
-
-    Object.keys(desired).forEach(function (key) {
-      var d = desired[key];
-      var chip = scene.chips[key];
-      if (!chip) {
-        var el = document.createElement('div');
-        el.className = 'ptr-chip tree-chip';
-        scene.wrap.appendChild(el);
-        var t = targets[d.id];
-        chip = scene.chips[key] = {
-          el: el, x: t.x, y: t.y - 42, op: 0, opTo: 1, nodeId: d.id, idx: 0
-        };
-      }
-      chip.nodeId = d.id;
-      chip.opTo = 1;
-      if (chip.el.textContent !== d.text) chip.el.textContent = d.text;
-    });
-
-    /* empilha os chips de cada nó */
-    var perNode = Object.create(null);
-    Object.keys(desired).forEach(function (key) {
-      var id = desired[key].id;
-      if (!perNode[id]) perNode[id] = [];
-      perNode[id].push(key);
-    });
-    Object.keys(perNode).forEach(function (id) {
-      perNode[id].sort();
-      perNode[id].forEach(function (key, i) { scene.chips[key].idx = i; });
-    });
-
-    Object.keys(scene.chips).forEach(function (key) {
-      if (!desired[key]) scene.chips[key].opTo = 0;
     });
   }
 
@@ -999,9 +1289,6 @@
 
   function treeFrame(scene) {
     var t0 = DSV.anim.now();
-    if (!scene.lastFrame) scene.lastFrame = t0;
-    var dt = Math.min(t0 - scene.lastFrame, 64);
-    scene.lastFrame = t0;
     var active = false;
 
     Object.keys(scene.nodes).forEach(function (id) {
@@ -1041,30 +1328,25 @@
       var o = Math.min(p.op, c.op);
       e.line.setAttribute('opacity', round3(o));
       if (o < 0.99) active = true;
+      if (e.hlUntil && t0 >= e.hlUntil) {
+        e.line.setAttribute('class', 'tree-edge');
+        e.hlUntil = 0;
+      }
     });
 
-    /* chips (overlay HTML) acompanham os nós com suavização */
-    var k = 1 - Math.pow(0.0015, dt / 240);
-    Object.keys(scene.chips).forEach(function (key) {
-      var chip = scene.chips[key];
-      var n = scene.nodes[chip.nodeId];
-      var tx = n ? n.x : chip.x;
-      var ty = n ? n.y - 34 - chip.idx * 18 : chip.y;
-      chip.x = DSV.anim.lerp(chip.x, tx, k);
-      chip.y = DSV.anim.lerp(chip.y, ty, k);
-      chip.op = DSV.anim.lerp(chip.op, chip.opTo, k);
-      chip.el.style.left = round2(chip.x) + 'px';
-      chip.el.style.top = round2(chip.y) + 'px';
-      chip.el.style.opacity = round3(chip.op);
-      if (chip.opTo === 0 && chip.op < 0.03) {
-        chip.el.remove();
-        delete scene.chips[key];
-        return;
+    /* prévia da vaga de inserção: acompanha o pai enquanto ele se move */
+    if (scene.preview && scene.previewEls) {
+      var pn = scene.nodes[scene.preview.parentId];
+      if (pn) {
+        scene.previewEls.line.setAttribute('x1', round2(pn.x));
+        scene.previewEls.line.setAttribute('y1', round2(pn.y));
+        scene.previewEls.line.setAttribute('x2', round2(scene.preview.pos.x));
+        scene.previewEls.line.setAttribute('y2', round2(scene.preview.pos.y));
+        scene.previewEls.line.setAttribute('opacity', round3(pn.op));
+        scene.previewEls.circle.setAttribute('opacity', round3(Math.min(1, pn.op + 0.2)));
+        if (pn.op < 0.99) active = true;
       }
-      if (Math.abs(chip.x - tx) > 0.4 || Math.abs(chip.y - ty) > 0.4 || Math.abs(chip.op - chip.opTo) > 0.01) {
-        active = true;
-      }
-    });
+    }
 
     return active;
   }
@@ -1074,7 +1356,10 @@
       renderTreeStatic(container, v, sel, ctx);
       return;
     }
-    var key = 'tree|' + sel.label + '|' + sel.id;
+    /* a chave usa o rótulo (e não o id da raiz) para a cena sobreviver a
+     * remoções que trocam a raiz: os nós persistentes são interpolados e
+     * só o nó removido sai — sem reiniciar a animação da árvore inteira */
+    var key = 'tree|' + sel.label;
     var scene = container.__treeScene;
     if (!scene || scene.key !== key) {
       scene = container.__treeScene = createTreeScene(container, key);
@@ -1101,10 +1386,13 @@
       return;
     }
     ctx = ctx || {};
+    /* carimba o passo atual: renderizadores dependem dele para visitas,
+     * prévia de inserção e destaque de arestas */
+    ctx.step = step;
 
     if (sel.id == null) {
       if (sel.type === 'list') renderMessage(container, 'Lista vazia — <code>' + esc(sel.label) + '</code> ainda não tem nós.');
-      else if (sel.type === 'tree') renderMessage(container, 'Árvore vazia — <code>' + esc(sel.label) + '</code> ainda não tem nós.');
+      else if (sel.type === 'tree') renderMessage(container, 'A árvore está vazia neste passo.');
       else renderMessage(container, 'Estrutura vazia.');
       return;
     }

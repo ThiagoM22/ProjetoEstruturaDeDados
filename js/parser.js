@@ -7,6 +7,8 @@
   function parse(source) {
     var tokens = DSV.tokenize(source);
     var pos = 0;
+    var classStack = [];   /* classes abertas durante o parse (campos privados) */
+    var privUsages = [];   /* usos de #nome, validados quando o parse termina */
 
     function cur() { return tokens[Math.min(pos, tokens.length - 1)]; }
     function ahead(n) { return tokens[Math.min(pos + (n || 1), tokens.length - 1)]; }
@@ -143,25 +145,49 @@
       var kw = next(); /* class */
       var id = expectIdent('o nome da classe');
       expectPunct('{', 'para abrir o corpo da classe');
+      var ctx = { name: id.value, declared: Object.create(null) };
+      classStack.push(ctx);
       var methods = [];
+      var fields = [];
       while (!isPunct('}')) {
         if (cur().type === 'eof') fail('Classe "' + id.value + '" sem fechamento');
         if (eatPunct(';')) continue;
         var mLine = cur().line;
-        var nameTok = expectIdent('o nome de um método (ou constructor)');
-        var params = parseParams();
-        var body = parseBlock();
-        methods.push({
-          type: 'Method',
-          name: nameTok.value,
-          params: params,
-          body: body,
-          isConstructor: nameTok.value === 'constructor',
-          line: mLine
-        });
+        var nameTok = cur();
+        if (nameTok.type !== 'ident' && nameTok.type !== 'priv') {
+          fail('Esperado o nome de um método ou campo da classe, mas encontrei ' + desc(nameTok));
+        }
+        next();
+        var isPrivate = nameTok.type === 'priv';
+        var memberName = nameTok.value;
+        if (isPrivate) ctx.declared[memberName] = true;
+        if ((memberName === 'static' || memberName === 'get' || memberName === 'set' || memberName === 'async') &&
+            (cur().type === 'ident' || cur().type === 'priv')) {
+          fail('"static", "get", "set" e "async" em classe não são suportados', mLine);
+        }
+        if (isPunct('(')) {
+          var params = parseParams();
+          var body = parseBlock();
+          methods.push({
+            type: 'Method',
+            name: memberName,
+            params: params,
+            body: body,
+            isConstructor: !isPrivate && memberName === 'constructor',
+            isPrivate: isPrivate,
+            line: mLine
+          });
+        } else {
+          /* campo de classe: nome = valor;  (ou só "nome;") */
+          var init = null;
+          if (eatPunct('=')) init = parseExpression();
+          semicolon();
+          fields.push({ type: 'Field', name: memberName, isPrivate: isPrivate, init: init, line: mLine });
+        }
       }
       expectPunct('}');
-      return { type: 'ClassDecl', name: id.value, methods: methods, line: kw.line };
+      classStack.pop();
+      return { type: 'ClassDecl', name: id.value, methods: methods, fields: fields, line: kw.line };
     }
 
     function parseIf() {
@@ -339,9 +365,18 @@
 
     function parseUnary() {
       var t = cur();
-      if (isPunct('!') || isPunct('-') || isPunct('+') || isPunct('++') || isPunct('--') || isKw('typeof')) {
+      if (isPunct('!') || isPunct('-') || isPunct('+') || isPunct('++') || isPunct('--') || isKw('typeof') || isKw('delete')) {
         next();
         var arg = parseUnary();
+        if (t.value === 'delete') {
+          if (arg.type !== 'Member' && arg.type !== 'Index') {
+            fail('"delete" só funciona em propriedades (obj.campo ou obj[índice])', t.line);
+          }
+          if (arg.type === 'Member' && arg.priv) {
+            fail('Campos privados não podem ser apagados com "delete"', t.line);
+          }
+          return { type: 'Delete', arg: arg, line: t.line };
+        }
         if (t.value === '++' || t.value === '--') {
           if (arg.type !== 'Ident' && arg.type !== 'Member' && arg.type !== 'Index') {
             fail('" ' + t.value + '" precisa de uma variável ou propriedade', t.line);
@@ -369,14 +404,20 @@
         if (isPunct('.')) {
           var dot = next();
           var nameTok = cur();
-          if (nameTok.type !== 'ident' && nameTok.type !== 'kw') {
+          if (nameTok.type !== 'ident' && nameTok.type !== 'kw' && nameTok.type !== 'priv') {
             fail('Esperado um nome de propriedade depois de "."', dot.line);
           }
           if (nameTok.type === 'kw' && ['let', 'const', 'var', 'function', 'class', 'if', 'else', 'while', 'return'].indexOf(nameTok.value) >= 0) {
             fail('"' + nameTok.value + '" é uma palavra reservada e não pode ser usada como propriedade', nameTok.line);
           }
+          if (nameTok.type === 'priv') {
+            if (!classStack.length) {
+              fail('O campo privado "' + nameTok.value + '" só pode ser usado dentro da classe que o declara', nameTok.line);
+            }
+            privUsages.push({ name: nameTok.value, line: nameTok.line, chain: classStack.slice() });
+          }
           next();
-          expr = { type: 'Member', obj: expr, prop: nameTok.value, line: dot.line };
+          expr = { type: 'Member', obj: expr, prop: nameTok.value, priv: nameTok.type === 'priv', line: dot.line };
           continue;
         }
         if (isPunct('[')) {
@@ -596,6 +637,17 @@
 
     var ast = parseProgram();
     if (cur().type !== 'eof') fail('Sobrou código não interpretado: ' + desc(cur()));
+
+    /* todo #nome usado precisa ter sido declarado em alguma classe que o envolve */
+    for (var vu = 0; vu < privUsages.length; vu++) {
+      var usage = privUsages[vu];
+      var declared = false;
+      for (var cu = 0; cu < usage.chain.length; cu++) {
+        if (usage.chain[cu].declared[usage.name]) { declared = true; break; }
+      }
+      if (!declared) fail('O campo privado "' + usage.name + '" não foi declarado na classe', usage.line);
+    }
+
     return ast;
   }
 

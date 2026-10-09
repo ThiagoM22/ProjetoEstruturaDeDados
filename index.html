@@ -21,31 +21,39 @@
     <span class="brand-sub">Visualizador de Estruturas de Dados</span>
   </div>
   <div class="topbar-actions">
+    <button id="btnRun" class="btn primary small" title="Executar (Ctrl+Enter)">
+      <svg class="ico fill" aria-hidden="true"><use href="#i-play"></use></svg>
+      <span class="btn-label">Executar</span>
+    </button>
+    <button id="btnDebug" class="btn ghost small debug" title="Execução passo a passo com tecla (F10)">
+      <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
+      <span class="btn-label">Depurar</span>
+    </button>
     <select id="structureSelect" class="select" title="Estrutura exibida"></select>
+    <button id="btnToggleCode" class="btn ghost small toggle" title="Recolher/expandir o editor de código" aria-pressed="false">
+      <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
+      <span class="btn-label">Código</span>
+    </button>
+    <button id="btnToggleSide" class="btn ghost small toggle" title="Recolher/expandir os painéis laterais" aria-pressed="false">
+      <svg class="ico" aria-hidden="true"><use href="#i-panel"></use></svg>
+      <span class="btn-label">Painéis</span>
+    </button>
     <button id="btnHelp" class="btn ghost small" title="Como usar">
       <svg class="ico" aria-hidden="true"><use href="#i-help"></use></svg>
-      Como usar
+      <span class="btn-label">Como usar</span>
     </button>
   </div>
 </header>
 
 <div id="banner" class="banner hidden"></div>
 
-<main class="layout">
+<main id="layout" class="layout">
 
-  <section class="panel code-panel">
+  <section id="codePanel" class="panel code-panel">
     <div class="panel-head code-head">
       <div id="tabs" class="tabs" role="tablist"></div>
       <div class="row code-actions">
         <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"></select>
-        <button id="btnRun" class="btn primary small" title="Executar (Ctrl+Enter)">
-          <svg class="ico fill" aria-hidden="true"><use href="#i-play"></use></svg>
-          <span class="btn-label">Executar</span>
-        </button>
-        <button id="btnDebug" class="btn ghost small debug" title="Execução passo a passo com tecla (F10)">
-          <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
-          <span class="btn-label">Depurar</span>
-        </button>
       </div>
     </div>
     <div class="editor" id="editor">
@@ -64,7 +72,7 @@
 
   <div id="splitLeft" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor e visualização" tabindex="0"></div>
 
-  <section class="panel viz-panel">
+  <section id="vizPanel" class="panel viz-panel">
     <div class="panel-head">
       <h2>Visualização</h2>
       <div class="canvas-controls">
@@ -90,26 +98,36 @@
 
   <div id="splitRight" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar visualização e painel lateral" tabindex="0"></div>
 
-  <section class="panel side-panel">
-    <div class="side-block commands-block">
-      <h3>Comandos</h3>
-      <div id="commands" class="side-content"></div>
+  <section id="sidePanel" class="panel side-panel">
+    <div id="sideTabs" class="side-tabs" role="tablist" aria-label="Painéis de depuração">
+      <button id="tabCommands" type="button" class="side-tab" role="tab" data-side="commands" title="Operações da execução">Comandos</button>
+      <button id="tabVars" type="button" class="side-tab active" role="tab" data-side="vars" title="Variáveis do escopo atual">Variáveis</button>
+      <button id="tabCallstack" type="button" class="side-tab" role="tab" data-side="callstack" title="Pilha de execução">Chamadas</button>
+      <button id="tabConsole" type="button" class="side-tab" role="tab" data-side="console" title="Saída do console.log">Saída</button>
     </div>
-    <div class="side-block vars-block">
-      <h3>Variáveis</h3>
-      <div id="vars" class="side-content"></div>
-    </div>
-    <div class="side-block frames-block">
-      <h3>Chamadas <span class="hint">pilha de execução</span></h3>
-      <div id="callstack" class="side-content"></div>
-    </div>
-    <div class="side-block grow">
-      <h3>Saída <span class="hint">console.log</span></h3>
-      <div id="console" class="side-content console"></div>
+    <div class="side-body">
+      <div id="pageCommands" class="side-page" data-side="commands">
+        <div id="commands" class="side-content"></div>
+      </div>
+      <div id="pageVars" class="side-page active" data-side="vars">
+        <div id="vars" class="side-content"></div>
+      </div>
+      <div id="pageCallstack" class="side-page" data-side="callstack">
+        <div id="callstack" class="side-content"></div>
+      </div>
+      <div id="pageConsole" class="side-page" data-side="console">
+        <div id="console" class="side-content console"></div>
+      </div>
     </div>
   </section>
 
 </main>
+
+<div id="stepExplainer" class="step-explainer hidden" aria-live="polite">
+  <span id="stepOp" class="step-op">Execução</span>
+  <span id="stepText" class="step-text"></span>
+  <span id="stepCount" class="step-count"></span>
+</div>
 
 <footer class="transport">
   <div class="transport-group">
@@ -148,6 +166,8 @@
     <path d="M6.4 6.4a1.8 1.8 0 1 1 2.4 1.8c-.5.3-.7.6-.7 1.1v.3"/>
     <path d="M8 12h.01"/>
   </symbol>
+  <symbol id="i-code" viewBox="0 0 16 16"><path d="M5.6 4.4 2 8l3.6 3.6M10.4 4.4 14 8l-3.6 3.6"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M10 3v10"/></symbol>
   <symbol id="i-first" viewBox="0 0 16 16"><path d="M4.4 4v8"/><path d="M12.6 4.6 7 8l5.6 3.4Z"/></symbol>
   <symbol id="i-prev" viewBox="0 0 16 16"><path d="M11.2 4.4 5.4 8l5.8 3.6Z"/></symbol>
   <symbol id="i-next" viewBox="0 0 16 16"><path d="M4.8 4.4 10.6 8l-5.8 3.6Z"/></symbol>
@@ -162,8 +182,9 @@
   <ol>
     <li>Escolha um exemplo ou escreva seu código JavaScript na área à esquerda.</li>
     <li>Clique em <b>Executar</b> (ou <b>Ctrl+Enter</b>).</li>
-    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura.</li>
+    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura. A faixa acima dos controles explica a operação do passo atual.</li>
     <li>Na visualização, <b>arraste</b> para mover o desenho e use a <b>roda do mouse</b> para dar zoom — ou os controles no topo do painel (100% e ajustar à tela).</li>
+    <li>Precisa de mais espaço? Use <b>Código</b> e <b>Painéis</b> na barra superior para recolher o editor e o painel lateral; as abas mostram comandos, variáveis, chamadas ou saída quando você precisar.</li>
   </ol>
 
   <p><b>Depurar (F10):</b> execução passo a passo como em um debugger. O código pausa na primeira
@@ -180,7 +201,7 @@
   </ul>
 
   <h3>Ponteiros e visita</h3>
-  <p>Variáveis que apontam para nós viram etiquetas sobre o nó (ex.: <code>atual</code>, <code>no</code>, <code>raiz</code>). Nós já visitados por um ponteiro recebem o número de ordem de visita.</p>
+  <p>Na <b>árvore</b>, o indicador é a cor: o nó da operação em andamento fica com o <b>realce principal</b> (roxo forte) e os já visitados na mesma operação em roxo suave — sem texto sobre os nós. Na <b>lista encadeada</b>, ponteiros como <code>atual</code> e <code>inicio</code> continuam aparecendo como etiquetas.</p>
 
   <h3>Limites (subconjunto didático de JS)</h3>
   <p>Sem herança de classes, regex, async/await e try/catch. Proteções: 20.000 passos e 150 chamadas aninhadas — se estourar, provavelmente há laço ou recursão sem fim.</p>

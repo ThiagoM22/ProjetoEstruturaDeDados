@@ -41,7 +41,25 @@
     btnHelp: $('btnHelp'),
     helpDialog: $('helpDialog'),
     splitLeft: $('splitLeft'),
-    splitRight: $('splitRight')
+    splitRight: $('splitRight'),
+    layout: $('layout'),
+    codePanel: $('codePanel'),
+    vizPanel: $('vizPanel'),
+    sidePanel: $('sidePanel'),
+    btnToggleCode: $('btnToggleCode'),
+    btnToggleSide: $('btnToggleSide'),
+    stepExplainer: $('stepExplainer'),
+    stepOp: $('stepOp'),
+    stepText: $('stepText'),
+    stepCount: $('stepCount'),
+    tabCommands: $('tabCommands'),
+    tabVars: $('tabVars'),
+    tabCallstack: $('tabCallstack'),
+    tabConsole: $('tabConsole'),
+    pageCommands: $('pageCommands'),
+    pageVars: $('pageVars'),
+    pageCallstack: $('pageCallstack'),
+    pageConsole: $('pageConsole')
   };
 
   var LINE_HEIGHT = 22;
@@ -71,9 +89,9 @@
   /* ------------------------------------------------------------------ */
 
   /* Realce com as cores do VS Code Dark+ */
-  var HL_RX = /(\/\/[^\n]*|\/\*.*?\*\/)|("[^"\n]*"|'[^'\n]*'|`[^`\n]*`)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_$][\w$]*\b)|([{}()\[\];,.])/g;
+  var HL_RX = /(\/\/[^\n]*|\/\*.*?\*\/)|("[^"\n]*"|'[^'\n]*'|`[^`\n]*`)|(\b\d+(?:\.\d+)?\b)|(#?[A-Za-z_$][\w$]*)|([{}()\[\];,.])/g;
 
-  var HL_CTRL = { if: 1, else: 1, while: 1, do: 1, for: 1, of: 1, return: 1, break: 1, continue: 1, instanceof: 1, typeof: 1 };
+  var HL_CTRL = { if: 1, else: 1, while: 1, do: 1, for: 1, of: 1, return: 1, break: 1, continue: 1, instanceof: 1, typeof: 1, delete: 1 };
   var HL_KW = {
     let: 1, const: 1, var: 1, function: 1, class: 1, new: 1, this: 1,
     true: 1, false: 1, null: 1, undefined: 1
@@ -321,6 +339,7 @@
   var ZOOM_FIT_MAX = 1.5;
   var canvasView = { x: 0, y: 0, zoom: 1, key: null, moved: false };
   var canvasDrag = null;
+  var canvasTreeKey = null; /* tamanho da última árvore enquadrada */
 
   function canvasSupported() {
     return !!(els.structure &&
@@ -406,19 +425,49 @@
     canvasZoomAt((e.vp.clientWidth || 0) / 2, (e.vp.clientHeight || 0) / 2, factor);
   }
 
+  /* árvore: reenquadra quando o desenho muda de tamanho (inserção/remoção),
+   * sem ampliar além de 100% — mantém a árvore visível e centralizada */
+  function canvasTreeFit() {
+    var e = canvasParts();
+    if (!e.vp || !e.stage) return;
+    var vw = e.vp.clientWidth || 0;
+    var vh = e.vp.clientHeight || 0;
+    var sw = e.stage.offsetWidth || 0;
+    var sh = e.stage.offsetHeight || 0;
+    if (!vw || !vh || !sw || !sh) return;
+    var sig = Math.round(sw) + 'x' + Math.round(sh);
+    if (sig !== canvasTreeKey) {
+      canvasTreeKey = sig;
+      var pad = 64;
+      var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
+      canvasCenter(fit < 1 ? Math.max(ZOOM_MIN, fit) : 1);
+      return;
+    }
+    canvasCenter(canvasView.zoom);
+  }
+
   /* chamado a cada renderização: acompanha a estrutura até o usuário mexer */
   function canvasAfterRender(sel) {
     if (!canvasSupported()) return;
-    var key = sel && sel.id != null ? (sel.type + '|' + sel.id) : 'none';
+    /* a árvore mantém o enquadramento entre passos mesmo quando a raiz muda
+     * (remoção); o fit inicial acontece quando a estrutura aparece ou esvazia */
+    var key;
+    if (!sel || sel.id == null) key = 'none';
+    else if (sel.type === 'tree') key = 'tree|' + sel.label;
+    else key = sel.type + '|' + sel.id;
     if (key !== canvasView.key) {
       canvasView.moved = false;
+      canvasTreeKey = null;
       if (canvasHome()) canvasView.key = key;
       return;
     }
     /* a fila cresce na horizontal: recentralizar a cada passo deslocaria a
      * linha inteira de uma vez (salto). O enquadramento fica com o usuário. */
     if (sel && sel.type === 'queue') return;
-    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+    if (!canvasView.moved) {
+      if (sel && sel.type === 'tree') canvasTreeFit();
+      else canvasCenter(canvasView.zoom);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -429,37 +478,111 @@
   var SPLIT_MIN_VIZ = 320;
   var SPLIT_MIN_SIDE = 224;
   var splitDrag = null;
+  var splitState = null;                  /* larguras medidas {code, viz, side, split} */
+  var collapsed = { code: false, side: false };
 
   function layoutEl() {
-    if (typeof document.querySelector !== 'function') return null;
-    var el = document.querySelector('.layout');
-    if (!el || typeof el.getBoundingClientRect !== 'function') return null;
-    return el;
+    return els.layout && typeof els.layout.getBoundingClientRect === 'function' ? els.layout : null;
+  }
+
+  function panelEls() {
+    return { code: els.codePanel, viz: els.vizPanel, side: els.sidePanel };
+  }
+
+  /* mede as larguras com os três painéis expandidos (para poder restaurar
+   * as proporções ao reabrir um painel recolhido) */
+  function measureSplitState() {
+    var layout = layoutEl();
+    var p = panelEls();
+    if (!layout || !p.code || !p.viz || !p.side) return null;
+    var codeHidden = p.code.classList.contains('collapsed');
+    var sideHidden = p.side.classList.contains('collapsed');
+    if (codeHidden) p.code.classList.remove('collapsed');
+    if (sideHidden) p.side.classList.remove('collapsed');
+    var rect = layout.getBoundingClientRect();
+    var code = p.code.getBoundingClientRect().width || 0;
+    var viz = p.viz.getBoundingClientRect().width || 0;
+    var side = p.side.getBoundingClientRect().width || 0;
+    if (codeHidden) p.code.classList.add('collapsed');
+    if (sideHidden) p.side.classList.add('collapsed');
+    var total = code + viz + side;
+    if (!total) return null;
+    var splitW = Math.round(Math.max(1, (rect.width - total) / 2) * 100) / 100;
+    return { code: code, viz: viz, side: side, split: splitW };
+  }
+
+  /* aplica as colunas da grade respeitando os painéis recolhidos: o espaço
+   * liberado vai para a visualização (canvas com o máximo de área útil) */
+  function applyLayout() {
+    var p = panelEls();
+    if (p.code) p.code.classList.toggle('collapsed', collapsed.code);
+    if (p.side) p.side.classList.toggle('collapsed', collapsed.side);
+    if (els.splitLeft) els.splitLeft.classList.toggle('collapsed', collapsed.code);
+    if (els.splitRight) els.splitRight.classList.toggle('collapsed', collapsed.side);
+    if (els.btnToggleCode) {
+      els.btnToggleCode.classList.toggle('active', collapsed.code);
+      els.btnToggleCode.setAttribute('aria-pressed', collapsed.code ? 'true' : 'false');
+    }
+    if (els.btnToggleSide) {
+      els.btnToggleSide.classList.toggle('active', collapsed.side);
+      els.btnToggleSide.setAttribute('aria-pressed', collapsed.side ? 'true' : 'false');
+    }
+    var layout = layoutEl();
+    if (!layout) return;
+    /* em telas estreitas os painéis empilham: a grade de colunas não se aplica */
+    if (typeof window !== 'undefined' && typeof window.innerWidth === 'number' && window.innerWidth <= 1100) {
+      layout.style.gridTemplateColumns = '';
+      return;
+    }
+    if (!splitState) splitState = measureSplitState();
+    if (!splitState) return;
+    var code = collapsed.code ? 0 : splitState.code;
+    var side = collapsed.side ? 0 : splitState.side;
+    var viz = splitState.viz +
+      (collapsed.code ? splitState.code + splitState.split : 0) +
+      (collapsed.side ? splitState.side + splitState.split : 0);
+    var total = code + viz + side;
+    if (total <= 0) return;
+    var toFr = function (w) { return (Math.round(w / total * 10000) / 100) + 'fr'; };
+    var cols = [
+      collapsed.code ? '0px' : 'minmax(' + SPLIT_MIN_CODE + 'px,' + toFr(code) + ')',
+      collapsed.code ? '0px' : (splitState.split + 'px'),
+      'minmax(0,' + toFr(viz) + ')',
+      collapsed.side ? '0px' : (splitState.split + 'px'),
+      collapsed.side ? '0px' : 'minmax(' + SPLIT_MIN_SIDE + 'px,' + toFr(side) + ')'
+    ];
+    layout.style.gridTemplateColumns = cols.join(' ');
+  }
+
+  function afterLayoutChange() {
+    canvasTreeKey = null;
+    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+  }
+
+  function togglePanel(which) {
+    if (!splitState) splitState = measureSplitState();
+    collapsed[which] = !collapsed[which];
+    applyLayout();
+    afterLayoutChange();
+    /* redesenha para o canvas medir o novo tamanho e a árvore reenquadrar */
+    if (steps().length) renderStructurePanel(steps()[state.index]);
   }
 
   /* aplica larguras medidas (px) como proporções fr — a janela segue responsiva */
   function splitApply(codeW, vizW, sideW, splitW) {
-    var layout = layoutEl();
-    var total = codeW + vizW + sideW;
-    if (!layout || total <= 0) return;
-    var toFr = function (w) { return (Math.round(w / total * 10000) / 100) + 'fr'; };
-    layout.style.gridTemplateColumns =
-      'minmax(' + SPLIT_MIN_CODE + 'px,' + toFr(codeW) + ') ' + splitW + 'px ' +
-      'minmax(0,' + toFr(vizW) + ') ' + splitW + 'px ' +
-      'minmax(' + SPLIT_MIN_SIDE + 'px,' + toFr(sideW) + ')';
+    splitState = { code: codeW, viz: vizW, side: sideW, split: splitW };
+    applyLayout();
   }
 
   function splitDelta(which, dx) {
     var layout = layoutEl();
     if (!layout || !dx) return;
-    var codeEl = document.querySelector('.code-panel');
-    var vizEl = document.querySelector('.viz-panel');
-    var sideEl = document.querySelector('.side-panel');
-    if (!codeEl || !vizEl || !sideEl) return;
+    var p = panelEls();
+    if (!p.code || !p.viz || !p.side) return;
     var rect = layout.getBoundingClientRect();
-    var code = codeEl.getBoundingClientRect().width;
-    var viz = vizEl.getBoundingClientRect().width;
-    var side = sideEl.getBoundingClientRect().width;
+    var code = p.code.getBoundingClientRect().width;
+    var viz = p.viz.getBoundingClientRect().width;
+    var side = p.side.getBoundingClientRect().width;
     var total = code + viz + side;
     /* largura de cada divisória (o que sobra da grade) */
     var splitW = Math.round(Math.max(1, (rect.width - total) / 2) * 100) / 100;
@@ -502,21 +625,32 @@
     if (el && ev && typeof el.releasePointerCapture === 'function') {
       try { el.releasePointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
     }
-    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+    afterLayoutChange();
   }
 
   function splitterKeys(ev, which) {
     if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
     if (ev.preventDefault) ev.preventDefault();
     splitDelta(which, ev.key === 'ArrowLeft' ? -16 : 16);
-    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+    afterLayoutChange();
   }
 
   /* duplo clique devolve as proporções padrão (32 / 48 / 20) */
   function splitterReset() {
     var layout = layoutEl();
     if (layout && layout.style) layout.style.gridTemplateColumns = '';
-    if (!canvasView.moved) canvasCenter(canvasView.zoom);
+    splitState = null;
+    applyLayout();
+    afterLayoutChange();
+  }
+
+  function setupLayoutControls() {
+    if (els.btnToggleCode && typeof els.btnToggleCode.addEventListener === 'function') {
+      els.btnToggleCode.addEventListener('click', function () { togglePanel('code'); });
+    }
+    if (els.btnToggleSide && typeof els.btnToggleSide.addEventListener === 'function') {
+      els.btnToggleSide.addEventListener('click', function () { togglePanel('side'); });
+    }
   }
 
   function setupSplitters() {
@@ -659,6 +793,7 @@
       els.vars.innerHTML = '<div class="muted">—</div>';
       els.commands.innerHTML = '<div class="muted">—</div>';
       els.consoleEl.innerHTML = '';
+      if (els.stepExplainer) els.stepExplainer.classList.add('hidden');
       updateButtons();
       return;
     }
@@ -733,15 +868,68 @@
       events: step.events || [],
       visit: state.visit,
       prevStep: state.index > 0 ? st[state.index - 1] : null,
+      nextStep: state.index < st.length - 1 ? st[state.index + 1] : null,
       /* animações mais curtas quando está tocando em velocidade alta */
       animMs: state.playing ? Math.max(90, Math.min(360, Math.round(430 / state.speed))) : 300
     });
     canvasAfterRender(sel);
+    updateStepExplainer(sel, step);
+    return sel;
+  }
+
+  /* faixa de explicação contextual: operação + o que aconteceu/acontecerá */
+  function updateStepExplainer(sel, step) {
+    if (!els.stepExplainer) return;
+    var st = steps();
+    if (!st.length || !step) {
+      els.stepExplainer.classList.add('hidden');
+      return;
+    }
+    var srcLines = els.code.value.split('\n');
+    var lineText = srcLines[step.line - 1] ? srcLines[step.line - 1].trim() : '';
+    var info = DSV.explainStep(step, sel, {
+      prevStep: state.index > 0 ? st[state.index - 1] : null,
+      nextStep: state.index < st.length - 1 ? st[state.index + 1] : null,
+      lineText: lineText
+    });
+    els.stepExplainer.classList.remove('hidden');
+    els.stepOp.textContent = (info && info.op) || 'Execução';
+    els.stepText.textContent = (info && info.text) || '';
+    els.stepCount.textContent = (state.index + 1) + '/' + st.length;
   }
 
   /* ------------------------------------------------------------------ */
   /* Painéis                                                             */
   /* ------------------------------------------------------------------ */
+
+  var SIDE_TABS = [
+    { name: 'commands', tab: 'tabCommands', page: 'pageCommands' },
+    { name: 'vars', tab: 'tabVars', page: 'pageVars' },
+    { name: 'callstack', tab: 'tabCallstack', page: 'pageCallstack' },
+    { name: 'console', tab: 'tabConsole', page: 'pageConsole' }
+  ];
+
+  function setSideTab(name) {
+    SIDE_TABS.forEach(function (t) {
+      var active = t.name === name;
+      if (els[t.tab] && els[t.tab].classList) {
+        els[t.tab].classList.toggle('active', active);
+        els[t.tab].setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      if (els[t.page] && els[t.page].classList) els[t.page].classList.toggle('active', active);
+    });
+    if (name === 'console' && els.consoleEl) {
+      els.consoleEl.scrollTop = els.consoleEl.scrollHeight;
+    }
+  }
+
+  function setupSideTabs() {
+    SIDE_TABS.forEach(function (t) {
+      var tab = els[t.tab];
+      if (!tab || typeof tab.addEventListener !== 'function') return;
+      tab.addEventListener('click', function () { setSideTab(t.name); });
+    });
+  }
 
   function renderCallstack(step) {
     var frames = step.stack || [];
@@ -957,6 +1145,10 @@
 
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('resize', function () {
+      canvasTreeKey = null;
+      /* ao cruzar o breakpoint responsivo, reaplica as colunas dos painéis
+       * recolhidos para não deixar faixas vazias na grade */
+      if (collapsed.code || collapsed.side) applyLayout();
       if (!canvasSupported() || canvasView.moved) return;
       canvasHome();
     });
@@ -1037,6 +1229,9 @@
     els.code.value = savedCode && savedCode.trim() ? savedCode : example.code;
 
     setupSplitters();
+    setupLayoutControls();
+    setupSideTabs();
+    setSideTab('vars');
     onEdit();
     run();
   }

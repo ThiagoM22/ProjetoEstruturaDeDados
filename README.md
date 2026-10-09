@@ -5,7 +5,8 @@ código JavaScript e o portal mostra, passo a passo:
 
 - **a estrutura gráfica** — pilha, fila, lista encadeada, árvore binária ou array;
 - **a linha do código que está sendo executada** (destacada no editor);
-- os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós;
+- os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
+  árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
 - a **pilha de chamadas** (ótimo para enxergar a recursão da árvore);
 - a **saída do `console.log`** ligada ao passo em que foi impressa.
 
@@ -33,8 +34,20 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   Com um único elemento, os dois apontam para o mesmo nó; com a fila vazia, nenhum indicador aparece.
   `enqueue` entra pela extremidade REAR e `dequeue` sai pela FRONT (na variante `unshift/pop`, as
   extremidades se invertem).
-- O painel direito mostra **Comandos** (as operações `push/pop/shift…` da execução, clicáveis para pular
-  ao passo), **Variáveis**, **Chamadas** e **Saída** — no estilo de painéis de debug.
+- **Árvore binária limpa e contextual**: nós circulares, conexões finas e hierarquia raiz→filhos, sem
+  rótulos permanentes de "esquerda/direita", sem indicadores fixos de filhos vazios e **sem etiquetas de
+  texto sobre os nós**. O **nó da operação atual** recebe o realce principal (roxo forte), os **já
+  visitados na mesma operação** ficam em roxo suave e os demais permanecem neutros; a **vaga da próxima
+  inserção** aparece pontilhada por um instante e a conexão criada/alterada é destacada durante a
+  animação. O enquadramento se ajusta sozinho para manter a árvore visível e centralizada quando a
+  estrutura muda de tamanho. (Na lista encadeada, os ponteiros continuam aparecendo como etiquetas.)
+- Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
+  (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
+  acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó
+  A."*) e o passo atual — sempre a partir do estado real da execução.
+- O painel direito organiza **Comandos**, **Variáveis**, **Chamadas** e **Saída** em **abas** (sem
+  competir com o canvas); na barra superior, **Código** e **Painéis** recolhem o editor e o painel
+  lateral para dar à visualização o máximo de espaço útil.
 
 ## Como abrir
 
@@ -61,9 +74,13 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
    - `Home` / `End` — primeiro / último passo
    - `F10` — **modo debug** (passo a passo por tecla)
 4. Na visualização, **arraste** para mover o desenho e use a **roda do mouse** para dar zoom (ou os
-   controles no topo do painel: `−`, `100%`, `+` e ajustar à tela).
+   controles no topo do painel: `−`, `100%`, `+` e ajustar à tela). A faixa acima dos controles explica
+   a operação do passo atual (nome da operação + o que aconteceu/acontecerá).
 5. No painel **Comandos**, clique em uma operação para pular ao passo em que ela aconteceu; no painel
    **Saída**, clique no `#passo` de uma linha para pular até ele.
+6. Precisando de mais espaço, use **Código** e **Painéis** na barra superior para recolher o editor e o
+   painel lateral; as abas **Comandos / Variáveis / Chamadas / Saída** mostram cada bloco de depuração
+   quando você precisar.
 
 ## Modo debug (passo a passo com tecla)
 
@@ -87,8 +104,9 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 - **O que entra aparece suavemente** (fade + deslocamento na direção certa) e **o que sai se despede**
   com um clone que desvanece — dá para ver exatamente *o que* saiu, de onde e para onde;
 - **Na árvore**, os nós são interpolados quadro a quadro: a árvore "cresce" e se reorganiza sem saltos,
-  as arestas acompanham os nós, os **chips de ponteiro** (`atual`, `no`, `raiz`) deslizam de um nó para
-  o outro conforme a recursão avança;
+  as arestas acompanham os nós e a **vaga da inserção** aparece pontilhada por um instante; o nó da
+  operação fica em **roxo forte** e os visitados na mesma operação em **roxo suave**, sem etiquetas de
+  texto sobre os nós (os ponteiros continuam visíveis como etiquetas na lista encadeada);
 - A **duração das animações se adapta à velocidade** do play (mais curtas em 4×, mais longas em 0,5×).
 
 ## Exemplos incluídos
@@ -99,11 +117,19 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Pilha com classe | encapsulamento em `this.itens` |
 | Fila com array (push/shift) | FIFO, indicadores FRONT/REAR |
 | Fila com classe | API `enfileirar`/`desenfileirar`/`frente`/`estaVazia`/`tamanho` |
+| Fila com campos privados (#) | `#itens` encapsulado de verdade + campo arrow |
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
+| Árvore binária simples — inserção por nível | BFS preenchendo da esquerda para a direita + percursos pré/em/pós |
+| Árvore binária simples — remoção com promoção | folha, um filho, dois filhos e raiz; descendentes preservados |
 | Array — Bubble Sort | índices e células alteradas a cada troca |
 | Array — Busca binária | descarte de metade do vetor a cada passo |
+
+> **Árvore binária simples × de busca:** os dois exemplos "simples" não ordenam por valor — a
+> inserção procura a primeira vaga livre em ordem de nível e a remoção promove os filhos segundo a
+> regra determinística do código (nada de "menor à esquerda"). Os exemplos de percurso em-ordem e
+> busca iterativa continuam sendo de uma árvore binária de busca, para comparar as duas.
 
 ## O que é detectado automaticamente
 
@@ -115,7 +141,9 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (ou classe `Arvore*`/`Tree*`) |
 | **Array** | qualquer vetor comum |
 
-Nós visitados por um ponteiro `atual`/`no`/`current` ganham número de **ordem de visita**.
+Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
+realce principal; as visitas somem ao trocar de operação). O trace é gravado na ordem real de conclusão
+dos comandos, então o passo a passo acompanha a execução sem "pulos" para trás.
 Se a detecção automática não for ideal, use o seletor **Visualização** no painel da estrutura.
 
 ## Subconjunto de JavaScript suportado
@@ -125,7 +153,9 @@ estrutura de dados na faculdade:
 
 - `let/const/var`, operadores, `if/else`, `while`, `do/while`, `for` clássico e `for...of`;
 - `function`, recursão, `arrow functions`, `return`, `break`, `continue`;
-- `class` com `constructor`, métodos e `this`, `new`;
+- `class` com `constructor`, métodos, campos de instância (inclusive `#privados`, acessíveis só
+  dentro da classe que os declara) e `this`, `new`;
+- operador `delete` (apaga propriedades e índices de array, deixando buraco — como no JS real);
 - arrays, objetos, `Map`? (não) — arrays e objetos bastam;
 - métodos de array: `push, pop, shift, unshift, splice, slice, concat, join, indexOf, lastIndexOf,
   includes, reverse, sort, forEach, map, filter, find, findIndex, reduce, some, every, fill`;
@@ -134,8 +164,8 @@ estrutura de dados na faculdade:
 - `console.log/warn/error/info`, `Math.*`, `JSON.stringify/parse`, `Object.keys/values/entries`,
   `Array.isArray/from`, `Number`, `String`, `Boolean`, `parseInt`, `parseFloat`, `isNaN`, `typeof`.
 
-**Não suportado:** herança de classes (`extends`), `try/catch`, `async/await`, regex, generators,
-`switch`, `Map`/`Set`, módulos.
+**Não suportado:** herança de classes (`extends`), membros `static`/`get`/`set`/`async`,
+`try/catch`, `async/await`, regex, generators, `switch`, `Map`/`Set`, módulos.
 
 **Proteções:** limite de 20.000 passos e 150 chamadas aninhadas — se estourar, a mensagem avisa
 (provavelmente há laço ou recursão sem fim).
@@ -168,9 +198,10 @@ node tests/run-tests.js
 node tests/run-ui-smoke.js
 ```
 
-Os testes cobrem: precedência de operadores, classes/recursão, erros com linha correta, limites de
-laço/recursão, identidade visual dos itens animados (chaves estáveis), os 8 exemplos e a renderização
-de todos os passos na interface.
+Os testes cobrem: precedência de operadores, classes/campos privados/recursão, erros com linha
+correta, limites de laço/recursão, identidade visual dos itens animados (chaves estáveis), a árvore
+binária simples (inserção por nível, busca, remoção com promoção, percursos, snapshots e explicação
+contextual), recolhimento de painéis, os 12 exemplos e a renderização de todos os passos na interface.
 
 ## Ideias de evolução
 
