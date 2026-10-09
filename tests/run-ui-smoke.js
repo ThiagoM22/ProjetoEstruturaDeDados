@@ -500,6 +500,88 @@ test('lista simples: redimensionar a janela reenquadra sem quebrar', () => {
   assert($('structure').innerHTML.indexOf('list-head-tag') >= 0, 'lista continua desenhada');
 });
 
+test('lista dupla: percorre todos os passos com PREV/NEXT, HEAD/TAIL e setas nos dois sentidos', () => {
+  const all = percorrerExemplo('lista-dupla');
+  assert(all.indexOf('Lista duplamente encadeada') >= 0, 'título');
+  assert(all.indexOf('list-prev') >= 0, 'região PREV');
+  assert(all.indexOf('list-value') >= 0, 'região VALUE');
+  assert(all.indexOf('list-next') >= 0, 'região NEXT');
+  assert(all.indexOf('list-arrows') >= 0, 'duas pistas de setas');
+  assert(all.indexOf('list-link back') >= 0, 'seta de volta (prev)');
+  assert(all.indexOf('list-head-tag') >= 0, 'indicador HEAD');
+  assert(all.indexOf('list-tail-tag') >= 0, 'indicador TAIL');
+  assert(all.indexOf('list-end') >= 0, 'terminador ∅');
+  assert(all.indexOf('A lista está vazia neste passo.') >= 0, 'passo de lista vazia');
+  assert(all.indexOf('list-unit pending') >= 0, 'nó criado aparece fora da lista até ser ligado');
+  assert(all.indexOf('Visitando') < 0 && all.indexOf('A lista está vazia.') < 0, 'saída de console não vaza para a estrutura');
+});
+
+test('lista dupla: destaques de prev, next, HEAD, TAIL e do percurso reverso', () => {
+  $('exampleSelect').value = 'lista-dupla';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let prevChanged = false;
+  let nextChanged = false;
+  let headChanged = false;
+  let tailChanged = false;
+  let backActive = false;
+  for (let i = 0; i <= total; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    const html = $('structure').innerHTML;
+    if (html.indexOf('list-prev changed') >= 0) prevChanged = true;
+    if (html.indexOf('list-next changed') >= 0) nextChanged = true;
+    if (html.indexOf('list-head-tag changed') >= 0) headChanged = true;
+    if (html.indexOf('list-tail-tag changed') >= 0) tailChanged = true;
+    if (html.indexOf('list-link back active') >= 0) backActive = true;
+  }
+  assert(prevChanged, 'referência PREV alterada destacada');
+  assert(nextChanged, 'referência NEXT alterada destacada');
+  assert(headChanged, 'HEAD destacado quando muda de nó');
+  assert(tailChanged, 'TAIL destacado quando muda de nó');
+  assert(backActive, 'conexão percorrida no sentido reverso destacada');
+});
+
+test('lista dupla: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('lista-dupla');
+  const idx = snaps.findIndex((s) => s.indexOf('list-node active') >= 0 && s.indexOf('list-value">20<') >= 0);
+  assert(idx > 0, 'passo com nó 20 destacado existe');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz a próxima etapa idêntica');
+  fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'voltar de novo restaura o mesmo estado');
+});
+
+test('lista dupla: lista longa mantém a escala-base e o ajuste à tela', () => {
+  $('code').value = [
+    'class N { constructor(v) { this.value = v; this.prev = undefined; this.next = undefined; } }',
+    'class L {',
+    '  #head = undefined; #tail = undefined; #length = 0;',
+    '  append(v) {',
+    '    const n = new N(v);',
+    '    if (this.#head === undefined) { this.#head = n; this.#tail = n; }',
+    '    else { this.#tail.next = n; n.prev = this.#tail; this.#tail = n; }',
+    '    this.#length++;',
+    '  }',
+    '}',
+    'const lista = new L();',
+    'for (let i = 1; i <= 10; i++) { lista.append(i); }'
+  ].join('\n');
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  const h = $('structure').innerHTML;
+  assert((h.match(/list-value">/g) || []).length === 10, '10 nós desenhados');
+  assert(h.indexOf('--list-scale:1"') >= 0, 'lista longa usa a escala-base');
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 10 * 150;
+  stage.offsetHeight = 120;
+  fire('btnZoomFit', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1 && zoom >= 0.25, 'ajuste à tela reduz para caber (zoom: ' + zoom + ')');
+});
+
 test('árvore em-ordem: svg, destaque roxo e sem etiquetas', () => {
   const all = percorrerExemplo('arvore-em-ordem');
   assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');

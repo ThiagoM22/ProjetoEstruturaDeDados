@@ -45,6 +45,7 @@
     if (sv.t === 'fn') return 'ƒ ' + (sv.name || '(anônimo)');
     if (sv.t === 'c') return 'classe ' + sv.name;
     if (sv.t === 'trunc') return '… (+' + sv.n + ')';
+    if (sv.t === 'ref') return '→ objeto #' + sv.id;
     if (sv.t === 'a') {
       if (depth >= 2) return '[…]';
       var items = sv.items.slice(0, 8).map(function (it) {
@@ -72,6 +73,7 @@
     if (sv.t === 'fn') return 'ƒ ' + (sv.name || '');
     if (sv.t === 'c') return 'classe ' + sv.name;
     if (sv.t === 'trunc') return '…';
+    if (sv.t === 'ref') return '→ #' + sv.id;
     if (sv.t === 'a') return '[' + (sv.items.length ? sv.items.length + ' itens' : '') + ']';
     if (sv.t === 'o') {
       var keys = Object.keys(sv.props || {});

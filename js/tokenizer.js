@@ -206,6 +206,15 @@
       if (PUNCT3.indexOf(three) >= 0) { push('punct', three, line); i += 3; continue; }
       var two = code.substr(i, 2);
       if (PUNCT2.indexOf(two) >= 0) { push('punct', two, line); i += 2; continue; }
+
+      /* operadores de JS fora do subconjunto: mensagem clara em vez de erro genérico */
+      if (ch === '*' && code[i + 1] === '*') fail('O operador "**" (exponenciação) não é suportado neste visualizador.', line);
+      if (ch === '?' && code[i + 1] === '?') fail('O operador "??" (nullish) não é suportado neste visualizador.', line);
+      if (ch === '?' && code[i + 1] === '.') fail('O encadeamento opcional "?." não é suportado neste visualizador.', line);
+      if (ch === '.' && code[i + 1] === '.' && code[i + 2] === '.') fail('Spread/rest ("...") não é suportado neste visualizador.', line);
+      if ('&|^~'.indexOf(ch) >= 0) fail('O operador "' + ch + '" não é suportado neste visualizador.', line);
+      if ((ch === '<' || ch === '>') && code[i + 1] === ch) fail('Operadores de deslocamento ("<<"/">>") não são suportados neste visualizador.', line);
+
       if (PUNCT1.indexOf(ch) >= 0) { push('punct', ch, line); i++; continue; }
 
       fail('Caractere inesperado: "' + ch + '"');

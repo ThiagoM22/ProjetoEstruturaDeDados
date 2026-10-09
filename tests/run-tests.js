@@ -1108,6 +1108,394 @@ test('CSS da lista: linha única, nó em duas regiões e valor sem compressão',
   assert(next && /border-left/.test(next[0]), 'divisória entre VALUE e NEXT');
 });
 
+/* ---------------------------------------------------------------- */
+console.log('\n[lista duplamente encadeada: operações, invariantes e render]');
+
+const listaDuplaExample = () => DSV.EXAMPLES.find((e) => e.id === 'lista-dupla');
+
+/* executa o corpo de teste com as classes Node/DoublyLinkedList do exemplo
+ * real, sem repetir a definição em cada caso */
+function runDupla(corpo) {
+  const ex = listaDuplaExample();
+  assert(ex, 'exemplo lista-dupla existe');
+  const classes = ex.code.split('\nconst lista = new DoublyLinkedList();')[0];
+  return run(classes + '\nconst lista = new DoublyLinkedList();\n' + corpo);
+}
+
+/* id apontado por uma referência serializada (objeto ou {t:'ref'}) */
+function refIdOf(sv, name) {
+  const p = prop(sv, name);
+  if (!p) return null;
+  if (p.t === 'o' || p.t === 'ref') return p.id;
+  return null;
+}
+
+function duplaHead(wrapper) {
+  const p = prop(wrapper, '#head') || prop(wrapper, 'head');
+  return p && p.t === 'o' ? p : null;
+}
+
+function duplaTail(wrapper) {
+  const p = prop(wrapper, '#tail') || prop(wrapper, 'tail');
+  return p && p.t === 'o' ? p : null;
+}
+
+function duplaLength(wrapper) {
+  const p = prop(wrapper, '#length') || prop(wrapper, 'length');
+  return p && p.t === 'p' ? p.v : null;
+}
+
+/* valores seguindo next (desde #head) ou prev (desde #tail); o prev dos nós
+ * do meio chega serializado como {t:'ref'} (ciclo real da lista dupla) e é
+ * resolvido pelo mapa id->nó montado a partir da cadeia next */
+function duplaSeq(wrapper, dir) {
+  const out = [];
+  const seen = {};
+  let n = dir === 'prev' ? duplaTail(wrapper) : duplaHead(wrapper);
+  let map = null;
+  if (dir === 'prev') {
+    map = {};
+    const guard = {};
+    let m = duplaHead(wrapper);
+    while (m && !guard[m.id]) {
+      guard[m.id] = true;
+      map[m.id] = m;
+      const nx = prop(m, 'next') || prop(m, 'proximo');
+      m = nx && nx.t === 'o' ? nx : null;
+    }
+  }
+  while (n && !seen[n.id]) {
+    seen[n.id] = true;
+    const v = prop(n, 'value') || prop(n, 'valor');
+    out.push(v && v.t === 'p' ? v.v : '?');
+    const nx = dir === 'prev'
+      ? (prop(n, 'prev') || prop(n, 'anterior'))
+      : (prop(n, 'next') || prop(n, 'proximo'));
+    if (nx && nx.t === 'o') n = nx;
+    else if (nx && nx.t === 'ref' && map && map[nx.id]) n = map[nx.id];
+    else n = null;
+  }
+  return out;
+}
+
+/* invariantes do plano: head/tail/prev/next/length coerentes, sem ciclo,
+ * sem truncamento e com a cadeia real chegando ao fim */
+function assertDupla(trace, esperado, tamanho, rotulo) {
+  const label = rotulo || 'lista dupla';
+  const step = lastStep(trace);
+  const w = listaWrapper(step, 'lista');
+  assert(w, label + ': wrapper da lista existe');
+  assert(prop(w, '#head') != null, label + ': #head serializado (sem truncamento)');
+  assert(prop(w, '#tail') != null, label + ': #tail serializado (sem truncamento)');
+  eq(duplaLength(w), tamanho, label + ': tamanho (#length)');
+
+  const head = duplaHead(w);
+  const tail = duplaTail(w);
+  const fwd = duplaSeq(w, 'next');
+  const bwd = duplaSeq(w, 'prev');
+  eq(fwd.join(','), esperado, label + ': valores via next');
+  eq(bwd.join(','), esperado ? esperado.split(',').reverse().join(',') : '', label + ': valores via prev (de TAIL para HEAD)');
+  eq(fwd.length, tamanho, label + ': quantidade real de nós');
+
+  if (!esperado) {
+    assert(!head && !tail, label + ': lista vazia sem HEAD/TAIL');
+    return w;
+  }
+  assert(head && tail, label + ': HEAD e TAIL apontam para nós');
+  const headPrev = prop(head, 'prev');
+  assert(headPrev && headPrev.t === 'p' && (headPrev.v === undefined || headPrev.v === null),
+    label + ': primeiro nó com prev vazio');
+  const tailNext = prop(tail, 'next');
+  assert(tailNext && tailNext.t === 'p' && (tailNext.v === undefined || tailNext.v === null),
+    label + ': último nó com next vazio');
+  eq(prop(w, '#head').id, head.id, label + ': #head aponta para o primeiro nó');
+  eq(prop(w, '#tail').id, tail.id, label + ': #tail aponta para o último nó');
+
+  let n = head;
+  while (n) {
+    const nx = prop(n, 'next');
+    if (nx && nx.t === 'o') {
+      eq(refIdOf(nx, 'prev'), n.id, label + ': prev do sucessor aponta de volta');
+      eq(refIdOf(n, 'next'), nx.id, label + ': next aponta para o sucessor');
+    }
+    n = nx && nx.t === 'o' ? nx : null;
+  }
+  return w;
+}
+
+test('lista dupla: cenário A — vazia; B — append 10, 20, 30', () => {
+  let t = runDupla('console.log(lista.size(), lista.isEmpty(), lista.toString());');
+  noError(t);
+  eq(outputs(t)[0], '0 true { }', 'lista vazia: size/isEmpty/toString');
+  assertDupla(t, '', 0, 'vazia');
+
+  t = runDupla('lista.append(10);\nlista.append(20);\nlista.append(30);');
+  noError(t);
+  const w = assertDupla(t, '10,20,30', 3, 'após appends');
+  eq(prop(duplaHead(w), 'value').v, 10, 'HEAD = 10');
+  eq(prop(duplaTail(w), 'value').v, 30, 'TAIL = 30');
+});
+
+test('lista dupla: cenário C — prepend no vazio e no início', () => {
+  let t = runDupla('lista.prepend(10);');
+  noError(t);
+  assertDupla(t, '10', 1, 'prepend no vazio');
+
+  t = runDupla('lista.append(10);\nlista.append(20);\nlista.prepend(5);');
+  noError(t);
+  const w = assertDupla(t, '5,10,20', 3, 'prepend com lista preenchida');
+  eq(prop(duplaHead(w), 'value').v, 5, 'HEAD passou para o novo nó');
+});
+
+test('lista dupla: cenário D — insertAt no meio, no início e no fim', () => {
+  let t = runDupla([
+    'lista.append(5);',
+    'lista.append(10);',
+    'lista.append(20);',
+    'lista.append(30);',
+    'lista.insertAt(15, 2);'
+  ].join('\n'));
+  noError(t);
+  assertDupla(t, '5,10,15,20,30', 5, 'insertAt no meio');
+
+  t = runDupla('lista.append(10);\nlista.insertAt(5, 0);');
+  noError(t);
+  assertDupla(t, '5,10', 2, 'insertAt no início delega ao prepend');
+
+  t = runDupla('lista.append(10);\nlista.insertAt(20, 1);');
+  noError(t);
+  assertDupla(t, '10,20', 2, 'insertAt no fim delega ao append');
+});
+
+test('lista dupla: cenário E — removeFirst, removeLast e removeAt', () => {
+  let t = runDupla('lista.append(10);\nlista.append(20);\nlista.append(30);\nconsole.log(lista.removeFirst());');
+  noError(t);
+  eq(outputs(t)[0], '10', 'removeFirst devolve o valor');
+  const w1 = assertDupla(t, '20,30', 2, 'após removeFirst');
+  eq(prop(duplaHead(w1), 'value').v, 20, 'HEAD passou para o sucessor');
+
+  t = runDupla('lista.append(10);\nlista.append(20);\nlista.append(30);\nconsole.log(lista.removeLast());');
+  noError(t);
+  eq(outputs(t)[0], '30', 'removeLast devolve o valor');
+  const w2 = assertDupla(t, '10,20', 2, 'após removeLast');
+  eq(prop(duplaTail(w2), 'value').v, 20, 'TAIL passou para o antecessor');
+
+  t = runDupla('lista.append(10);\nlista.append(20);\nlista.append(30);\nconsole.log(lista.removeAt(1));');
+  noError(t);
+  eq(outputs(t)[0], '20', 'removeAt devolve o valor');
+  assertDupla(t, '10,30', 2, 'após removeAt no meio');
+});
+
+test('lista dupla: cenário F — um único nó volta ao estado vazio', () => {
+  const t = runDupla([
+    'lista.append(7);',
+    'console.log(lista.removeLast());',
+    'console.log(lista.size(), lista.isEmpty(), lista.toString());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '7', 'removeu o único nó');
+  eq(outputs(t)[1], '0 true { }', 'voltou ao estado vazio');
+  assertDupla(t, '', 0, 'após esvaziar');
+});
+
+test('lista dupla: cenário G — transverseReverse percorre com prev (20, 15, 10, 5)', () => {
+  const t = runDupla([
+    'lista.append(5);',
+    'lista.append(10);',
+    'lista.append(15);',
+    'lista.append(20);',
+    'lista.transverseReverse();'
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs.slice(-4).join(','), '20,15,10,5', 'ordem do fim ao início');
+});
+
+test('lista dupla: cenário I — índices inválidos não corrompem a lista', () => {
+  const t = runDupla([
+    'lista.append(10);',
+    'lista.append(20);',
+    'console.log(lista.insertAt(99, -1), lista.insertAt(99, 5));',
+    'console.log(lista.removeAt(-1), lista.removeAt(2));',
+    'console.log(lista.toString());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], 'undefined undefined', 'insertAt recusa índices fora de [0, tamanho]');
+  eq(outputs(t)[1], 'undefined undefined', 'removeAt recusa índices fora de [0, tamanho)');
+  eq(outputs(t)[2], '{ 10 <-> 20 }', 'lista intacta');
+  assertDupla(t, '10,20', 2, 'após operações inválidas');
+
+  // limites válidos: insertAt no índice == tamanho e removeAt no último índice
+  const t2 = runDupla([
+    'lista.append(10);',
+    'lista.insertAt(20, 1);',
+    'console.log(lista.removeAt(1));',
+    'console.log(lista.toString());'
+  ].join('\n'));
+  noError(t2);
+  eq(outputs(t2)[0], '20', 'removeAt no último índice');
+  eq(outputs(t2)[1], '{ 10 }', 'lista restante');
+});
+
+test('lista dupla: indexOf, size, isEmpty e toString', () => {
+  const t = runDupla([
+    'lista.append(10);',
+    'lista.append(20);',
+    'lista.append(10);',
+    'console.log(lista.indexOf(10), lista.indexOf(20), lista.indexOf(99));',
+    'console.log(lista.size(), lista.isEmpty(), lista.toString());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '0 1 -1', 'indexOf da primeira ocorrência e -1');
+  eq(outputs(t)[1], '3 false { 10 <-> 20 <-> 10 }', 'size/isEmpty/toString');
+});
+
+test('lista dupla: prev do segundo nó aponta de volta sem truncar a serialização', () => {
+  const t = runDupla('lista.append(10);\nlista.append(20);\nlista.append(30);');
+  noError(t);
+  const w = assertDupla(t, '10,20,30', 3, 'três nós');
+  const head = duplaHead(w);
+  assert(head, 'head serializado');
+  const second = prop(head, 'next');
+  assert(second && second.t === 'o', 'segundo nó serializado');
+  const p = prop(second, 'prev');
+  assert(p && (p.t === 'o' || p.t === 'ref'), 'prev serializado como objeto ou ref');
+  eq(p.id, head.id, 'prev do segundo aponta para o primeiro');
+});
+
+test('lista dupla: detecção marca a lista como dupla e expõe o tail', () => {
+  const t = runDupla('lista.append(10);');
+  noError(t);
+  const step = lastStep(t);
+  const cands = DSV.detectStructures(step, DSV.buildOpsMap(t.steps));
+  const sel = cands.filter((c) => c.type === 'list')[0];
+  assert(sel, 'lista detectada');
+  eq(sel.label, 'lista', 'rótulo é o nome da variável');
+  assert(sel.doubly, 'flag doubly');
+  assert(sel.tailId != null, 'tailId do wrapper');
+});
+
+function renderListaDupla(trace, step, extra) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'list')[0];
+  assert(sel, 'lista dupla detectada para o render');
+  const container = {};
+  DSV.renderStructure(container, sel, step, Object.assign({
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    visit: DSV.computeVisitOrder(trace.steps)
+  }, extra || {}));
+  return { html: container.innerHTML, sel: sel };
+}
+
+test('render da lista dupla: PREV, setas nos dois sentidos, HEAD/TAIL e ∅', () => {
+  const ex = listaDuplaExample();
+  const t = run(ex.code);
+  noError(t);
+  const seen = { prev: false, back: false, fwd: false, tail: false, head: false, end: false, nullStart: false, title: false };
+  for (let i = 0; i < t.steps.length; i++) {
+    const step = t.steps[i];
+    const sel = DSV.detectStructures(step, DSV.buildOpsMap(t.steps)).filter((c) => c.type === 'list')[0];
+    if (!sel) continue;
+    if (sel.doubly) seen.title = true;
+    const r = renderListaDupla(t, step, {
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null,
+      steps: t.steps,
+      stepIndex: i
+    });
+    const h = r.html;
+    if (h.indexOf('list-prev') >= 0) seen.prev = true;
+    if (h.indexOf('list-link back') >= 0) seen.back = true;
+    if (h.indexOf('Lista duplamente encadeada') >= 0) seen.title = true;
+    if (h.indexOf('list-tail-tag') >= 0) seen.tail = true;
+    if (h.indexOf('list-head-tag') >= 0) seen.head = true;
+    if (h.indexOf('list-end') >= 0) seen.end = true;
+    if (h.indexOf('data-k="null-start"') >= 0) seen.nullStart = true;
+    if (/class="list-link(?: [^"]*)?"/.test(h) && !/class="list-link back/.test(h)) seen.fwd = true;
+  }
+  assert(seen.title, 'título da lista dupla');
+  assert(seen.prev, 'região PREV desenhada');
+  assert(seen.back, 'seta de volta (prev) desenhada');
+  assert(seen.fwd, 'seta de ida (next) desenhada');
+  assert(seen.head, 'indicador HEAD');
+  assert(seen.tail, 'indicador TAIL');
+  assert(seen.end, 'terminador ∅ no fim');
+  assert(seen.nullStart, 'terminador ∅ no início (prev do primeiro nó)');
+});
+
+test('render da lista dupla: referência alterada e percurso reverso em destaque', () => {
+  const ex = listaDuplaExample();
+  const t = run(ex.code);
+  noError(t);
+  let sawChangedNext = false;
+  let sawChangedPrev = false;
+  let sawBackActive = false;
+  let sawHeadChanged = false;
+  let sawTailChanged = false;
+  for (let i = 0; i < t.steps.length; i++) {
+    const step = t.steps[i];
+    const sel = DSV.detectStructures(step, DSV.buildOpsMap(t.steps)).filter((c) => c.type === 'list')[0];
+    if (!sel) continue;
+    const r = renderListaDupla(t, step, {
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null,
+      steps: t.steps,
+      stepIndex: i
+    });
+    const h = r.html;
+    if (h.indexOf('list-next changed') >= 0) sawChangedNext = true;
+    if (h.indexOf('list-prev changed') >= 0) sawChangedPrev = true;
+    if (h.indexOf('list-link back active') >= 0) sawBackActive = true;
+    if (h.indexOf('list-head-tag changed') >= 0) sawHeadChanged = true;
+    if (h.indexOf('list-tail-tag changed') >= 0) sawTailChanged = true;
+  }
+  assert(sawChangedNext, 'next alterado destacado');
+  assert(sawChangedPrev, 'prev alterado destacado');
+  assert(sawHeadChanged, 'HEAD que mudou de nó destacado');
+  assert(sawTailChanged, 'TAIL que mudou de nó destacado');
+  assert(sawBackActive, 'conexão percorrida no sentido reverso destacada');
+});
+
+test('render da lista simples não ganha PREV (regressão)', () => {
+  const t = runLista('lista.insertAtEnd(10);\nlista.insertAtEnd(20);');
+  noError(t);
+  const r = renderListaStep(t, lastStep(t), {
+    prevStep: null,
+    nextStep: null,
+    steps: t.steps,
+    stepIndex: t.steps.length - 1
+  });
+  assert(r.html.indexOf('list-prev') < 0, 'lista simples continua VALUE/NEXT');
+  assert(r.html.indexOf('list-tail-tag') < 0, 'lista simples não ganha TAIL');
+});
+
+test('explicação da lista dupla: prev, tail e percurso reverso', () => {
+  const ex = listaDuplaExample();
+  const t = run(ex.code);
+  noError(t);
+  const src = ex.code.split('\n');
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const infos = t.steps.map((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    return DSV.explainStep(s, sel, {
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null,
+      lineText: (src[s.line - 1] || '').trim()
+    });
+  });
+  assert(infos.some((x) => (x.op === 'Inserção no final' || x.op === 'Inserção no início') && /referências prev e next ainda não foram ligadas/.test(x.text || '')), 'criação mostra prev e next desconectados');
+  assert(infos.some((x) => /A referência NEXT do nó .* passou a apontar/.test(x.text || '')), 'ligação do next');
+  assert(infos.some((x) => /A referência PREV do nó .* foi atualizada/.test(x.text || '')), 'ligação do prev');
+  assert(infos.some((x) => /HEAD agora aponta/.test(x.text || '')), 'mudança de HEAD');
+  assert(infos.some((x) => /TAIL agora aponta/.test(x.text || '')), 'mudança de TAIL');
+  assert(infos.some((x) => x.op === 'Remoção no final' && /TAIL passou/.test(x.text || '')), 'remoção no final move o TAIL');
+  assert(infos.some((x) => x.op === 'Percurso reverso' && /referência prev|referências prev/.test(x.text || '')), 'percurso reverso explica o prev');
+  assert(infos.some((x) => x.op === 'Inserção em posição' && /posição de inserção/.test(x.text || '')), 'insertAt explica a posição');
+  assert(infos.some((x) => x.op === 'Busca' && /Comparando o nó/.test(x.text || '')), 'indexOf compara nós');
+});
+
 test('árvore em-ordem: saída crescente e ponteiro "no"', () => {
   const example = DSV.EXAMPLES.find((e) => e.id === 'arvore-em-ordem');
   const t = run(example.code);
@@ -2713,6 +3101,167 @@ test('resolveVariable: this nas classes', () => {
   assert(info.sv && info.sv.t === 'o', 'this serializado como objeto');
   assert(info.sv.props && info.sv.props.itens, 'campo itens no this');
   eq(DSV.resolveVariable(comThis, 'naoExiste'), null, 'nome desconhecido');
+});
+
+/* ---------------------------------------------------------------- */
+console.log('\n[lote 1: semântica e mensagens]');
+
+test('const: reatribuição (simples, composta e ++) dá erro com linha', () => {
+  const t = run('const c = 5;\nc = 6;\nconsole.log(c);');
+  assert(t.error, 'deve dar erro');
+  eq(t.error.line, 2, 'linha da reatribuição');
+  assert(/constante/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+  const soma = run('const c = 5;\nc += 1;');
+  assert(soma.error, '+= deve dar erro');
+  assert(/constante/.test(soma.error.message), 'mensagem do +=: ' + (soma.error && soma.error.message));
+  const inc = run('const c = 5;\nc++;');
+  assert(inc.error, '++ deve dar erro');
+  assert(/constante/.test(inc.error.message), 'mensagem do ++: ' + (inc.error && inc.error.message));
+});
+
+test('const: mutação de objeto/array continua permitida', () => {
+  const t = run([
+    'const pilha = [];',
+    'pilha.push(1);',
+    'const o = { a: 1 };',
+    'o.a = 2;',
+    "console.log(pilha.length, o.a);"
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '1 2', 'conteúdo mutável');
+});
+
+test('const no for-of: reatribuir no corpo dá erro', () => {
+  const t = run('for (const x of [1, 2]) { x = x + 1; }');
+  assert(t.error, 'deve dar erro');
+  assert(/constante/.test(t.error.message), 'mensagem: ' + (t.error && t.error.message));
+});
+
+test('closure no for clássico com let: cada iteração tem a sua variável', () => {
+  const t = run([
+    'const f = [];',
+    'for (let i = 0; i < 3; i++) { f.push(() => i); }',
+    'console.log(f[0](), f[1](), f[2]());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '0 1 2', 'como no JS real');
+});
+
+test('closure no for: mutação no corpo é vista pela própria iteração', () => {
+  const t = run([
+    'const f = [];',
+    'for (let i = 0; i < 4; i++) { f.push(() => i); if (i % 2 === 0) { i = i + 1; } }',
+    'console.log(f[0](), f[1]());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '1 3', 'valor final da iteração, sem o update');
+});
+
+test('closure no for com var continua compartilhado (como no JS)', () => {
+  const t = run([
+    'const f = [];',
+    'for (var i = 0; i < 3; i++) { f.push(() => i); }',
+    'console.log(f[0](), f[1](), f[2]());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '3 3 3', 'var é uma única variável');
+});
+
+test('closure no for-of continua por iteração', () => {
+  const t = run([
+    'const f = [];',
+    'for (const x of [0, 1, 2]) { f.push(() => x); }',
+    'console.log(f[0](), f[1](), f[2]());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '0 1 2');
+});
+
+test('variável do cabeçalho do for não vaza para fora', () => {
+  const t = run('for (let i = 0; i < 1; i++) {}\nconsole.log(typeof i);');
+  noError(t);
+  eq(outputs(t)[0], 'undefined');
+});
+
+test('Number: isNaN/isInteger/isFinite/parseInt/parseFloat', () => {
+  const t = run([
+    "console.log(Number.isNaN(NaN), Number.isNaN('x'));",
+    'console.log(Number.isInteger(5), Number.isInteger(5.5));',
+    'console.log(Number.isFinite(Infinity), Number.isFinite(3));',
+    "console.log(Number.parseInt('42') + 1, Number.parseFloat('2.5') + 0.5);"
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], 'true false', 'isNaN');
+  eq(outs[1], 'true false', 'isInteger');
+  eq(outs[2], 'false true', 'isFinite');
+  eq(outs[3], '43 3', 'parse');
+});
+
+test('Number: internos não vazam (só estáticos públicos)', () => {
+  const t = run('console.log(typeof Number.impl, typeof Number.native, typeof Number.statics);');
+  noError(t);
+  eq(outputs(t)[0], 'undefined undefined undefined');
+});
+
+test('recursos não suportados: mensagem clara de "não é suportado"', () => {
+  const casos = [
+    ['try/catch', "try { console.log('x'); } catch (e) { console.log(e); }", /não é suportad/],
+    ['throw', "throw new Error('x');", /não é suportad/],
+    ['switch', 'switch (1) { case 1: break; default: break; }', /não é suportad/],
+    ['extends', 'class A {}\nclass B extends A {}', /extends/],
+    ['for...in', 'const o = { a: 1 };\nfor (const k in o) { console.log(k); }', /for\.\.\.in/],
+    ['destructuring de objeto', 'const o = { a: 1 };\nconst { a } = o;', /Desestruturação/],
+    ['destructuring de array', 'const [x, y] = [1, 2];', /Desestruturação/],
+    ['destructuring de parâmetro', 'function f({ a }) { return a; }', /Desestruturação/],
+    ['new Array', 'const a = new Array(3).fill(0);', /new Array.*não é suportad/],
+    ['**', 'const x = 2 ** 3;', /"\*\*"/],
+    ['??', 'const x = null ?? 1;', /"\?\?"/],
+    ['?.', 'const x = null?.a;', /"\?\."/],
+    ['spread', 'const a = [1];\nconst b = [...a];', /Spread/],
+    ['rest', 'function f(...xs) { return xs.length; }', /Spread|rest/]
+  ];
+  casos.forEach(([nome, code, rx]) => {
+    const t = run(code);
+    assert(t.error, nome + ' deve dar erro');
+    assert(rx.test(t.error.message), nome + ': ' + (t.error && t.error.message));
+  });
+});
+
+test('Set/Map: mensagem específica (não "não foi definido")', () => {
+  const s = run('const s = new Set();');
+  assert(s.error, 'Set deve dar erro');
+  assert(/não é suportado/.test(s.error.message), 'Set: ' + (s.error && s.error.message));
+  assert(/Map\/Set/.test(s.error.message), 'dica: ' + (s.error && s.error.message));
+  const m = run('const m = new Map();');
+  assert(m.error, 'Map deve dar erro');
+  assert(/não é suportado/.test(m.error.message), 'Map: ' + (m.error && m.error.message));
+});
+
+test('checagens de sintaxe não afetam código suportado', () => {
+  const t = run([
+    'const o = { default: 1, in: 2 };',
+    'console.log(o.default, o.in);',
+    'const r = 1 ? .5 : 2;',
+    'console.log(r);'
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], '1 2', 'chaves default/in em objeto');
+  eq(outs[1], '0.5', 'ternário com .5');
+});
+
+test('recursão finita profunda (400 chamadas) funciona no limite padrão', () => {
+  const t = run('function f(n) { if (n === 0) return 0; return 1 + f(n - 1); }\nconsole.log(f(400));');
+  noError(t);
+  eq(outputs(t)[0], '400');
+});
+
+test('recursão infinita: mensagem explica a proteção', () => {
+  const t = run('function f() { return f(); }\nf();');
+  assert(t.error, 'deve dar erro');
+  assert(/Profundidade de chamadas excedida \(500\)/.test(t.error.message), 'limite padrão 500: ' + (t.error && t.error.message));
+  assert(/recursão infinita/.test(t.error.message), 'explica o caso');
 });
 
 /* ---------------------------------------------------------------- */

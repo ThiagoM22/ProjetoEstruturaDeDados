@@ -72,6 +72,17 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   continuam aparecendo sobre os nós, e o tamanho dos nós e o espaçamento **se adaptam à quantidade
   de nós**: listas curtas desenham maiores e listas longas mantêm o tamanho-base, navegadas por
   zoom/pan (sem comprimir os nós).
+- **Lista duplamente encadeada**: cada nó é uma caixa com três regiões — **PREV | VALUE | NEXT** —
+  e entre cada par de nós há **duas pistas de setas**: a de cima é a ida (`next` de A para B) e a
+  de baixo é a volta (`prev` de B para A), em duas linhas paralelas com as hastes alinhadas no
+  mesmo eixo (sem setas cruzadas nem sobrepostas). **HEAD** e **TAIL** marcam as
+  extremidades e as pontas nulas viram o indicador compacto **∅** (no início, para `head.prev`, e
+  no fim, para `tail.next`); na lista vazia, o diagrama mostra `HEAD → ∅ ← TAIL`. O nó em exame
+  fica em **roxo forte**, os já visitados em **roxo suave**, e a **referência alterada** (prev ou
+  next) e o **HEAD/TAIL que mudou de nó** ficam em destaque naquela etapa; o percurso reverso
+  acende a seta de volta conforme o cursor `current` desce pelo `prev`. Continua valendo tudo da
+  lista simples: nó recém-criado tracejado fora da lista, tamanho/espaçamento adaptativos e
+  navegação por zoom/pan.
 - Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
   (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
   acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó
@@ -162,6 +173,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Fila com índices (#inicio/#fim) | fila sem `shift`: FRONT/REAR seguem a janela viva `[#inicio, #fim)` e os buracos do `delete` ficam fora do desenho |
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
+| Lista duplamente encadeada (classe) | `append`/`prepend`/`removeFirst`/`removeLast`/`insertAt`/`removeAt`/`indexOf`/`transverse`/`transverseReverse`/`size`/`isEmpty`/`toString`; nó PREV/VALUE/NEXT, HEAD/TAIL e setas nos dois sentidos |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
 | Árvore binária de busca (BST) — inserção, busca e percursos | regra menor→esquerda / maior-ou-igual→direita, busca `true/false`, raiz privada `#root` e percursos em/pré/pós |
@@ -181,7 +193,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 |---|---|
 | **Pilha** | variável/classe com nome `pilha`/`stack`, ou array com `push/pop` |
 | **Fila** | nome `fila`/`queue`, array com `push/shift` (ou `unshift/pop`) ou classe com array interno e índices `#inicio`/`#fim` |
-| **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`) |
+| **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`). Com campo `prev`/`anterior` nos nós (ou `#tail` no wrapper), a lista é desenhada como dupla |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (inclusive `#root`/`#raiz`, ou classe `Arvore*`/`Tree*`) |
 
 Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
@@ -194,7 +206,9 @@ Se a detecção automática não for ideal, use o seletor **Visualização** no 
 É um interpretador **didático** (não é o motor do navegador). Suporta o que aparece em código de
 estrutura de dados na faculdade:
 
-- `let/const/var`, operadores, `if/else`, `while`, `do/while`, `for` clássico e `for...of`;
+- `let/const/var`, operadores, `if/else`, `while`, `do/while`, `for` clássico e `for...of` —
+  o `const` não pode ser reatribuído e cada iteração do `for` com `let/const` tem a sua própria
+  variável (closures capturam o valor da iteração), como no JS real;
 - `function`, recursão, `arrow functions`, `return`, `break`, `continue`;
 - `class` com `constructor`, métodos, campos de instância (inclusive `#privados`, acessíveis só
   dentro da classe que os declara) e `this`, `new`;
@@ -205,13 +219,16 @@ estrutura de dados na faculdade:
 - métodos de string: `charAt, indexOf, includes, startsWith, endsWith, slice, substring, split,
   toUpperCase, toLowerCase, trim, repeat, padStart, padEnd, replace`…;
 - `console.log/warn/error/info`, `Math.*`, `JSON.stringify/parse`, `Object.keys/values/entries`,
-  `Array.isArray/from`, `Number`, `String`, `Boolean`, `parseInt`, `parseFloat`, `isNaN`, `typeof`.
+  `Array.isArray/from`, `Number` (inclusive `Number.isNaN/isInteger/isFinite/parseInt/parseFloat`),
+  `String`, `Boolean`, `parseInt`, `parseFloat`, `isNaN`, `typeof`.
 
 **Não suportado:** herança de classes (`extends`), membros `static`/`get`/`set`/`async`,
 parâmetros com valor padrão (`function f(x = 1)`), `try/catch`, `async/await`, regex, generators,
-`switch`, `Map`/`Set`, módulos.
+`switch`, `for...in`, desestruturação, `**`, `??`, `?.`, spread/rest (`...`), `Map`/`Set`, módulos.
+Esses casos (e `new Array(...)`) falham com uma mensagem explícita de "não é suportado" — o
+visualizador avisa o que não faz em vez de acusar uma variável inexistente.
 
-**Proteções:** limite de 20.000 passos e 150 chamadas aninhadas — se estourar, a mensagem avisa
+**Proteções:** limite de 20.000 passos e 500 chamadas aninhadas — se estourar, a mensagem avisa
 (provavelmente há laço ou recursão sem fim).
 
 ## Estrutura do projeto
@@ -248,7 +265,9 @@ binária de busca (inserção/busca/percursos, remoção nos três casos, duplic
 e explicações), a árvore binária simples (inserção por nível, busca, remoção com promoção,
 percursos, snapshots e explicação contextual), a lista simplesmente encadeada (operações, tamanho
 após cada operação, terminador, remoção de duplicados, render VALUE/NEXT/HEAD, destaques e
-explicação), recolhimento de painéis, a dica de variável do editor (hover), os 14 exemplos e a
+explicação), a lista duplamente encadeada (operações com prev/next, invariantes de `head`/`tail`/
+`length`, setas nos dois sentidos, TAIL, percurso reverso e serialização sem truncamento),
+recolhimento de painéis, a dica de variável do editor (hover), os 15 exemplos e a
 renderização de todos os passos na interface.
 
 ## Ideias de evolução

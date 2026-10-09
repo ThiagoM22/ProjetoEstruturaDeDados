@@ -1038,6 +1038,35 @@ kbd {
   white-space: nowrap;
 }
 
+/* lista dupla: região PREV antes do valor, espelhando a NEXT */
+.list-prev {
+  display: flex;
+  align-items: center;
+  gap: calc(5px * var(--list-scale));
+  padding: 0 calc(8px * var(--list-scale));
+  border-right: 1px solid var(--border);
+  font: 600 calc(9.5px * var(--list-scale))/1 var(--font-mono);
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.list-prev-dot {
+  width: calc(5px * var(--list-scale));
+  height: calc(5px * var(--list-scale));
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+/* referência prev alterada nesta etapa */
+.list-prev.changed {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-right-color: var(--accent-muted);
+}
+
+.list-prev.changed .list-prev-dot { background: var(--accent); }
+
 .list-next-dot {
   width: calc(5px * var(--list-scale));
   height: calc(5px * var(--list-scale));
@@ -1084,9 +1113,10 @@ kbd {
   white-space: nowrap;
 }
 
-/* HEAD: etiqueta discreta acima do primeiro nó, com a ponta voltada para
- * ele; quando HEAD muda de nó, a etiqueta fica em roxo naquela etapa */
-.list-head-tag {
+/* HEAD/TAIL: etiquetas discretas sobre o primeiro/último nó, com a ponta
+ * voltada para ele; quando mudam de nó, a etiqueta fica em roxo naquela etapa */
+.list-head-tag,
+.list-tail-tag {
   position: relative;
   font: 600 10.5px/18px var(--font-mono);
   letter-spacing: 0.4px;
@@ -1097,7 +1127,8 @@ kbd {
   padding: 0 6px;
 }
 
-.list-head-tag::after {
+.list-head-tag::after,
+.list-tail-tag::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -1108,15 +1139,19 @@ kbd {
   border-top: 4px solid var(--border-strong);
 }
 
-.list-head-tag.changed {
+.list-head-tag.changed,
+.list-tail-tag.changed {
   color: var(--accent-text);
   background: var(--accent-soft);
   border-color: var(--accent-muted);
 }
 
-.list-head-tag.changed::after { border-top-color: var(--accent); }
+.list-head-tag.changed::after,
+.list-tail-tag.changed::after { border-top-color: var(--accent); }
 
-/* conexão entre a região NEXT e o próximo nó (ou o terminador) */
+/* conexão entre a região NEXT e o próximo nó (ou o terminador); na lista
+ * dupla a volta (PREV) usa a pista de baixo, espelhada, para as duas
+ * direções nunca se sobreporem */
 .list-link {
   flex: none;
   display: block;
@@ -1125,10 +1160,28 @@ kbd {
   margin: 0 calc(var(--sp-1) * var(--list-scale));
 }
 
+.list-arrows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6px * var(--list-scale));
+}
+
+.list-lane {
+  display: block;
+  flex: none;
+  width: calc(30px * var(--list-scale));
+  height: calc(14px * var(--list-scale));
+  margin: 0 calc(var(--sp-1) * var(--list-scale));
+}
+
 .list-link-shape {
   fill: var(--border-strong);
   stroke: var(--border-strong);
-  stroke-width: 0;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .list-link.start .list-link-shape { fill: var(--text-muted); stroke: var(--text-muted); }

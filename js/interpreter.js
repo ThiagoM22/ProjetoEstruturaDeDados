@@ -14,7 +14,13 @@
   var hasOwn = Object.prototype.hasOwnProperty;
 
   var DEFAULT_MAX_STEPS = 20000;
-  var DEFAULT_MAX_DEPTH = 150;
+  var DEFAULT_MAX_DEPTH = 500;
+
+  /* globais comuns do JS que este visualizador não implementa: mensagem clara
+   * em vez de "não foi definido" */
+  var UNSUPPORTED_GLOBALS = Object.create(null);
+  ['Set', 'Map', 'WeakSet', 'WeakMap', 'Symbol', 'Promise', 'RegExp', 'Date']
+    .forEach(function (n) { UNSUPPORTED_GLOBALS[n] = true; });
 
   /* ------------------------------------------------------------------ */
   /* Ambiente de variáveis                                               */
@@ -22,6 +28,7 @@
 
   function Env(parent, opts) {
     this.vars = Object.create(null);
+    this.consts = Object.create(null);
     this.parent = parent || null;
     this.isFunctionScope = !!(opts && opts.isFunctionScope);
     if (opts && 'thisVal' in opts) this.thisVal = opts.thisVal;
@@ -186,6 +193,23 @@
     if (value.__fn) return { t: 'fn', name: value.name || '' };
     if (value.__class === true) return { t: 'c', name: value.name };
 
+    /* Referências de volta (ex.: "nodeA.next = nodeB; nodeB.prev = nodeA")
+     * viram uma referência curta em vez de reabrir o objeto ainda em
+     * serialização. Sem isso, uma lista duplamente encadeada consome todo o
+     * orçamento no vai-e-vem prev/next e a cadeia (e #tail/#length) sai
+     * truncada. A referência aponta para o id do nó, que continua
+     * serializado por inteiro na primeira ocorrência. */
+    var stack = ctx.stack || (ctx.stack = []);
+    if (stack.indexOf(value) >= 0) {
+      return value.__id != null ? { t: 'ref', id: value.__id } : { t: 'trunc', n: 0 };
+    }
+    /* objetos já serializados neste passo são reaproveitados: o mesmo nó
+     * alcançado por duas variáveis não é copiado duas vezes */
+    var done = ctx.done || (ctx.done = Object.create(null));
+    if (value.__id != null && done[value.__id]) return done[value.__id];
+
+    stack.push(value);
+    var result;
     if (Array.isArray(value)) {
       var items = [];
       var max = Math.min(value.length, 200);
@@ -193,27 +217,30 @@
         items.push(this.serialize(value[i], ctx, depth + 1));
       }
       if (value.length > max) items.push({ t: 'trunc', n: value.length - max });
-      return { t: 'a', id: value.__id, items: items };
-    }
-
-    var props = {};
-    var keys = Object.keys(value);
-    var limit = Math.min(keys.length, 100);
-    var count = 0;
-    for (var k = 0; k < limit; k++) {
-      props[keys[k]] = this.serialize(value[keys[k]], ctx, depth + 1);
-      count++;
-    }
-    /* campos privados entram nos painéis como "#nome" (o valor real fica
-     * no mapa interno __priv da instância) */
-    if (value.__priv) {
-      var pkeys = Object.keys(value.__priv);
-      for (var pk = 0; pk < pkeys.length && count < 100; pk++) {
-        props[pkeys[pk]] = this.serialize(value.__priv[pkeys[pk]], ctx, depth + 1);
+      result = { t: 'a', id: value.__id, items: items };
+    } else {
+      var props = {};
+      var keys = Object.keys(value);
+      var limit = Math.min(keys.length, 100);
+      var count = 0;
+      for (var k = 0; k < limit; k++) {
+        props[keys[k]] = this.serialize(value[keys[k]], ctx, depth + 1);
         count++;
       }
+      /* campos privados entram nos painéis como "#nome" (o valor real fica
+       * no mapa interno __priv da instância) */
+      if (value.__priv) {
+        var pkeys = Object.keys(value.__priv);
+        for (var pk = 0; pk < pkeys.length && count < 100; pk++) {
+          props[pkeys[pk]] = this.serialize(value.__priv[pkeys[pk]], ctx, depth + 1);
+          count++;
+        }
+      }
+      result = { t: 'o', id: value.__id, ctor: value.__class ? value.__class.name : null, props: props };
     }
-    return { t: 'o', id: value.__id, ctor: value.__class ? value.__class.name : null, props: props };
+    stack.pop();
+    if (value.__id != null) done[value.__id] = result;
+    return result;
   };
 
   /* Variáveis visíveis: sobe a cadeia de escopos até o escopo global.
@@ -319,11 +346,14 @@
   Runtime.prototype.declare = function (env, kind, name, value) {
     var target = this.scopeForDeclare(env, kind);
     target.vars[name] = value;
+    if (kind === 'const') target.consts[name] = true;
+    else delete target.consts[name];
   };
 
   Runtime.prototype.assignVar = function (env, name, value, line) {
     var owner = env.find(name);
     if (!owner) this.rtError('"' + name + '" não foi definido. Crie a variável com let/const antes de usá-la.', line);
+    if (owner.consts[name]) this.rtError('"' + name + '" é uma constante e não pode ser reatribuída.', line);
     owner.vars[name] = value;
   };
 
@@ -385,8 +415,10 @@
 
   Runtime.prototype.execFor = function (stmt, env) {
     var loopEnv = env;
+    var headNames = null;
     if (stmt.init && stmt.init.type === 'VarDecl' && stmt.init.kind !== 'var') {
       loopEnv = new Env(env);
+      headNames = stmt.init.declarations.map(function (d) { return d.name; });
     }
     var first = true;
     while (true) {
@@ -414,6 +446,17 @@
         if (sig && sig.__signal === 'break') break;
         if (sig && sig.__signal === 'continue') { /* roda o update abaixo */ }
         else throw sig;
+      }
+      /* como no JS real: cada iteração do for com let/const tem a sua própria
+       * variável, então closures capturam o valor daquela iteração; a cópia
+       * acontece antes do update (o update roda já no novo ambiente). */
+      if (headNames) {
+        var nextEnv = new Env(env);
+        for (var h = 0; h < headNames.length; h++) {
+          nextEnv.vars[headNames[h]] = loopEnv.vars[headNames[h]];
+          if (loopEnv.consts[headNames[h]]) nextEnv.consts[headNames[h]] = true;
+        }
+        loopEnv = nextEnv;
       }
       if (stmt.update) this.evalExpr(stmt.update, loopEnv);
     }
@@ -574,7 +617,7 @@
     if (fn.native) return fn.impl(this, thisVal, args, callLine);
 
     if (this.depth >= this.maxDepth) {
-      this.rtError('Profundidade de chamadas excedida (' + this.maxDepth + '). Possível recursão infinita?', callLine);
+      this.rtError('Profundidade de chamadas excedida (' + this.maxDepth + '). Se a recursão é finita, reduza a profundidade ou transforme-a em iterativa; se não há caso-base, é recursão infinita.', callLine);
     }
     this.depth++;
 
@@ -632,7 +675,13 @@
       }
       case 'Ident': {
         var owner = env.find(node.name);
-        if (!owner) this.rtError('"' + node.name + '" não foi definido', node.line);
+        if (!owner) {
+          if (UNSUPPORTED_GLOBALS[node.name]) {
+            var dica = (node.name === 'Set' || node.name === 'Map') ? ' (não há Map/Set)' : '';
+            this.rtError('"' + node.name + '" não é suportado neste visualizador' + dica + '.', node.line);
+          }
+          this.rtError('"' + node.name + '" não foi definido', node.line);
+        }
         return owner.vars[node.name];
       }
       case 'This': return env.thisVal;
@@ -816,6 +865,9 @@
     var cls = this.evalExpr(node.callee, env);
     if (!cls || cls.__class !== true) {
       var name = node.callee.type === 'Ident' ? node.callee.name : 'valor';
+      if (cls && cls.__builtinCtor) {
+        this.rtError('"new ' + cls.__builtinCtor + '(...)" não é suportado neste visualizador. Crie o valor com um literal (ex.: [] ou {}) e use os métodos disponíveis.', node.line);
+      }
       this.rtError('"' + name + '" não é uma classe. Declare com "class ' + (node.callee.type === 'Ident' ? name : 'Nome') + ' { ... }"', node.line);
     }
     var obj = {};
@@ -907,6 +959,7 @@
     }
     if (obj.__fn) {
       if (name === 'name') return obj.name;
+      if (obj.statics && hasOwn.call(obj.statics, name)) return obj.statics[name];
       return undefined;
     }
     if (obj.__class === true) {
@@ -1505,9 +1558,33 @@
     builtins.vars.JSON = jsonObj;
     builtins.vars.Array = arrayObj;
     builtins.vars.Object = objectObj;
-    builtins.vars.Number = this.native('Number', function (rt, thisVal, args) {
+    var numberFn = this.native('Number', function (rt, thisVal, args) {
       return rt.toNum(args[0]);
     });
+    numberFn.statics = {
+      isNaN: this.native('Number.isNaN', function (rt, thisVal, args) {
+        return typeof args[0] === 'number' && Number.isNaN(args[0]);
+      }),
+      isInteger: this.native('Number.isInteger', function (rt, thisVal, args) {
+        return typeof args[0] === 'number' && Number.isInteger(args[0]);
+      }),
+      isFinite: this.native('Number.isFinite', function (rt, thisVal, args) {
+        return typeof args[0] === 'number' && Number.isFinite(args[0]);
+      }),
+      isSafeInteger: this.native('Number.isSafeInteger', function (rt, thisVal, args) {
+        return typeof args[0] === 'number' && Number.isSafeInteger(args[0]);
+      }),
+      parseFloat: this.native('Number.parseFloat', function (rt, thisVal, args) {
+        return parseFloat(rt.toStr(args[0]));
+      }),
+      parseInt: this.native('Number.parseInt', function (rt, thisVal, args) {
+        var radix = args.length > 1 ? rt.toNum(args[1]) : 10;
+        return parseInt(rt.toStr(args[0]), radix || 10);
+      }),
+      MAX_SAFE_INTEGER: Number.MAX_SAFE_INTEGER,
+      MIN_SAFE_INTEGER: Number.MIN_SAFE_INTEGER
+    };
+    builtins.vars.Number = numberFn;
     builtins.vars.String = this.native('String', function (rt, thisVal, args) {
       if (args.length === 0) return '';
       return rt.toStr(args[0]);

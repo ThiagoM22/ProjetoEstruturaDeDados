@@ -4,6 +4,14 @@
 
   var DSV = (global.DSV = global.DSV || {});
 
+  /* palavras reservadas de JS que o visualizador não implementa: mensagem
+   * explícita em vez de "não foi definido" ou erro genérico */
+  var UNSUPPORTED_STATEMENTS = Object.create(null);
+  ['try', 'catch', 'finally', 'throw', 'switch', 'case', 'default',
+    'with', 'debugger', 'async', 'await', 'yield'].forEach(function (w) {
+    UNSUPPORTED_STATEMENTS[w] = true;
+  });
+
   function parse(source) {
     var tokens = DSV.tokenize(source);
     var pos = 0;
@@ -91,6 +99,10 @@
         }
       }
 
+      if (t.type === 'ident' && UNSUPPORTED_STATEMENTS[t.value]) {
+        fail('"' + t.value + '" não é suportado neste visualizador.', t.line);
+      }
+
       var expr = parseExpression();
       semicolon();
       return { type: 'ExprStmt', expr: expr, line: t.line };
@@ -109,6 +121,9 @@
 
     function parseVarDecl() {
       var kw = next(); /* let | const | var */
+      if (isPunct('{') || isPunct('[')) {
+        fail('Desestruturação (' + kw.value + ' { ... } = ... / ' + kw.value + ' [ ... ] = ...) não é suportada neste visualizador.', cur().line);
+      }
       var declarations = [];
       do {
         var idTok = expectIdent('um nome de variável depois de "' + kw.value + '"');
@@ -122,6 +137,9 @@
 
     function parseParams() {
       expectPunct('(', 'nos parâmetros');
+      if (isPunct('{') || isPunct('[')) {
+        fail('Desestruturação de parâmetros não é suportada neste visualizador.');
+      }
       var params = [];
       if (!isPunct(')')) {
         do {
@@ -144,6 +162,9 @@
     function parseClassDecl() {
       var kw = next(); /* class */
       var id = expectIdent('o nome da classe');
+      if (isIdent() && cur().value === 'extends') {
+        fail('Herança de classes ("extends") não é suportada neste visualizador.', cur().line);
+      }
       expectPunct('{', 'para abrir o corpo da classe');
       var ctx = { name: id.value, declared: Object.create(null) };
       classStack.push(ctx);
@@ -225,6 +246,14 @@
       var kw = next();
       expectPunct('(', 'depois de "for"');
 
+      /* for (chave in obj) — não suportado */
+      if ((isKw('let') || isKw('const') || isKw('var')) && ahead(1).type === 'ident' && ahead(2).type === 'ident' && ahead(2).value === 'in') {
+        fail('"for...in" não é suportado neste visualizador.', cur().line);
+      }
+      if (isIdent() && ahead(1).type === 'ident' && ahead(1).value === 'in') {
+        fail('"for...in" não é suportado neste visualizador.', cur().line);
+      }
+
       /* for (let x of arr) */
       if ((isKw('let') || isKw('const') || isKw('var')) && ahead(1).type === 'ident' && ahead(2).type === 'kw' && ahead(2).value === 'of') {
         var kind = next().value;
@@ -247,9 +276,15 @@
             if (eatPunct('=')) initExpr = parseExpression();
             decls.push({ type: 'Declarator', name: idTok.value, init: initExpr, line: idTok.line });
           } while (eatPunct(','));
+          if (isIdent() && cur().value === 'in') {
+            fail('"for...in" não é suportado neste visualizador.', cur().line);
+          }
           init = { type: 'VarDecl', kind: kwDecl.value, declarations: decls, line: kwDecl.line, inFor: true };
         } else {
           init = parseExpression();
+          if (isIdent() && cur().value === 'in') {
+            fail('"for...in" não é suportado neste visualizador.', cur().line);
+          }
         }
       }
       expectPunct(';', 'no cabeçalho do for');
@@ -282,6 +317,9 @@
       var t = cur();
       if (t.type === 'punct' && ['=', '+=', '-=', '*=', '/=', '%='].indexOf(t.value) >= 0) {
         next();
+        if (left.type === 'ArrayLit' || left.type === 'ObjectLit') {
+          fail('Atribuição por desestruturação não é suportada neste visualizador.', t.line);
+        }
         if (left.type !== 'Ident' && left.type !== 'Member' && left.type !== 'Index') {
           fail('Não posso atribuir a este alvo', t.line);
         }

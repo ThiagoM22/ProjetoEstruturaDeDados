@@ -12,15 +12,18 @@
   var TREE_LEFT = ['esquerda', 'left', 'esq'];
   var TREE_RIGHT = ['direita', 'right', 'dir'];
   var LIST_NEXT = ['proximo', 'próximo', 'next', 'prox', 'seguinte'];
+  var LIST_PREV = ['anterior', 'prev', 'previous'];
   var NODE_VALUE = ['valor', 'value', 'dado', 'data', 'chave', 'key', 'elemento', 'item', 'nome'];
   var ITEM_KEYS = ['itens', 'items', 'elementos', 'dados', 'valores', 'array', 'lista', 'fila', 'pilha'];
   var ROOT_KEYS = ['raiz', 'root', '#root', '#raiz'];
   /* campos privados aparecem serializados com "#" na frente (#head) */
   var HEAD_KEYS = ['inicio', 'início', 'head', '#head', '#inicio', '#início', 'primeiro', 'cabeca', 'cabeça'];
+  var TAIL_KEYS = ['tail', '#tail', 'cauda', '#cauda', 'ultimo', 'último', '#ultimo', '#último', 'fim', '#fim'];
 
   var STACK_RX = /pilha|stack/i;
   var QUEUE_RX = /fila|queue/i;
   var LIST_RX = /lista|linked|encadeada/i;
+  var DOUBLY_RX = /doubly|duplamente|dupla|bidirecional/i;
   var TREE_RX = /arvore|árvore|tree|bst/i;
   var ROOT_RX = /^(raiz|root)$/i;
   var NODE_RX = /^(no|nó|node|atual|current)$/i;
@@ -124,16 +127,26 @@
   }
 
   function countList(sv) {
+    return listInfo(sv).count;
+  }
+
+  /* percorre a cadeia via next uma vez: tamanho, se algum nó tem referência
+   * prev (lista dupla) e o último nó alcançado */
+  function listInfo(sv) {
     var seen = {};
     var n = sv;
     var c = 0;
+    var doubly = false;
+    var last = null;
     while (isObj(n) && !seen[n.id] && c < 500) {
       seen[n.id] = true;
+      if (propOf(n, LIST_PREV)) doubly = true;
+      last = n;
       c++;
       var p = propOf(n, LIST_NEXT);
       n = p && isObj(p.value) ? p.value : null;
     }
-    return c;
+    return { count: c, doubly: doubly, tail: last };
   }
 
   function shortName(label) {
@@ -154,7 +167,7 @@
   /* chips de ponteiro: sem duplicatas, prioriza nomes significativos.
    * Retorna {key, text}: key = caminho completo (estável entre passos),
    * text = nome curto exibido. */
-  var CHILD_ALIAS_RX = /^(esquerda|direita|left|right|esq|dir|proximo|próximo|next|prox|seguinte)$/i;
+  var CHILD_ALIAS_RX = /^(esquerda|direita|left|right|esq|dir|proximo|próximo|next|prox|seguinte|anterior|prev|previous)$/i;
   /* variáveis de trabalho do algoritmo (cursor/índice da BFS) não viram
    * etiqueta: o nó continua marcado pelo realce roxo, sem texto */
   var HIDDEN_CHIP_RX = /^(cursor|cur)$/i;
@@ -307,12 +320,14 @@
       }
 
       if (isListNode(v)) {
-        var lsize = countList(v);
+        var linfo = listInfo(v);
         push({
           type: 'list',
           id: v.id,
           label: shownLabel,
-          score: 3.5 + (ROOT_RX.test(shortName(label)) || /^(inicio|início|head|primeiro)$/.test(shortName(label)) ? 3 : 0) + Math.min(lsize, 10) * 0.3
+          doubly: linfo.doubly,
+          tailId: null,
+          score: 3.5 + (ROOT_RX.test(shortName(label)) || /^(inicio|início|head|primeiro)$/.test(shortName(label)) ? 3 : 0) + Math.min(linfo.count, 10) * 0.3
         });
         return;
       }
@@ -332,11 +347,33 @@
 
       if (isList) {
         var headP = propOf(v, HEAD_KEYS);
+        var tailP = propOf(v, TAIL_KEYS);
+        var tailId = null;
+        if (tailP) {
+          if (isObj(tailP.value)) tailId = tailP.value.id;
+          else if (tailP.value && tailP.value.t === 'ref') tailId = tailP.value.id;
+        }
         if (headP) {
           if (isListNode(headP.value)) {
-            push({ type: 'list', id: headP.value.id, label: shownLabel, score: 9 + Math.min(countList(headP.value), 8) * 0.1 });
+            var winfo = listInfo(headP.value);
+            push({
+              type: 'list',
+              id: headP.value.id,
+              label: shownLabel,
+              doubly: winfo.doubly || DOUBLY_RX.test(nameLike) || !!tailP,
+              tailId: tailId,
+              score: 9 + Math.min(winfo.count, 8) * 0.1
+            });
           } else if (isNullSer(headP.value)) {
-            push({ type: 'list', id: null, holderId: v.id, label: shownLabel, score: 6 });
+            push({
+              type: 'list',
+              id: null,
+              holderId: v.id,
+              label: shownLabel,
+              doubly: DOUBLY_RX.test(nameLike) || !!tailP,
+              tailId: tailId,
+              score: 6
+            });
           }
         }
         return;
@@ -538,7 +575,17 @@
     size: 'Tamanho',
     isEmpty: 'Verificação',
     toString: 'Representação',
-    percorrer: 'Percurso'
+    percorrer: 'Percurso',
+    /* lista duplamente encadeada */
+    append: 'Inserção no final',
+    prepend: 'Inserção no início',
+    insertAt: 'Inserção em posição',
+    removeLast: 'Remoção no final',
+    removeFirst: 'Remoção no início',
+    removeAt: 'Remoção em posição',
+    indexOf: 'Busca',
+    transverse: 'Percurso',
+    transverseReverse: 'Percurso reverso'
   };
   Object.keys(LIST_OP_NAMES).forEach(function (k) { OP_NAMES[k] = LIST_OP_NAMES[k]; });
 
@@ -577,6 +624,16 @@
     if (/\.size\s*\(/.test(line)) return 'Tamanho';
     if (/\.isEmpty\s*\(/.test(line)) return 'Verificação';
     if (/\.toString\s*\(/.test(line)) return 'Representação';
+    /* chamadas da lista duplamente encadeada */
+    if (/\.prepend\s*\(/.test(line)) return 'Inserção no início';
+    if (/\.append\s*\(/.test(line)) return 'Inserção no final';
+    if (/\.insertAt\s*\(/.test(line)) return 'Inserção em posição';
+    if (/\.removeFirst\s*\(/.test(line)) return 'Remoção no início';
+    if (/\.removeLast\s*\(/.test(line)) return 'Remoção no final';
+    if (/\.removeAt\s*\(/.test(line)) return 'Remoção em posição';
+    if (/\.indexOf\s*\(/.test(line)) return 'Busca';
+    if (/\.transverseReverse\s*\(/.test(line)) return 'Percurso reverso';
+    if (/\.transverse\s*\(/.test(line)) return 'Percurso';
     if (/console\.log/.test(line)) return 'Saída';
     return 'Execução';
   }
@@ -785,58 +842,68 @@
   }
 
   /* frase para a lista: compara o passo com o anterior — criação do nó,
-   * ligação da referência, mudança de HEAD, percurso e remoção */
+   * ligação das referências (next e prev), mudança de HEAD/TAIL, percurso
+   * (nos dois sentidos) e remoção */
   function listExplanation(step, sel, opts, op) {
     var lineText = (opts && opts.lineText) || '';
-    var inserting = op === 'Inserção no início' || op === 'Inserção no final';
+    var inserting = op === 'Inserção no início' || op === 'Inserção no final' || op === 'Inserção em posição';
+    var removing = /^Remoção/.test(op);
+    var searching = op === 'Busca';
+    var doubly = !!sel.doubly;
     var prevSel = opts && opts.prevStep ? DSV.findListInStep(opts.prevStep, sel) : null;
     var prevRoot = prevSel && prevSel.id != null ? DSV.findValueById(opts.prevStep, prevSel.id) : null;
-    var prevChain = isObj(prevRoot) ? listChain(prevRoot) : { nodes: [], ids: Object.create(null) };
+    var prevChain = isObj(prevRoot) ? listChain(prevRoot, opts && opts.prevStep) : { nodes: [], ids: Object.create(null) };
 
     if (sel.id == null) {
       var pendEmpty = findPendingNode(step, { ids: Object.create(null) }, prevChain, inserting);
-      if (pendEmpty) return 'O novo nó ' + valText(pendEmpty) + ' foi criado; a referência next ainda não foi ligada.';
-      if (prevChain.nodes.length && op === 'Remoção') {
+      if (pendEmpty) {
+        return 'O novo nó ' + valText(pendEmpty) + ' foi criado; ' +
+          (doubly ? 'as referências prev e next ainda não foram ligadas.' : 'a referência next ainda não foi ligada.');
+      }
+      if (prevChain.nodes.length && removing) {
         return 'O nó ' + valText(prevChain.nodes[0]) + ' foi removido e a lista ficou vazia.';
       }
-      if (!prevChain.nodes.length && op === 'Remoção') return 'A lista está vazia; não há nada para remover.';
-      if (!prevChain.nodes.length && op === 'Busca') return 'A lista está vazia; não há nós para procurar.';
+      if (!prevChain.nodes.length && removing) return 'A lista está vazia; não há nada para remover.';
+      if (!prevChain.nodes.length && searching) return 'A lista está vazia; não há nós para procurar.';
       if (inserting) return 'A lista ainda está vazia: HEAD não aponta para nenhum nó.';
       return 'A lista está vazia neste passo.';
     }
 
     var root = DSV.findValueById(step, sel.id);
     if (!isObj(root)) return null;
-    var chain = listChain(root);
+    var chain = listChain(root, step);
     var map = Object.create(null);
     chain.nodes.forEach(function (n) { map[n.id] = n; });
 
     var removed = prevChain.nodes.filter(function (n) { return !chain.ids[n.id]; });
     var changedNode = null;
+    var changedPrevNode = null;
     chain.nodes.forEach(function (n) {
-      if (changedNode) return;
       var pn = null;
       for (var i = 0; i < prevChain.nodes.length; i++) {
         if (prevChain.nodes[i].id === n.id) { pn = prevChain.nodes[i]; break; }
       }
-      if (pn && nextRef(pn).id !== nextRef(n).id) changedNode = n;
+      if (!pn) return;
+      if (!changedNode && nextRef(pn).id !== nextRef(n).id) changedNode = n;
+      if (!changedPrevNode && prevRef(pn).id !== prevRef(n).id) changedPrevNode = n;
     });
     var headChanged = !!(prevSel && prevSel.id !== sel.id);
+    var tailChanged = !!(prevSel && prevSel.tailId != null && sel.tailId != null && prevSel.tailId !== sel.tailId);
     var aid = activeNodeId(step.pointers || {});
     var pendingNode = findPendingNode(step, chain, prevChain, inserting);
 
     /* passo do contador interno (#length++ / #length--) */
-    if ((inserting || op === 'Remoção') && /#?(length|tamanho)\s*(\+\+|--|\+=|-=)/.test(lineText)) {
+    if ((inserting || removing) && /#?(length|tamanho)\s*(\+\+|--|\+=|-=)/.test(lineText)) {
       return 'O tamanho da lista foi atualizado.';
     }
 
     /* retorno explícito de busca/remoção sem resultado */
     if (/^return\s+(undefined|null|false)\b/.test(lineText)) {
-      if (op === 'Busca') return 'O valor não foi encontrado — a busca chegou ao fim da lista.';
-      if (op === 'Remoção') return 'O valor não está na lista; nada foi removido.';
+      if (searching) return 'O valor não foi encontrado — a busca chegou ao fim da lista.';
+      if (removing) return 'O valor não está na lista; nada foi removido.';
     }
 
-    if (op === 'Busca') {
+    if (searching) {
       if (aid != null && map[aid]) return 'Comparando o nó ' + valText(map[aid]) + ' com o valor procurado.';
       return 'A busca percorre a lista do início ao fim.';
     }
@@ -845,31 +912,48 @@
       return 'O contador da lista registra ' + chain.nodes.length + (chain.nodes.length === 1 ? ' nó.' : ' nós.');
     }
     if (op === 'Representação') return null;
-    if (op === 'Percurso') {
-      if (aid != null && map[aid]) return 'Visitando o nó ' + valText(map[aid]) + '.';
-      return 'O percurso caminha pelos nós do início ao fim.';
+    if (op === 'Percurso' || op === 'Percurso reverso') {
+      var reverse = op === 'Percurso reverso';
+      if (aid != null && map[aid]) {
+        return 'Visitando o nó ' + valText(map[aid]) + (reverse ? ' (seguindo a referência prev).' : '.');
+      }
+      return reverse
+        ? 'O percurso reverso caminha do fim ao início, seguindo as referências prev.'
+        : 'O percurso caminha pelos nós do início ao fim.';
     }
     if (inserting) {
       if (pendingNode) {
         var ref = nextRef(pendingNode);
+        var backref = prevRef(pendingNode);
         if (op === 'Inserção no início' && ref.id != null && chain.ids[ref.id]) {
           return 'O novo nó ' + valText(pendingNode) + ' já aponta para o antigo início da lista.';
+        }
+        if (op === 'Inserção em posição' && aid != null && map[aid]) {
+          return 'Percorrendo a lista até a posição de inserção.';
         }
         if (op === 'Inserção no final' && ref.id != null && chain.ids[ref.id]) {
           return 'O novo nó ' + valText(pendingNode) + ' está no fim e será ligado ao último nó.';
         }
-        /* durante o percurso até o último nó, o passo é a caminhada — não a
-         * criação do nó (que já apareceu quando aconteceu) */
+        if (doubly && backref.id != null && chain.ids[backref.id]) {
+          return 'O PREV do novo nó ' + valText(pendingNode) + ' aponta para o nó anterior da lista.';
+        }
         if (op === 'Inserção no final' && aid != null && map[aid]) {
           return 'Percorrendo a lista até o último nó.';
         }
-        return 'O novo nó ' + valText(pendingNode) + ' foi criado; a referência next ainda não foi ligada.';
+        return 'O novo nó ' + valText(pendingNode) + ' foi criado; ' +
+          (doubly ? 'as referências prev e next ainda não foram ligadas.' : 'a referência next ainda não foi ligada.');
       }
       if (headChanged && chain.nodes.length) {
         return 'HEAD agora aponta para o nó ' + valText(chain.nodes[0]) + '.';
       }
+      if (doubly && tailChanged && sel.tailId != null && map[sel.tailId]) {
+        return 'TAIL agora aponta para o nó ' + valText(map[sel.tailId]) + '.';
+      }
       if (changedNode) {
         return 'A referência NEXT do nó ' + valText(changedNode) + ' passou a apontar para o novo nó.';
+      }
+      if (doubly && changedPrevNode) {
+        return 'A referência PREV do nó ' + valText(changedPrevNode) + ' foi atualizada.';
       }
       if (aid != null && map[aid]) {
         return op === 'Inserção no final'
@@ -878,11 +962,18 @@
       }
       return 'A lista está sendo atualizada.';
     }
-    if (op === 'Remoção') {
+    if (removing) {
+      /* o passo que move o TAIL ainda antes de desconectar o nó removido */
+      if (tailChanged && !removed.length && sel.tailId != null && map[sel.tailId]) {
+        return 'TAIL passou para o nó ' + valText(map[sel.tailId]) + '; o antigo último será desconectado.';
+      }
       if (removed.length) {
         var txt = 'O nó ' + valText(removed[0]) + ' foi removido da lista.';
         if (headChanged && chain.nodes.length) txt += ' HEAD passou para ' + valText(chain.nodes[0]) + '.';
+        else if (tailChanged && chain.nodes.length) txt += ' TAIL passou para ' + valText(chain.nodes[chain.nodes.length - 1]) + '.';
+        else if (changedNode && nextRef(changedNode).id == null) txt += ' O novo último nó agora termina em undefined.';
         else if (changedNode) txt += ' A referência do nó anterior agora aponta para o sucessor.';
+        if (doubly && changedPrevNode && !headChanged) txt += ' O PREV do nó seguinte foi atualizado.';
         return txt;
       }
       if (aid != null && map[aid]) return 'Comparando o próximo nó com o valor procurado antes de remover.';
@@ -1041,8 +1132,10 @@
   /* ------------------------------------------------------------------ */
 
   /* percorre a lista a partir de um nó na ordem real das referências,
-   * guardando os ids (e detectando um ciclo acidental, se existir) */
-  function listChain(root) {
+   * guardando os ids (e detectando um ciclo acidental, se existir).
+   * Referências serializadas como {t:'ref'} (ciclo real) são resolvidas
+   * pelo passo atual para o ciclo continuar sendo detectado. */
+  function listChain(root, step) {
     var nodes = [];
     var ids = Object.create(null);
     var cur = root;
@@ -1052,19 +1145,32 @@
       ids[cur.id] = true;
       nodes.push(cur);
       var p = propOf(cur, LIST_NEXT);
-      cur = p && isObj(p.value) ? p.value : null;
+      var nxt = p ? p.value : null;
+      if (nxt && nxt.t === 'ref' && step) nxt = DSV.findValueById(step, nxt.id);
+      cur = isObj(nxt) ? nxt : null;
     }
     return { nodes: nodes, ids: ids, cycleId: cycleId };
   }
 
-  /* destino real da referência next do nó: {id, val, node} — id null
-   * quando a lista termina (undefined/null/outro primitivo) */
-  function nextRef(sv) {
-    var p = propOf(sv, LIST_NEXT);
-    if (!p) return { id: null, val: '?' };
-    if (isObj(p.value)) return { id: p.value.id, val: nodeValue(p.value), node: p.value };
-    if (isNullSer(p.value)) return { id: null, val: p.value.v === undefined ? 'undefined' : 'null' };
-    return { id: null, val: DSV.fmtSerializedShort(p.value) };
+  /* destino real de uma referência (next/prev): {id, val, node} — id null
+   * quando aponta para nada (undefined/null/outro primitivo) */
+  function refProp(sv, names) {
+    var p = propOf(sv, names);
+    if (!p) return { id: null, val: '?', name: null };
+    var v = p.value;
+    if (isObj(v)) return { id: v.id, val: nodeValue(v), node: v, name: p.name };
+    if (v && v.t === 'ref') return { id: v.id, val: '→ nó #' + v.id, name: p.name, ref: true };
+    if (isNullSer(v)) return { id: null, val: v.v === undefined ? 'undefined' : 'null', name: p.name };
+    return { id: null, val: DSV.fmtSerializedShort(v), name: p.name };
+  }
+
+  function nextRef(sv) { return refProp(sv, LIST_NEXT); }
+  function prevRef(sv) { return refProp(sv, LIST_PREV); }
+
+  /* operações de inserção da lista (inclui as da lista dupla) */
+  function isInsertingOp(op) {
+    return op === 'insertAtBeginning' || op === 'insertAtEnd' ||
+      op === 'append' || op === 'prepend' || op === 'insertAt';
   }
 
   /* localiza a mesma lista em outro passo (para comparar as referências e o
@@ -1085,14 +1191,17 @@
   function listStepDiff(sel, ctx, chain) {
     var prevSel = ctx && ctx.prevStep ? DSV.findListInStep(ctx.prevStep, sel) : null;
     var prevRoot = prevSel && prevSel.id != null ? DSV.findValueById(ctx.prevStep, prevSel.id) : null;
-    var prevChain = isObj(prevRoot) ? listChain(prevRoot) : { nodes: [], ids: Object.create(null) };
+    var prevChain = isObj(prevRoot) ? listChain(prevRoot, ctx.prevStep) : { nodes: [], ids: Object.create(null) };
     var prevById = Object.create(null);
     prevChain.nodes.forEach(function (n) { prevById[n.id] = n; });
 
     var changed = Object.create(null);
+    var changedPrev = Object.create(null);
     chain.nodes.forEach(function (n) {
       var pn = prevById[n.id];
-      if (pn && nextRef(pn).id !== nextRef(n).id) changed[n.id] = true;
+      if (!pn) return;
+      if (nextRef(pn).id !== nextRef(n).id) changed[n.id] = true;
+      if (prevRef(pn).id !== prevRef(n).id) changedPrev[n.id] = true;
     });
 
     /* nós que existem no escopo, são nós de lista e ainda não fazem parte da
@@ -1102,19 +1211,23 @@
      * então o critério é a presença na cadeia, não no escopo. */
     var pending = [];
     var pendingChanged = Object.create(null);
+    var pendingChangedPrev = Object.create(null);
     var opFrame = ctx && ctx.step ? opFrameName(ctx.step.stack) : null;
-    var inserting = opFrame === 'insertAtBeginning' || opFrame === 'insertAtEnd';
-    if (ctx && ctx.pointers && inserting) {
+    if (ctx && ctx.pointers && isInsertingOp(opFrame)) {
       Object.keys(ctx.pointers).forEach(function (idStr) {
         var id = Number(idStr);
         if (chain.ids[id] || prevChain.ids[id]) return;
         var sv = DSV.findValueById(ctx.step, id);
         if (!isObj(sv) || !isListNode(sv)) return;
         pending.push(sv);
-        /* o pendente também troca de referência (ex.: "newNode.next = head"):
-         * compara com o passo anterior para destacar a ligação na hora */
+        /* o pendente também troca de referência (ex.: "newNode.next = head"
+         * ou "newNode.prev = tail"): compara com o passo anterior para
+         * destacar a ligação na hora */
         var prevSv = ctx.prevStep ? DSV.findValueById(ctx.prevStep, id) : null;
-        if (isObj(prevSv) && nextRef(prevSv).id !== nextRef(sv).id) pendingChanged[id] = true;
+        if (isObj(prevSv)) {
+          if (nextRef(prevSv).id !== nextRef(sv).id) pendingChanged[id] = true;
+          if (prevRef(prevSv).id !== prevRef(sv).id) pendingChangedPrev[id] = true;
+        }
       });
     }
 
@@ -1123,9 +1236,12 @@
       prevChain: prevChain,
       prevById: prevById,
       changed: changed,
+      changedPrev: changedPrev,
       pending: pending,
       pendingChanged: pendingChanged,
-      headChanged: !!(prevSel && prevSel.id !== sel.id)
+      pendingChangedPrev: pendingChangedPrev,
+      headChanged: !!(prevSel && prevSel.id !== sel.id),
+      tailChanged: !!(prevSel && (prevSel.tailId || null) !== (sel.tailId || null) && sel.tailId != null)
     };
   }
 
@@ -1136,7 +1252,7 @@
     if (!ctx || !ctx.nextStep) return out;
     var nextSel = DSV.findListInStep(ctx.nextStep, sel);
     var nextRoot = nextSel && nextSel.id != null ? DSV.findValueById(ctx.nextStep, nextSel.id) : null;
-    var nextChain = isObj(nextRoot) ? listChain(nextRoot) : { nodes: [], ids: Object.create(null) };
+    var nextChain = isObj(nextRoot) ? listChain(nextRoot, ctx.nextStep) : { nodes: [], ids: Object.create(null) };
     chain.nodes.forEach(function (n) {
       if (!nextChain.ids[n.id]) out[n.id] = true;
     });
@@ -1145,16 +1261,23 @@
 
   /* lado do nó pendente: inserções no início entram pela esquerda; as demais
    * aparecem à direita, depois do terminador, até estarem ligadas */
-  function pendingSide(step, ref, chainIds) {
+  function pendingSide(step, node, chainIds) {
     var op = opFrameName(step && step.stack);
-    if (op === 'insertAtBeginning' || /inicio|beginning/i.test(op || '')) return 'left';
-    if (op === 'insertAtEnd' || /fim|end/i.test(op || '')) return 'right';
-    return ref.id != null && chainIds[ref.id] ? 'left' : 'right';
+    if (op === 'prepend' || op === 'insertAtBeginning' || /inicio|beginning/i.test(op || '')) return 'left';
+    if (op === 'append' || op === 'insertAtEnd' || /fim|end/i.test(op || '')) return 'right';
+    var nx = nextRef(node);
+    var pv = prevRef(node);
+    var nextLinked = nx.id != null && !!chainIds[nx.id];
+    var prevLinked = pv.id != null && !!chainIds[pv.id];
+    if (nextLinked && !prevLinked) return 'left';
+    return 'right';
   }
 
   /* transição real do cursor na lista: o nó do passo anterior (mesma
    * operação, mesmo rótulo) aponta para o nó atual — a conexão percorrida
-   * fica em destaque, como a seta contextual da árvore */
+   * fica em destaque, como a seta contextual da árvore. O percurso reverso
+   * caminha por prev. */
+  var LIST_REVERSE_RX = /reverse|reverso|contrario|contrário/i;
   function listTraversalFrom(ctx, root) {
     if (!ctx || !ctx.steps || ctx.stepIndex == null || ctx.stepIndex <= 0 || !isObj(root)) return null;
     var step = ctx.steps[ctx.stepIndex];
@@ -1163,6 +1286,7 @@
     if (!cur) return null;
     var op = opFrameName(step.stack);
     if (!op || !LIST_OP_NAMES[op]) return null;
+    var reverse = LIST_REVERSE_RX.test(op);
 
     var curFrames = frameNames(step.stack);
     for (var j = ctx.stepIndex - 1; j >= 0; j--) {
@@ -1173,16 +1297,25 @@
       if (!framesRelated(frameNames(prev.stack), curFrames)) continue;
       var fromNode = DSV.findValueById(prev, info.id);
       if (!isObj(fromNode) || !isListNode(fromNode)) continue;
-      if (nextRef(fromNode).id !== cur.id) continue;
-      return { fromId: info.id, toId: cur.id };
+      var link = reverse ? prevRef(fromNode).id : nextRef(fromNode).id;
+      if (link !== cur.id) continue;
+      return { fromId: info.id, toId: cur.id, dir: reverse ? 'prev' : 'next' };
     }
     return null;
   }
 
-  /* seta horizontal entre a região NEXT e o próximo nó (ou o terminador) */
-  function listArrowHtml(cls) {
-    return '<svg class="list-link' + (cls ? ' ' + cls : '') + '" width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">' +
-      '<path class="list-link-shape" d="M1 7H20M28 7l-7-3.8v7.6Z" />' +
+  /* seta horizontal entre a região NEXT e o próximo nó (ou o terminador);
+   * dir 'back' espelha a seta (a região PREV aponta para o nó anterior).
+   * Em um par da lista dupla (aligned), as duas direções usam a mesma haste
+   * (x 9..21), uma acima da outra, e só o bico muda de lado — assim as setas
+   * ficam alinhadas verticalmente em vez de cruzarem no vão. */
+  function listArrowHtml(cls, dir, aligned) {
+    var back = dir === 'back';
+    var d;
+    if (back) d = aligned ? 'M21 7H9M1 7l8-4v8Z' : 'M29 7H9M1 7l8-4v8Z';
+    else d = aligned ? 'M9 7H21M29 7l-8-4v8Z' : 'M1 7H21M29 7l-8-4v8Z';
+    return '<svg class="list-link' + (back ? ' back' : '') + (cls ? ' ' + cls : '') + '" width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">' +
+      '<path class="list-link-shape" d="' + d + '" />' +
       '</svg>';
   }
 
@@ -1204,18 +1337,25 @@
   }
 
   /* unidades dos nós recém-criados que ainda não fazem parte da lista */
-  function listPendingUnitsHtml(list, ctx, chain, side, changedMap) {
+  function listPendingUnitsHtml(list, ctx, chain, side, changedMap, opts) {
+    opts = opts || {};
     var out = '';
     list.forEach(function (node) {
       var ref = nextRef(node);
+      var backRef = prevRef(node);
       var linked = ref.id != null && !!chain.ids[ref.id];
+      var backLinked = backRef.id != null && !!chain.ids[backRef.id];
       out += listUnitHtml(node, {
         chips: chipsFor((ctx.pointers || {})[node.id]),
         pending: true,
         isNew: true,
         changedRef: !!(changedMap && changedMap[node.id]),
+        changedPrev: !!(opts.changedPrev && opts.changedPrev[node.id]),
+        doubly: !!opts.doubly,
         arrow: linked,
         arrowCls: 'new',
+        backArrow: backLinked,
+        backArrowCls: 'new',
         enterDir: side,
         exitDir: side
       });
@@ -1242,8 +1382,9 @@
     return 1;
   }
 
-  /* unidade da lista: chips acima, nó dividido em VALUE/NEXT e a seta que
-   * parte da região NEXT; todos os estados são calculados do passo */
+  /* unidade da lista: chips acima, nó dividido em PREV/VALUE/NEXT (a lista
+   * dupla ganha a região PREV) e as setas que saem de cada região; todos os
+   * estados são calculados do passo */
   function listUnitHtml(node, opts) {
     var nodeCls = 'list-node';
     if (opts.pending) nodeCls += ' pending';
@@ -1259,20 +1400,33 @@
     if (opts.head) {
       ptrs += '<span class="list-head-tag' + (opts.headChanged ? ' changed' : '') + '" title="início da lista (head)">HEAD</span>';
     }
+    if (opts.tail) {
+      ptrs += '<span class="list-tail-tag' + (opts.tailChanged ? ' changed' : '') + '" title="fim da lista (tail)">TAIL</span>';
+    }
     (opts.chips || []).forEach(function (c) {
       ptrs += '<span class="ptr-chip">' + esc(c) + '</span>';
     });
     if (opts.pending) ptrs += '<span class="list-pending-note" title="nó criado que ainda não faz parte da lista">fora da lista</span>';
+
+    var arrows;
+    if (opts.doubly) {
+      var fwd = opts.arrow === false ? '<span class="list-lane"></span>' : listArrowHtml(opts.arrowCls, null, !!opts.arrowAligned);
+      var back = opts.backArrow ? listArrowHtml(opts.backArrowCls, 'back', true) : '<span class="list-lane"></span>';
+      arrows = '<div class="list-arrows">' + fwd + back + '</div>';
+    } else {
+      arrows = opts.arrow === false ? '' : listArrowHtml(opts.arrowCls);
+    }
 
     return '<div class="list-unit' + (opts.pending ? ' pending' : '') + '" data-k="n' + node.id + '" data-enter="' + opts.enterDir + '" data-exit="' + opts.exitDir + '">' +
       '<div class="list-node-wrap">' +
       '<div class="list-ptrs">' + ptrs + '</div>' +
       '<div class="list-box-row">' +
       '<div class="' + nodeCls + '"' + (title ? ' title="' + title + '"' : '') + '>' +
+      (opts.doubly ? '<span class="list-prev' + (opts.changedPrev ? ' changed' : '') + '" title="referência para o nó anterior (node.prev)">PREV<span class="list-prev-dot"></span></span>' : '') +
       '<span class="list-value">' + esc(nodeValue(node)) + '</span>' +
       '<span class="list-next' + (opts.changedRef ? ' changed' : '') + '" title="referência para o próximo nó (node.next)">NEXT<span class="list-next-dot"></span></span>' +
       '</div>' +
-      (opts.arrow === false ? '' : listArrowHtml(opts.arrowCls)) +
+      arrows +
       '</div>' +
       '</div>' +
       '</div>';
@@ -1280,7 +1434,7 @@
 
   function renderList(container, v, sel, ctx) {
     ctx = ctx || {};
-    var chain = listChain(v);
+    var chain = listChain(v, ctx.step);
     var nodes = chain.nodes;
     var diff = listStepDiff(sel, ctx, chain);
     var visitMap = visitedMapFor(ctx, ctx.step);
@@ -1290,26 +1444,56 @@
     var badge = eventsBadge(sel, ctx);
     var dur = animDur(ctx);
     var scale = listScale(nodes.length);
+    var doubly = !!sel.doubly;
     var terminador = nodes.length ? nextRef(nodes[nodes.length - 1]) : { val: 'null' };
 
     var pendingLeft = [];
     var pendingRight = [];
+    var pendingOpts = { doubly: doubly, changedPrev: diff.pendingChangedPrev };
     diff.pending.forEach(function (sv) {
-      (pendingSide(ctx.step, nextRef(sv), chain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
+      (pendingSide(ctx.step, sv, chain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
     });
 
     DSV.flipRender(container, function () {
-      var html = head('Lista encadeada', structureSub(sel, nodes.length, 'nó', 'nós', 'Lista encadeada'), badge);
+      var html = head(doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
+        structureSub(sel, nodes.length, 'nó', 'nós', doubly ? 'Lista duplamente encadeada' : 'Lista encadeada'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap" style="--list-scale:' + scale + '">';
 
-      html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left', diff.pendingChanged);
+      html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left', diff.pendingChanged, pendingOpts);
+
+      /* ponta inicial da lista dupla: PREV do primeiro nó aponta para ∅ */
+      if (doubly && nodes.length && prevRef(nodes[0]).id == null) {
+        html += '<div class="list-unit" data-k="null-start"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
+          '<div class="list-box-row">' + listEndHtml(prevRef(nodes[0])) + listArrowHtml('start', 'back') + '</div></div></div>';
+      }
 
       for (var i = 0; i < nodes.length; i++) {
         var node = nodes[i];
+        var next = nodes[i + 1] || null;
         var isActive = activeId === node.id;
-        var isTraversed = !!(traversed && traversed.fromId === node.id);
         var changedRef = !!diff.changed[node.id];
+        var changedPrev = !!diff.changedPrev[node.id];
+        var fwdDraw;
+        var fwdCls = '';
+        var backDraw = false;
+        var backCls = '';
+        if (doubly) {
+          fwdDraw = next ? nextRef(node).id === next.id : nextRef(node).id == null;
+          if (fwdDraw) {
+            if (traversed && traversed.dir === 'next' && traversed.fromId === node.id) fwdCls = 'active';
+            else if (changedRef) fwdCls = 'new';
+          }
+          if (next && prevRef(next).id === node.id) {
+            backDraw = true;
+            if (traversed && traversed.dir === 'prev' && traversed.fromId === next.id && traversed.toId === node.id) backCls = 'active';
+            else if (diff.changedPrev[next.id]) backCls = 'new';
+          }
+        } else {
+          fwdDraw = true;
+          if (traversed && traversed.fromId === node.id) fwdCls = 'active';
+          else if (changedRef) fwdCls = 'new';
+        }
         html += listUnitHtml(node, {
           chips: chipsFor((ctx.pointers || {})[node.id]),
           isNew: !diff.prevChain.ids[node.id],
@@ -1317,10 +1501,17 @@
           active: isActive,
           target: !!willRemove[node.id],
           changedRef: changedRef,
-          traversed: isTraversed,
-          arrowCls: isTraversed ? 'active' : (changedRef ? 'new' : ''),
+          changedPrev: changedPrev,
+          doubly: doubly,
+          arrow: fwdDraw,
+          arrowCls: fwdCls,
+          arrowAligned: doubly && !!next && backDraw,
+          backArrow: backDraw,
+          backArrowCls: backCls,
           head: i === 0,
           headChanged: i === 0 && diff.headChanged,
+          tail: !!(sel.tailId != null && sel.tailId === node.id),
+          tailChanged: !!(sel.tailId != null && sel.tailId === node.id && diff.tailChanged),
           enterDir: i === 0 ? 'left' : 'right',
           exitDir: i === 0 ? 'left' : 'right'
         });
@@ -1334,7 +1525,7 @@
           '<div class="list-box-row">' + listEndHtml(terminador) + '</div></div></div>';
       }
 
-      html += listPendingUnitsHtml(pendingRight, ctx, chain, 'right', diff.pendingChanged);
+      html += listPendingUnitsHtml(pendingRight, ctx, chain, 'right', diff.pendingChanged, pendingOpts);
 
       html += '</div>';
       html += '</div>';
@@ -1352,27 +1543,38 @@
     var headP = wrapper ? propOf(wrapper, HEAD_KEYS) : null;
     var sentinel = 'null';
     if (headP && isNullSer(headP.value)) sentinel = headP.value.v === undefined ? 'undefined' : 'null';
+    var doubly = !!sel.doubly;
+    var tailSentinel = 'null';
+    if (doubly) {
+      var tailP = wrapper ? propOf(wrapper, TAIL_KEYS) : null;
+      if (tailP && isNullSer(tailP.value)) tailSentinel = tailP.value.v === undefined ? 'undefined' : 'null';
+    }
 
     var emptyChain = { nodes: [], ids: Object.create(null) };
     var diff = listStepDiff(sel, ctx, emptyChain);
     var pendingLeft = [];
     var pendingRight = [];
+    var pendingOpts = { doubly: doubly, changedPrev: diff.pendingChangedPrev };
     diff.pending.forEach(function (sv) {
-      (pendingSide(ctx.step, nextRef(sv), emptyChain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
+      (pendingSide(ctx.step, sv, emptyChain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
     });
 
     container.__treeScene = null;
     DSV.flipRender(container, function () {
-      var html = head('Lista encadeada', structureSub(sel, 0, 'nó', 'nós', 'Lista encadeada'), eventsBadge(sel, ctx));
+      var html = head(doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
+        structureSub(sel, 0, 'nó', 'nós', doubly ? 'Lista duplamente encadeada' : 'Lista encadeada'), eventsBadge(sel, ctx));
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap" style="--list-scale:' + listScale(0) + '">';
-      html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left', diff.pendingChanged);
+      html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left', diff.pendingChanged, pendingOpts);
       html += '<div class="list-unit" data-k="head-empty"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
         '<div class="list-box-row"><span class="list-head-tag" title="início da lista (head)">HEAD</span>' +
         listArrowHtml('start') +
-        listEndHtml({ val: sentinel }) +
-        '</div></div></div>';
-      html += listPendingUnitsHtml(pendingRight, ctx, emptyChain, 'right', diff.pendingChanged);
+        listEndHtml({ val: sentinel });
+      if (doubly) {
+        html += listArrowHtml('start', 'back') + '<span class="list-tail-tag" title="fim da lista (tail)">TAIL</span>';
+      }
+      html += '</div></div></div>';
+      html += listPendingUnitsHtml(pendingRight, ctx, emptyChain, 'right', diff.pendingChanged, pendingOpts);
       html += '</div>';
       html += '<div class="empty-inline list-empty-note">A lista está vazia neste passo.</div>';
       html += '</div></div>';
