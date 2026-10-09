@@ -975,6 +975,98 @@ test('modo debug: erro de sintaxe não entra em debug', () => {
 });
 
 /* ------------------------------------------------------------------ */
+console.log('\n[dica de variável: hover no editor]');
+
+/* O editor mede a largura do caractere com um span oculto. No DOM
+ * simulado, um span de 10 caracteres passa a medir 86.5px (8.65px por
+ * caractere) e o editor ganha um retângulo conhecido. */
+const origCreateElement = document.createElement;
+document.createElement = function (tag) {
+  const el = origCreateElement(tag);
+  if (tag === 'span') el.offsetWidth = 86.5;
+  return el;
+};
+$('code').getBoundingClientRect = () => ({ left: 100, top: 50, width: 500, height: 400 });
+$('code').scrollTop = 0;
+$('code').scrollLeft = 0;
+
+function hoverAt(line, col) {
+  const x = 100 + 12 + col * 8.65 + 1;   /* 12 = padding esquerdo do editor */
+  const y = 50 + 10 + line * 22 + 11;    /* 10 = padding superior, 22 = linha */
+  fire('code', 'mousemove', { clientX: x, clientY: y, buttons: 0 });
+}
+
+test('hover: balão mostra nome, escopo e valor do passo atual', () => {
+  $('code').value = 'let contador = 10;\ncontador = contador + 5;';
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  hoverAt(0, 5); /* meio de "contador" */
+  const timer = pendingTimers.pop();
+  assert(typeof timer === 'function', 'timer do hover agendado');
+  timer();
+  const html = $('varTip').innerHTML;
+  assert(!$('varTip').classList.contains('hidden'), 'balão visível');
+  assert(html.indexOf('var-tip-name">contador') >= 0, 'nome da variável: ' + html);
+  assert(html.indexOf('var-tip-scope">global') >= 0, 'escopo global: ' + html);
+  assert(html.indexOf('var-tip-val">15') >= 0, 'valor do último passo (15): ' + html);
+  fire('code', 'mouseleave', {});
+  assert($('varTip').classList.contains('hidden'), 'balão escondido ao sair do editor');
+});
+
+test('hover: dentro de função mostra parâmetro local', () => {
+  $('code').value = [
+    'let base = 10;',
+    'function soma(x) {',
+    '  let total = base + x;',
+    '  return total;',
+    '}',
+    'soma(5);'
+  ].join('\n');
+  fire('btnRun', 'click');
+  const total = parseInt($('slider').max, 10);
+  let achou = false;
+  for (let i = 0; i <= total && !achou; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    if (i > 0 && $('callstack').innerHTML.indexOf('soma') >= 0) achou = true;
+  }
+  assert(achou, 'entrou na função soma');
+  hoverAt(1, 14); /* parâmetro x da linha "function soma(x) {" */
+  const timer = pendingTimers.pop();
+  assert(typeof timer === 'function', 'timer do hover agendado');
+  timer();
+  const html = $('varTip').innerHTML;
+  assert(html.indexOf('var-tip-name">x') >= 0, 'parâmetro x: ' + html);
+  assert(html.indexOf('função atual') >= 0, 'escopo local: ' + html);
+  fire('code', 'mouseleave', {});
+});
+
+test('hover: editar o código desativa o balão até executar de novo', () => {
+  $('code').value = 'let valor = 1;';
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  $('code').value += '\n// editado';
+  fire('code', 'input', {});
+  hoverAt(0, 4); /* sobre "valor" */
+  assert(pendingTimers.length === 0, 'não agenda o balão com o trace antigo');
+  assert($('varTip').classList.contains('hidden'), 'balão continua escondido');
+});
+
+test('hover: palavra que não é variável não abre balão', () => {
+  $('code').value = 'let valor = 1;\nif (valor > 0) { valor = 2; }';
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  hoverAt(1, 0); /* "if" é palavra-chave, não variável */
+  const timer = pendingTimers.pop();
+  assert(typeof timer === 'function', 'timer agendado para a palavra');
+  timer();
+  assert($('varTip').classList.contains('hidden'), 'nenhum balão para palavra comum');
+  fire('code', 'mouseleave', {});
+});
+
+/* devolve o DOM simulado ao estado original para os testes seguintes */
+document.createElement = origCreateElement;
+
+/* ------------------------------------------------------------------ */
 console.log('\n[consistência index.html x app.js]');
 
 test('todos os ids usados no app existem no HTML', () => {

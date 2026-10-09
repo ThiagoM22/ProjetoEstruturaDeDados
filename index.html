@@ -58,10 +58,11 @@
     </div>
     <div class="editor" id="editor">
       <div class="gutter"><div id="gutterInner"></div></div>
-      <div class="code-viewport">
+      <div class="code-viewport" id="codeViewport">
         <pre id="highlight" class="code-highlight" aria-hidden="true"></pre>
         <div id="lineHilite" class="line-hilite"></div>
         <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" aria-label="Editor de código JavaScript"></textarea>
+        <div id="varTip" class="var-tip hidden" role="tooltip" aria-hidden="true"></div>
       </div>
     </div>
     <div class="statusbar">
@@ -183,7 +184,7 @@
   <ol>
     <li>Escolha um exemplo ou escreva seu código JavaScript na área à esquerda.</li>
     <li>Clique em <b>Executar</b> (ou <b>Ctrl+Enter</b>).</li>
-    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura. A faixa acima dos controles explica a operação do passo atual.</li>
+    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura. A faixa acima dos controles explica a operação do passo atual. Segure o mouse sobre uma variável do código para ver o valor dela naquele passo.</li>
     <li>Na visualização, <b>arraste</b> para mover o desenho e use a <b>roda do mouse</b> para dar zoom — ou os controles no topo do painel (100% e ajustar à tela).</li>
     <li>Precisa de mais espaço? Use <b>Código</b> e <b>Painéis</b> na barra superior para recolher o editor e o painel lateral; as abas mostram comandos, variáveis, chamadas ou saída quando você precisar.</li>
   </ol>

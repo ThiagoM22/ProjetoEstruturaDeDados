@@ -8,6 +8,8 @@
 
   var els = {
     code: $('code'),
+    codeViewport: $('codeViewport'),
+    varTip: $('varTip'),
     highlight: $('highlight'),
     gutter: $('gutterInner'),
     lineHilite: $('lineHilite'),
@@ -64,11 +66,14 @@
 
   var LINE_HEIGHT = 22;
   var PAD_TOP = 10;
+  var CODE_PAD_LEFT = 12;   /* padding esquerdo do editor (.code-input) */
+  var HOVER_DELAY = 350;    /* tempo com o mouse parado sobre a variável */
   var STORAGE_CODE = 'edviz.code';
   var STORAGE_EX = 'edviz.example';
 
   var state = {
     trace: null,
+    traceCode: null,   /* código que gerou o trace (o hover só vale para ele) */
     index: 0,
     playing: false,
     timer: null,
@@ -154,6 +159,7 @@
   }
 
   function syncScroll() {
+    hideVarTip();
     var st = els.code.scrollTop;
     var sl = els.code.scrollLeft;
     els.highlight.style.transform = 'translate(' + (-sl) + 'px,' + (-st) + 'px)';
@@ -184,6 +190,7 @@
   }
 
   function onEdit() {
+    hideVarTip();
     renderHighlight();
     renderGutter();
     syncScroll();
@@ -221,12 +228,136 @@
   });
 
   /* ------------------------------------------------------------------ */
+  /* Dica de variável (segurar o mouse sobre um identificador)           */
+  /* ------------------------------------------------------------------ */
+
+  /* Durante a reprodução do trace, o valor das variáveis do passo atual já
+   * está gravado no próprio passo (locals/this/globals) — o balão é só uma
+   * outra forma de ler o mesmo que o painel Variáveis mostra. */
+
+  var varTip = { key: null, timer: null, visible: false, mx: 0, my: 0 };
+  var codeCharW = 0;
+  var codeMeasure = null;
+
+  function hoverEnabled() {
+    return !!state.trace && steps().length > 0 && !state.playing &&
+      els.code.value === state.traceCode;
+  }
+
+  function hideVarTip() {
+    if (varTip.timer) { clearTimeout(varTip.timer); varTip.timer = null; }
+    varTip.key = null;
+    if (varTip.visible) {
+      varTip.visible = false;
+      els.varTip.classList.add('hidden');
+      els.varTip.innerHTML = '';
+    }
+  }
+
+  /* largura de um caractere na fonte monoespaçada do editor (medida uma vez) */
+  function measureCharWidth() {
+    if (codeCharW > 0) return codeCharW;
+    /* o realce é redesenhado a cada edição e leva o medidor junto */
+    if (codeMeasure && codeMeasure.parentNode === null) codeMeasure = null;
+    if (!codeMeasure) {
+      codeMeasure = document.createElement('span');
+      codeMeasure.className = 'code-measure';
+      codeMeasure.textContent = '0000000000';
+      if (els.highlight && typeof els.highlight.appendChild === 'function') {
+        els.highlight.appendChild(codeMeasure);
+      }
+    }
+    var w = 0;
+    if (codeMeasure) {
+      if (typeof codeMeasure.getBoundingClientRect === 'function') {
+        w = codeMeasure.getBoundingClientRect().width || 0;
+      }
+      if (!w) w = codeMeasure.offsetWidth || 0;
+    }
+    codeCharW = w > 0 ? w / 10 : 0;
+    return codeCharW;
+  }
+
+  /* converte a posição do mouse na palavra sob o cursor (ou null) */
+  function codeWordAt(clientX, clientY) {
+    if (typeof els.code.getBoundingClientRect !== 'function') return null;
+    var cw = measureCharWidth();
+    if (cw <= 0) return null;
+    var r = els.code.getBoundingClientRect();
+    var x = clientX - r.left + (els.code.scrollLeft || 0) - CODE_PAD_LEFT;
+    var y = clientY - r.top + (els.code.scrollTop || 0) - PAD_TOP;
+    if (x < 0 || y < 0) return null;
+    var line = Math.floor(y / LINE_HEIGHT);
+    var col = Math.floor(x / cw);
+    var name = DSV.identifierAt(els.code.value, line, col);
+    if (!name) return null;
+    return { key: line + ':' + name, name: name };
+  }
+
+  function positionVarTip(clientX, clientY) {
+    /* o balão é filho do viewport do editor — ancora pelo retângulo dele */
+    var r = typeof els.codeViewport.getBoundingClientRect === 'function'
+      ? els.codeViewport.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    var left = clientX - r.left + 14;
+    var top = clientY - r.top + 18;
+    var w = els.varTip.offsetWidth || 0;
+    var h = els.varTip.offsetHeight || 0;
+    var maxW = r.width || els.code.clientWidth || 0;
+    var maxH = r.height || els.code.clientHeight || 0;
+    if (w && maxW && left + w > maxW - 8) left = Math.max(4, maxW - w - 8);
+    if (h && maxH && top + h > maxH - 8) top = Math.max(4, clientY - r.top - h - 10);
+    els.varTip.style.left = left + 'px';
+    els.varTip.style.top = top + 'px';
+  }
+
+  function showVarTip(word, clientX, clientY) {
+    var info = DSV.resolveVariable(steps()[state.index], word.name);
+    if (!info) return; /* não é variável visível neste passo */
+    els.varTip.innerHTML =
+      '<div class="var-tip-head"><span class="var-tip-name">' + esc(info.name) + '</span>' +
+      '<span class="var-tip-scope">' + esc(info.scope) + '</span></div>' +
+      '<div class="var-tip-val">' + esc(DSV.fmtSerialized(info.sv)) + '</div>';
+    els.varTip.classList.remove('hidden');
+    varTip.visible = true;
+    positionVarTip(clientX, clientY);
+  }
+
+  function onCodeHover(ev) {
+    if (!hoverEnabled() || (typeof ev.buttons === 'number' && ev.buttons !== 0)) {
+      hideVarTip();
+      return;
+    }
+    var word = codeWordAt(ev.clientX, ev.clientY);
+    if (!word) { hideVarTip(); return; }
+    varTip.mx = ev.clientX;
+    varTip.my = ev.clientY;
+    if (varTip.visible && varTip.key === word.key) {
+      positionVarTip(varTip.mx, varTip.my); /* acompanha o mouse no mesmo nome */
+      return;
+    }
+    if (varTip.key === word.key && varTip.timer) return; /* já esperando o tempo */
+    hideVarTip();
+    varTip.key = word.key;
+    varTip.timer = setTimeout(function () {
+      varTip.timer = null;
+      if (!hoverEnabled() || varTip.key !== word.key) return;
+      showVarTip(word, varTip.mx, varTip.my);
+    }, HOVER_DELAY);
+  }
+
+  els.code.addEventListener('mousemove', onCodeHover);
+  els.code.addEventListener('mouseleave', hideVarTip);
+  els.code.addEventListener('mousedown', hideVarTip);
+
+  /* ------------------------------------------------------------------ */
   /* Execução                                                            */
   /* ------------------------------------------------------------------ */
 
   function run() {
     stopPlay();
     state.trace = DSV.interpret(els.code.value);
+    state.traceCode = els.code.value;
     state.opsMap = DSV.buildOpsMap(state.trace.steps);
     state.visit = DSV.computeVisitOrder(state.trace.steps);
     state.forced = null;
@@ -700,6 +831,7 @@
 
   function exitDebug() {
     if (!state.debug) return;
+    hideVarTip();
     state.debug = false;
     els.code.readOnly = false;
     els.code.classList.remove('readonly');
@@ -785,6 +917,7 @@
   }
 
   function goto(i) {
+    hideVarTip();
     var st = steps();
     if (!st.length) {
       els.stepLabel.textContent = 'passo 0/0';

@@ -79,4 +79,41 @@
     }
     return String(sv);
   };
+
+  /* Palavra (identificador) que contém a coluna `col` da linha `line` do
+   * texto — usada pela dica de variável do editor. Devolve null quando a
+   * posição não está sobre um identificador (espaço, pontuação, número...). */
+  DSV.identifierAt = function (text, line, col) {
+    var lines = String(text == null ? '' : text).split('\n');
+    if (line < 0 || line >= lines.length) return null;
+    var s = lines[line];
+    if (col < 0 || col >= s.length) return null;
+    if (!/[A-Za-z0-9_$]/.test(s.charAt(col))) return null;
+    var start = col;
+    while (start > 0 && /[A-Za-z0-9_$]/.test(s.charAt(start - 1))) start--;
+    var end = col + 1;
+    while (end < s.length && /[A-Za-z0-9_$]/.test(s.charAt(end))) end++;
+    var word = s.slice(start, end);
+    return /^[A-Za-z_$]/.test(word) ? word : null;
+  };
+
+  /* Variável visível no passo, na mesma ordem do painel Variáveis:
+   * this → locais da função atual → globais. Devolve {name, sv, scope}
+   * ou null quando o nome não é uma variável do passo. */
+  DSV.resolveVariable = function (step, name) {
+    if (!step || !name) return null;
+    if (name === 'this') {
+      if (!step.thisVal) return null;
+      return { name: 'this', scope: 'função atual', sv: step.thisVal };
+    }
+    var locals = step.locals || {};
+    if (Object.prototype.hasOwnProperty.call(locals, name)) {
+      return { name: name, scope: 'função atual', sv: locals[name] };
+    }
+    var globals = step.globals || {};
+    if (Object.prototype.hasOwnProperty.call(globals, name)) {
+      return { name: name, scope: 'global', sv: globals[name] };
+    }
+    return null;
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

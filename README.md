@@ -8,6 +8,7 @@ código JavaScript e o portal mostra, passo a passo:
 - os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
   árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
 - a **pilha de chamadas** (ótimo para enxergar a recursão da árvore);
+- o **valor de uma variável sob o mouse** — segure o mouse sobre o nome no editor e um balão mostra o valor dela no passo atual (da função, `this` ou global);
 - a **saída do `console.log`** ligada ao passo em que foi impressa.
 
 Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
@@ -103,6 +104,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
    - `Espaço` — play/pause
    - `Home` / `End` — primeiro / último passo
    - `F10` — **modo debug** (passo a passo por tecla)
+
+   Durante a execução, **segure o mouse sobre uma variável** no editor: um balão mostra nome, escopo e o valor dela naquele passo (o mesmo que o painel Variáveis exibe).
 4. Na visualização, **arraste** para mover o desenho e use a **roda do mouse** para dar zoom (ou os
    controles no topo do painel: `−`, `100%`, `+` e ajustar à tela). A faixa acima dos controles explica
    a operação do passo atual (nome da operação + o que aconteceu/acontecerá).
@@ -120,6 +123,9 @@ qualquer tecla** para executar a próxima — como um debugger. A cada tecla:
 - a linha atual é destacada no código (com um `▶` na margem);
 - a pilha/fila/lista/árvore é atualizada na hora, com as animações;
 - os painéis de variáveis, chamadas e saída acompanham em tempo real.
+
+Segurar o mouse sobre uma variável mostra o valor dela no passo em que a execução está — útil para
+acompanhar parâmetros e variáveis locais junto com a pilha de chamadas.
 
 `←` volta uma linha · `Home`/`End` vão ao início/fim · `Esc` sai e libera o editor para edição.
 Durante o debug o editor fica somente leitura, e a barra no topo da visualização mostra a dica e a
@@ -242,8 +248,8 @@ binária de busca (inserção/busca/percursos, remoção nos três casos, duplic
 e explicações), a árvore binária simples (inserção por nível, busca, remoção com promoção,
 percursos, snapshots e explicação contextual), a lista simplesmente encadeada (operações, tamanho
 após cada operação, terminador, remoção de duplicados, render VALUE/NEXT/HEAD, destaques e
-explicação), recolhimento de painéis, os 14 exemplos e a renderização de todos os passos na
-interface.
+explicação), recolhimento de painéis, a dica de variável do editor (hover), os 14 exemplos e a
+renderização de todos os passos na interface.
 
 ## Ideias de evolução
 

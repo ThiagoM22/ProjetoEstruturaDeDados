@@ -603,6 +603,49 @@ kbd {
 
 .line-hilite.err { background: var(--danger-soft); border-left-color: var(--danger); }
 
+/* medidor invisível: largura de um caractere na fonte do editor */
+.code-measure {
+  position: absolute;
+  left: 0; top: 0;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+/* dica de variável: aparece ao segurar o mouse sobre um identificador */
+.var-tip {
+  position: absolute;
+  z-index: 3;
+  max-width: 340px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  font: 12px/1.55 var(--font-mono);
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+.var-tip.hidden { display: none; }
+
+.var-tip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 2px;
+}
+
+.var-tip-name { font-weight: 600; color: var(--tk-var); }
+
+.var-tip-scope { flex: none; font: 10.5px var(--font-ui); color: var(--text-muted); }
+
+.var-tip-val {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* tokens do código */
 .tok-comment { color: var(--tk-comment); }
 .tok-string  { color: var(--tk-str); }

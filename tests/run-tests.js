@@ -2652,6 +2652,70 @@ test('BST: render da busca destaca um único nó e não vaza o campo privado', (
 });
 
 /* ---------------------------------------------------------------- */
+console.log('\n[hover: identificador sob o mouse e variável do passo]');
+
+test('identifierAt: palavra completa na coluna e null fora de identificador', () => {
+  const code = 'let contador = 10;\ncontador = contador + 5;';
+  eq(DSV.identifierAt(code, 0, 4), 'contador', 'início da palavra');
+  eq(DSV.identifierAt(code, 0, 9), 'contador', 'meio da palavra');
+  eq(DSV.identifierAt(code, 0, 11), 'contador', 'fim da palavra');
+  eq(DSV.identifierAt(code, 1, 0), 'contador', 'linha 2');
+  eq(DSV.identifierAt(code, 0, 3), null, 'espaço não é identificador');
+  eq(DSV.identifierAt(code, 0, 13), null, 'operador =');
+  eq(DSV.identifierAt(code, 0, 16), null, 'número não é identificador');
+  eq(DSV.identifierAt(code, 5, 0), null, 'linha fora do texto');
+  eq(DSV.identifierAt(code, 0, 99), null, 'coluna fora da linha');
+});
+
+test('identifierAt: nomes com _ e $ e dígitos internos', () => {
+  const code = 'var _tmp$1 = outro_nome;';
+  eq(DSV.identifierAt(code, 0, 5), '_tmp$1');
+  eq(DSV.identifierAt(code, 0, 14), 'outro_nome');
+});
+
+test('resolveVariable: local, global, this e desconhecida', () => {
+  const t = run([
+    'let x = 1;',
+    'function f(y) {',
+    '  let z = x + y;',
+    '  return z;',
+    '}',
+    'f(2);'
+  ].join('\n'));
+  noError(t);
+  const dentro = t.steps.filter((s) => s.locals && s.locals.y).pop();
+  assert(dentro, 'existe passo dentro de f');
+  const ry = DSV.resolveVariable(dentro, 'y');
+  eq(ry.scope, 'função atual', 'y é local');
+  eq(ry.sv.v, 2, 'valor do parâmetro');
+  const rz = DSV.resolveVariable(dentro, 'z');
+  eq(rz.scope, 'função atual', 'z é local');
+  const rx = DSV.resolveVariable(dentro, 'x');
+  eq(rx.scope, 'global', 'x é global mesmo dentro da função');
+  eq(rx.sv.v, 1, 'valor de x');
+  eq(DSV.resolveVariable(dentro, 'naoExiste'), null, 'nome desconhecido');
+  eq(DSV.resolveVariable(null, 'x'), null, 'sem passo');
+});
+
+test('resolveVariable: this nas classes', () => {
+  const t = run([
+    'class Pilha {',
+    '  constructor() { this.itens = []; }',
+    '}',
+    'const p = new Pilha();'
+  ].join('\n'));
+  noError(t);
+  const comThis = t.steps.filter((s) => s.thisVal).pop();
+  assert(comThis, 'existe passo com this');
+  const info = DSV.resolveVariable(comThis, 'this');
+  assert(info, 'this resolvido');
+  eq(info.scope, 'função atual', 'this é da função atual');
+  assert(info.sv && info.sv.t === 'o', 'this serializado como objeto');
+  assert(info.sv.props && info.sv.props.itens, 'campo itens no this');
+  eq(DSV.resolveVariable(comThis, 'naoExiste'), null, 'nome desconhecido');
+});
+
+/* ---------------------------------------------------------------- */
 console.log('\n[todos os exemplos executam sem erro]');
 DSV.EXAMPLES.forEach((ex) => {
   test('exemplo: ' + ex.name, () => {
