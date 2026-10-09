@@ -15,7 +15,8 @@
   var NODE_VALUE = ['valor', 'value', 'dado', 'data', 'chave', 'key', 'elemento', 'item', 'nome'];
   var ITEM_KEYS = ['itens', 'items', 'elementos', 'dados', 'valores', 'array', 'lista', 'fila', 'pilha'];
   var ROOT_KEYS = ['raiz', 'root'];
-  var HEAD_KEYS = ['inicio', 'início', 'head', 'primeiro', 'cabeca', 'cabeça'];
+  /* campos privados aparecem serializados com "#" na frente (#head) */
+  var HEAD_KEYS = ['inicio', 'início', 'head', '#head', '#inicio', '#início', 'primeiro', 'cabeca', 'cabeça'];
 
   var STACK_RX = /pilha|stack/i;
   var QUEUE_RX = /fila|queue/i;
@@ -140,6 +141,9 @@
   /* variáveis de trabalho do algoritmo (cursor/índice da BFS) não viram
    * etiqueta: o nó continua marcado pelo realce roxo, sem texto */
   var HIDDEN_CHIP_RX = /^(cursor|cur)$/i;
+  /* campos privados (#head, #length…) são estado interno: o HEAD tem o
+   * indicador próprio e não vira etiqueta sobre o nó */
+  var PRIVATE_CHIP_RX = /^#/;
 
   function chipDefs(labels) {
     var seen = Object.create(null);
@@ -153,7 +157,8 @@
     /* "esquerda"/"direita"/"proximo" são caminhos de navegação, não estado:
      * nunca viram etiqueta permanente no canvas; índices de fila ("0") também não */
     return uniq.filter(function (c) {
-      return !CHILD_ALIAS_RX.test(c.text) && !/^\d+$/.test(c.text) && !HIDDEN_CHIP_RX.test(c.text);
+      return !CHILD_ALIAS_RX.test(c.text) && !/^\d+$/.test(c.text) &&
+        !HIDDEN_CHIP_RX.test(c.text) && !PRIVATE_CHIP_RX.test(c.text);
     }).slice(0, 2);
   }
 
@@ -495,6 +500,21 @@
     desenfileirar: 'Desenfileiramento'
   };
 
+  /* operações da lista simplesmente encadeada (mesmos nomes da aula):
+   * alimentam o nome da operação na faixa de explicação e a segmentação
+   * das visitas por operação (epochs) */
+  var LIST_OP_NAMES = {
+    insertAtBeginning: 'Inserção no início',
+    insertAtEnd: 'Inserção no final',
+    removeByValue: 'Remoção',
+    find: 'Busca',
+    size: 'Tamanho',
+    isEmpty: 'Verificação',
+    toString: 'Representação',
+    percorrer: 'Percurso'
+  };
+  Object.keys(LIST_OP_NAMES).forEach(function (k) { OP_NAMES[k] = LIST_OP_NAMES[k]; });
+
   /* nome da operação: pela chamada em execução (pilha de chamadas, do
    * escopo mais externo para o mais interno) e, sem chamada, pela linha */
   function opNameFrom(step, lineText) {
@@ -512,6 +532,15 @@
     if (/posOrdem\s*\(/.test(line)) return 'Percurso pós-ordem';
     if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
     if (/\.estaVazia\s*\(/.test(line)) return 'Verificação';
+    /* chamadas da lista simplesmente encadeada (o passo da chamada já
+     * rodou a operação; a pilha não tem mais o frame do método) */
+    if (/\.insertAtBeginning\s*\(/.test(line)) return 'Inserção no início';
+    if (/\.insertAtEnd\s*\(/.test(line)) return 'Inserção no final';
+    if (/\.removeByValue\s*\(/.test(line)) return 'Remoção';
+    if (/\.find\s*\(/.test(line)) return 'Busca';
+    if (/\.size\s*\(/.test(line)) return 'Tamanho';
+    if (/\.isEmpty\s*\(/.test(line)) return 'Verificação';
+    if (/\.toString\s*\(/.test(line)) return 'Representação';
     if (/console\.log/.test(line)) return 'Saída';
     return 'Execução';
   }
@@ -612,6 +641,123 @@
     return 'Sem alterações na árvore neste passo.';
   }
 
+  /* primeiro nó em escopo que ainda não faz parte da lista (inserção em
+   * curso, ex.: "const newNode = new Node(...)") */
+  function findPendingNode(step, chain, prevChain, inserting) {
+    if (!inserting) return null;
+    var pending = null;
+    Object.keys(step.pointers || {}).forEach(function (idStr) {
+      if (pending) return;
+      var id = Number(idStr);
+      if (chain.ids[id] || prevChain.ids[id]) return;
+      var sv = DSV.findValueById(step, id);
+      if (isObj(sv) && isListNode(sv)) pending = sv;
+    });
+    return pending;
+  }
+
+  /* frase para a lista: compara o passo com o anterior — criação do nó,
+   * ligação da referência, mudança de HEAD, percurso e remoção */
+  function listExplanation(step, sel, opts, op) {
+    var lineText = (opts && opts.lineText) || '';
+    var inserting = op === 'Inserção no início' || op === 'Inserção no final';
+    var prevSel = opts && opts.prevStep ? DSV.findListInStep(opts.prevStep, sel) : null;
+    var prevRoot = prevSel && prevSel.id != null ? DSV.findValueById(opts.prevStep, prevSel.id) : null;
+    var prevChain = isObj(prevRoot) ? listChain(prevRoot) : { nodes: [], ids: Object.create(null) };
+
+    if (sel.id == null) {
+      var pendEmpty = findPendingNode(step, { ids: Object.create(null) }, prevChain, inserting);
+      if (pendEmpty) return 'O novo nó ' + valText(pendEmpty) + ' foi criado; a referência next ainda não foi ligada.';
+      if (prevChain.nodes.length && op === 'Remoção') {
+        return 'O nó ' + valText(prevChain.nodes[0]) + ' foi removido e a lista ficou vazia.';
+      }
+      if (!prevChain.nodes.length && op === 'Remoção') return 'A lista está vazia; não há nada para remover.';
+      if (!prevChain.nodes.length && op === 'Busca') return 'A lista está vazia; não há nós para procurar.';
+      if (inserting) return 'A lista ainda está vazia: HEAD não aponta para nenhum nó.';
+      return 'A lista está vazia neste passo.';
+    }
+
+    var root = DSV.findValueById(step, sel.id);
+    if (!isObj(root)) return null;
+    var chain = listChain(root);
+    var map = Object.create(null);
+    chain.nodes.forEach(function (n) { map[n.id] = n; });
+
+    var removed = prevChain.nodes.filter(function (n) { return !chain.ids[n.id]; });
+    var changedNode = null;
+    chain.nodes.forEach(function (n) {
+      if (changedNode) return;
+      var pn = null;
+      for (var i = 0; i < prevChain.nodes.length; i++) {
+        if (prevChain.nodes[i].id === n.id) { pn = prevChain.nodes[i]; break; }
+      }
+      if (pn && nextRef(pn).id !== nextRef(n).id) changedNode = n;
+    });
+    var headChanged = !!(prevSel && prevSel.id !== sel.id);
+    var aid = activeNodeId(step.pointers || {});
+    var pendingNode = findPendingNode(step, chain, prevChain, inserting);
+
+    /* passo do contador interno (#length++ / #length--) */
+    if ((inserting || op === 'Remoção') && /#?(length|tamanho)\s*(\+\+|--|\+=|-=)/.test(lineText)) {
+      return 'O tamanho da lista foi atualizado.';
+    }
+
+    /* retorno explícito de busca/remoção sem resultado */
+    if (/^return\s+(undefined|null|false)\b/.test(lineText)) {
+      if (op === 'Busca') return 'O valor não foi encontrado — a busca chegou ao fim da lista.';
+      if (op === 'Remoção') return 'O valor não está na lista; nada foi removido.';
+    }
+
+    if (op === 'Busca') {
+      if (aid != null && map[aid]) return 'Comparando o nó ' + valText(map[aid]) + ' com o valor procurado.';
+      return 'A busca percorre a lista do início ao fim.';
+    }
+    if (op === 'Verificação') return chain.nodes.length ? 'A lista não está vazia.' : 'A lista está vazia.';
+    if (op === 'Tamanho') {
+      return 'O contador da lista registra ' + chain.nodes.length + (chain.nodes.length === 1 ? ' nó.' : ' nós.');
+    }
+    if (op === 'Representação') return null;
+    if (op === 'Percurso') {
+      if (aid != null && map[aid]) return 'Visitando o nó ' + valText(map[aid]) + '.';
+      return 'O percurso caminha pelos nós do início ao fim.';
+    }
+    if (inserting) {
+      if (pendingNode) {
+        var ref = nextRef(pendingNode);
+        if (op === 'Inserção no início' && ref.id != null && chain.ids[ref.id]) {
+          return 'O novo nó ' + valText(pendingNode) + ' já aponta para o antigo início da lista.';
+        }
+        if (op === 'Inserção no final' && ref.id != null && chain.ids[ref.id]) {
+          return 'O novo nó ' + valText(pendingNode) + ' está no fim e será ligado ao último nó.';
+        }
+        return 'O novo nó ' + valText(pendingNode) + ' foi criado; a referência next ainda não foi ligada.';
+      }
+      if (headChanged && chain.nodes.length) {
+        return 'HEAD agora aponta para o nó ' + valText(chain.nodes[0]) + '.';
+      }
+      if (changedNode) {
+        return 'A referência NEXT do nó ' + valText(changedNode) + ' passou a apontar para o novo nó.';
+      }
+      if (aid != null && map[aid]) {
+        return op === 'Inserção no final'
+          ? 'Percorrendo a lista até o último nó.'
+          : 'Ajustando as referências da lista.';
+      }
+      return 'A lista está sendo atualizada.';
+    }
+    if (op === 'Remoção') {
+      if (removed.length) {
+        var txt = 'O nó ' + valText(removed[0]) + ' foi removido da lista.';
+        if (headChanged && chain.nodes.length) txt += ' HEAD passou para ' + valText(chain.nodes[0]) + '.';
+        else if (changedNode) txt += ' A referência do nó anterior agora aponta para o sucessor.';
+        return txt;
+      }
+      if (aid != null && map[aid]) return 'Comparando o próximo nó com o valor procurado antes de remover.';
+      return 'A remoção percorre a lista à procura do valor.';
+    }
+    return null;
+  }
+
   /**
    * Explicação curta e fiel ao estado do passo.
    * Retorna {op, text} — text pode ser null (nada relevante a dizer).
@@ -625,6 +771,8 @@
       text = treeExplanation(step, sel, opts, op);
     } else if (sel && sel.type === 'tree') {
       text = 'A árvore está vazia neste passo.';
+    } else if (sel && sel.type === 'list') {
+      text = listExplanation(step, sel, opts, op);
     } else {
       text = genericExplanation(step);
     }
@@ -789,55 +937,305 @@
     }, dur);
   }
 
-  function renderList(container, v, sel, ctx) {
+  /* ------------------------------------------------------------------ */
+  /* Lista encadeada: leitura fiel das referências                       */
+  /* ------------------------------------------------------------------ */
+
+  /* percorre a lista a partir de um nó na ordem real das referências,
+   * guardando os ids (e detectando um ciclo acidental, se existir) */
+  function listChain(root) {
     var nodes = [];
-    var seen = {};
-    var cur = v;
+    var ids = Object.create(null);
+    var cur = root;
     var cycleId = null;
     while (isObj(cur)) {
-      if (seen[cur.id]) { cycleId = cur.id; break; }
-      seen[cur.id] = true;
+      if (ids[cur.id]) { cycleId = cur.id; break; }
+      ids[cur.id] = true;
       nodes.push(cur);
       var p = propOf(cur, LIST_NEXT);
-      cur = p ? p.value : null;
+      cur = p && isObj(p.value) ? p.value : null;
+    }
+    return { nodes: nodes, ids: ids, cycleId: cycleId };
+  }
+
+  /* destino real da referência next do nó: {id, val, node} — id null
+   * quando a lista termina (undefined/null/outro primitivo) */
+  function nextRef(sv) {
+    var p = propOf(sv, LIST_NEXT);
+    if (!p) return { id: null, val: '?' };
+    if (isObj(p.value)) return { id: p.value.id, val: nodeValue(p.value), node: p.value };
+    if (isNullSer(p.value)) return { id: null, val: p.value.v === undefined ? 'undefined' : 'null' };
+    return { id: null, val: DSV.fmtSerializedShort(p.value) };
+  }
+
+  /* localiza a mesma lista em outro passo (para comparar as referências e o
+   * início anterior quando HEAD muda); casa pelo rótulo e, se necessário,
+   * pelo candidato de lista mais bem colocado */
+  DSV.findListInStep = function (step, sel) {
+    if (!step || !sel || sel.type !== 'list') return null;
+    var cands = DSV.detectStructures(step, {}).filter(function (c) { return c.type === 'list'; });
+    if (!cands.length) return null;
+    for (var i = 0; i < cands.length; i++) {
+      if (cands[i].label === sel.label) return cands[i];
+    }
+    return cands[0];
+  };
+
+  /* comparação do passo atual com o anterior: referências alteradas,
+   * HEAD alterado e nós recém-criados ainda fora da lista */
+  function listStepDiff(sel, ctx, chain) {
+    var prevSel = ctx && ctx.prevStep ? DSV.findListInStep(ctx.prevStep, sel) : null;
+    var prevRoot = prevSel && prevSel.id != null ? DSV.findValueById(ctx.prevStep, prevSel.id) : null;
+    var prevChain = isObj(prevRoot) ? listChain(prevRoot) : { nodes: [], ids: Object.create(null) };
+    var prevById = Object.create(null);
+    prevChain.nodes.forEach(function (n) { prevById[n.id] = n; });
+
+    var changed = Object.create(null);
+    chain.nodes.forEach(function (n) {
+      var pn = prevById[n.id];
+      if (pn && nextRef(pn).id !== nextRef(n).id) changed[n.id] = true;
+    });
+
+    /* nós que existem no escopo, são nós de lista e ainda não fazem parte da
+     * lista (ex.: "const newNode = new Node(...)" na inserção). Só durante
+     * uma inserção e só se o nó não estava na lista do passo anterior — o
+     * construtor e o resumo da chamada já expõem o objeto na serialização,
+     * então o critério é a presença na cadeia, não no escopo. */
+    var pending = [];
+    var opFrame = ctx && ctx.step ? opFrameName(ctx.step.stack) : null;
+    var inserting = opFrame === 'insertAtBeginning' || opFrame === 'insertAtEnd';
+    if (ctx && ctx.pointers && inserting) {
+      Object.keys(ctx.pointers).forEach(function (idStr) {
+        var id = Number(idStr);
+        if (chain.ids[id] || prevChain.ids[id]) return;
+        var sv = DSV.findValueById(ctx.step, id);
+        if (isObj(sv) && isListNode(sv)) pending.push(sv);
+      });
     }
 
+    return {
+      prevSel: prevSel,
+      prevChain: prevChain,
+      prevById: prevById,
+      changed: changed,
+      pending: pending,
+      headChanged: !!(prevSel && prevSel.id !== sel.id)
+    };
+  }
+
+  /* nós que o PRÓXIMO passo vai remover: sinal sutil na etapa em que a
+   * comparação os identifica, antes de saírem da lista */
+  function listRemovedTargets(sel, ctx, chain) {
+    var out = Object.create(null);
+    if (!ctx || !ctx.nextStep) return out;
+    var nextSel = DSV.findListInStep(ctx.nextStep, sel);
+    var nextRoot = nextSel && nextSel.id != null ? DSV.findValueById(ctx.nextStep, nextSel.id) : null;
+    var nextChain = isObj(nextRoot) ? listChain(nextRoot) : { nodes: [], ids: Object.create(null) };
+    chain.nodes.forEach(function (n) {
+      if (!nextChain.ids[n.id]) out[n.id] = true;
+    });
+    return out;
+  }
+
+  /* lado do nó pendente: inserções no início entram pela esquerda; as demais
+   * aparecem à direita, depois do terminador, até estarem ligadas */
+  function pendingSide(step, ref, chainIds) {
+    var op = opFrameName(step && step.stack);
+    if (op === 'insertAtBeginning' || /inicio|beginning/i.test(op || '')) return 'left';
+    if (op === 'insertAtEnd' || /fim|end/i.test(op || '')) return 'right';
+    return ref.id != null && chainIds[ref.id] ? 'left' : 'right';
+  }
+
+  /* transição real do cursor na lista: o nó do passo anterior (mesma
+   * operação, mesmo rótulo) aponta para o nó atual — a conexão percorrida
+   * fica em destaque, como a seta contextual da árvore */
+  function listTraversalFrom(ctx, root) {
+    if (!ctx || !ctx.steps || ctx.stepIndex == null || ctx.stepIndex <= 0 || !isObj(root)) return null;
+    var step = ctx.steps[ctx.stepIndex];
+    if (!step) return null;
+    var cur = activeNodeInfo(step.pointers || {});
+    if (!cur) return null;
+    var op = opFrameName(step.stack);
+    if (!op || !LIST_OP_NAMES[op]) return null;
+
+    var curFrames = frameNames(step.stack);
+    for (var j = ctx.stepIndex - 1; j >= 0; j--) {
+      var prev = ctx.steps[j];
+      if (opFrameName(prev.stack) !== op) break;
+      var info = activeNodeInfo(prev.pointers || {});
+      if (!info || info.label !== cur.label || info.id === cur.id) continue;
+      if (!framesRelated(frameNames(prev.stack), curFrames)) continue;
+      var fromNode = DSV.findValueById(prev, info.id);
+      if (!isObj(fromNode) || !isListNode(fromNode)) continue;
+      if (nextRef(fromNode).id !== cur.id) continue;
+      return { fromId: info.id, toId: cur.id };
+    }
+    return null;
+  }
+
+  /* seta horizontal entre a região NEXT e o próximo nó (ou o terminador) */
+  function listArrowHtml(cls) {
+    return '<svg class="list-link' + (cls ? ' ' + cls : '') + '" width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">' +
+      '<path class="list-link-shape" d="M1 7H20M28 7l-7-3.8v7.6Z" />' +
+      '</svg>';
+  }
+
+  /* unidades dos nós recém-criados que ainda não fazem parte da lista */
+  function listPendingUnitsHtml(list, ctx, chain, side) {
+    var out = '';
+    list.forEach(function (node) {
+      var ref = nextRef(node);
+      var linked = ref.id != null && !!chain.ids[ref.id];
+      out += listUnitHtml(node, {
+        chips: chipsFor((ctx.pointers || {})[node.id]),
+        pending: true,
+        isNew: true,
+        arrow: linked,
+        arrowCls: 'new',
+        enterDir: side,
+        exitDir: side
+      });
+    });
+    return out;
+  }
+
+  /* unidade da lista: chips acima, nó dividido em VALUE/NEXT e a seta que
+   * parte da região NEXT; todos os estados são calculados do passo */
+  function listUnitHtml(node, opts) {
+    var nodeCls = 'list-node';
+    if (opts.pending) nodeCls += ' pending';
+    if (opts.isNew) nodeCls += ' new';
+    if (opts.visited) nodeCls += ' visited';
+    if (opts.active) nodeCls += ' active';
+    if (opts.target) nodeCls += ' target';
+    var title = opts.pending ? 'nó criado, ainda não ligado à lista'
+      : opts.target ? 'este nó será removido no próximo passo'
+        : '';
+
+    var ptrs = '';
+    if (opts.head) {
+      ptrs += '<span class="list-head-tag' + (opts.headChanged ? ' changed' : '') + '" title="início da lista (head)">HEAD</span>';
+    }
+    (opts.chips || []).forEach(function (c) {
+      ptrs += '<span class="ptr-chip">' + esc(c) + '</span>';
+    });
+    if (opts.visitNum) ptrs += '<span class="visit-chip" title="ordem de visita">✓' + opts.visitNum + '</span>';
+    if (opts.pending) ptrs += '<span class="list-pending-note" title="nó criado que ainda não faz parte da lista">fora da lista</span>';
+
+    return '<div class="list-unit' + (opts.pending ? ' pending' : '') + '" data-k="n' + node.id + '" data-enter="' + opts.enterDir + '" data-exit="' + opts.exitDir + '">' +
+      '<div class="list-node-wrap">' +
+      '<div class="list-ptrs">' + ptrs + '</div>' +
+      '<div class="list-box-row">' +
+      '<div class="' + nodeCls + '"' + (title ? ' title="' + title + '"' : '') + '>' +
+      '<span class="list-value">' + esc(nodeValue(node)) + '</span>' +
+      '<span class="list-next' + (opts.changedRef ? ' changed' : '') + '" title="referência para o próximo nó (node.next)">NEXT<span class="list-next-dot"></span></span>' +
+      '</div>' +
+      (opts.arrow === false ? '' : listArrowHtml(opts.arrowCls)) +
+      '</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function renderList(container, v, sel, ctx) {
+    ctx = ctx || {};
+    var chain = listChain(v);
+    var nodes = chain.nodes;
+    var diff = listStepDiff(sel, ctx, chain);
+    var visitMap = visitedMapFor(ctx, ctx.step);
+    var activeId = activeNodeId(ctx.pointers || {});
+    var traversed = listTraversalFrom(ctx, v);
+    var willRemove = listRemovedTargets(sel, ctx, chain);
     var badge = eventsBadge(sel, ctx);
     var dur = animDur(ctx);
+    var terminador = nodes.length ? nextRef(nodes[nodes.length - 1]) : { val: 'null' };
+
+    var pendingLeft = [];
+    var pendingRight = [];
+    diff.pending.forEach(function (sv) {
+      (pendingSide(ctx.step, nextRef(sv), chain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
+    });
 
     DSV.flipRender(container, function () {
       var html = head('Lista encadeada', structureSub(sel, nodes.length, 'nó', 'nós', 'Lista encadeada'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap">';
 
+      html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left');
+
       for (var i = 0; i < nodes.length; i++) {
         var node = nodes[i];
-        var chips = chipsFor((ctx.pointers || {})[node.id]);
-        var visitNum = (ctx.visit && ctx.visit.map) ? ctx.visit.map[node.id] : null;
-        html += '<div class="list-unit" data-k="n' + node.id + '" data-enter="pop" data-exit="pop">';
-        html += '<div class="list-node-wrap">';
-        if (chips.length || visitNum) {
-          html += '<div class="ptr-chips">' + chips.map(function (c) {
-            return '<span class="ptr-chip">' + esc(c) + '</span>';
-          }).join('') + (visitNum ? '<span class="visit-chip" title="ordem de visita">✓' + visitNum + '</span>' : '') + '</div>';
-        }
-        html += '<div class="cell list-node' + (chips.length ? ' tagged' : '') + '">' +
-          esc(nodeValue(node)) + '</div>';
-        html += '</div>';
-        html += '<div class="arrow">→</div>';
-        html += '</div>';
+        var isActive = activeId === node.id;
+        var isTraversed = !!(traversed && traversed.fromId === node.id);
+        var changedRef = !!diff.changed[node.id];
+        html += listUnitHtml(node, {
+          chips: chipsFor((ctx.pointers || {})[node.id]),
+          visitNum: visitMap[node.id],
+          isNew: !diff.prevChain.ids[node.id],
+          visited: !!visitMap[node.id] && !isActive,
+          active: isActive,
+          target: !!willRemove[node.id],
+          changedRef: changedRef,
+          traversed: isTraversed,
+          arrowCls: isTraversed ? 'active' : (changedRef ? 'new' : ''),
+          head: i === 0,
+          headChanged: i === 0 && diff.headChanged,
+          enterDir: i === 0 ? 'left' : 'right',
+          exitDir: i === 0 ? 'left' : 'right'
+        });
       }
 
-      if (cycleId != null) {
-        html += '<div class="list-unit" data-k="cycle"><div class="cell list-null cycle">↩ volta para o nó #' + cycleId + ' (ciclo)</div></div>';
+      if (chain.cycleId != null) {
+        html += '<div class="list-unit" data-k="cycle"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
+          '<div class="list-box-row"><div class="cell list-null cycle" title="a lista voltou para um nó já visitado">↩ nó #' + chain.cycleId + ' (ciclo)</div></div></div></div>';
       } else {
-        html += '<div class="list-unit" data-k="null"><div class="cell list-null">null</div></div>';
+        html += '<div class="list-unit" data-k="null"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
+          '<div class="list-box-row"><div class="cell list-null" title="fim da lista: a referência next não aponta para um nó">' + esc(terminador.val) + '</div></div></div></div>';
       }
+
+      html += listPendingUnitsHtml(pendingRight, ctx, chain, 'right');
+
       html += '</div>';
       html += '</div>';
       html += '</div>';
       container.innerHTML = html;
     }, dur);
+  }
+
+  /* lista vazia: HEAD não aponta para nenhum nó — diagrama mínimo com o
+   * terminador, sem inventar um nó com valor; o nó recém-criado da inserção
+   * em curso aparece fora da lista até ser ligado */
+  function renderListEmpty(container, sel, ctx) {
+    ctx = ctx || {};
+    var wrapper = sel.holderId != null ? DSV.findValueById(ctx.step, sel.holderId) : null;
+    var headP = wrapper ? propOf(wrapper, HEAD_KEYS) : null;
+    var sentinel = 'null';
+    if (headP && isNullSer(headP.value)) sentinel = headP.value.v === undefined ? 'undefined' : 'null';
+
+    var emptyChain = { nodes: [], ids: Object.create(null) };
+    var diff = listStepDiff(sel, ctx, emptyChain);
+    var pendingLeft = [];
+    var pendingRight = [];
+    diff.pending.forEach(function (sv) {
+      (pendingSide(ctx.step, nextRef(sv), emptyChain.ids) === 'left' ? pendingLeft : pendingRight).push(sv);
+    });
+
+    container.__treeScene = null;
+    DSV.flipRender(container, function () {
+      var html = head('Lista encadeada', structureSub(sel, 0, 'nó', 'nós', 'Lista encadeada'), eventsBadge(sel, ctx));
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      html += '<div class="list-wrap">';
+      html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left');
+      html += '<div class="list-unit" data-k="head-empty"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
+        '<div class="list-box-row"><span class="list-head-tag" title="início da lista (head)">HEAD</span>' +
+        listArrowHtml('empty') +
+        '<div class="cell list-null" title="a lista está vazia: HEAD não aponta para nenhum nó">' + esc(sentinel) + '</div>' +
+        '</div></div></div>';
+      html += listPendingUnitsHtml(pendingRight, ctx, emptyChain, 'right');
+      html += '</div>';
+      html += '<div class="empty-inline list-empty-note">A lista está vazia neste passo.</div>';
+      html += '</div></div>';
+      container.innerHTML = html;
+    }, animDur(ctx));
   }
 
   /* ------------------------------------------------------------------ */
@@ -984,7 +1382,7 @@
   };
 
   /* valor do nó em linguagem natural (sem as aspas dos literais string) */
-  function treeValText(node) {
+  function valText(node) {
     var s = nodeValue(node);
     if (s.length > 1 && s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') return s.slice(1, -1);
     return s;
@@ -995,7 +1393,7 @@
     var info = Object.create(null);
     (function walk(n, parentId, side) {
       if (!isObj(n) || info[n.id]) return;
-      info[n.id] = { id: n.id, val: treeValText(n), parentId: parentId, side: side };
+      info[n.id] = { id: n.id, val: valText(n), parentId: parentId, side: side };
       walk(nodeChild(n, 'L'), n.id, 'L');
       walk(nodeChild(n, 'R'), n.id, 'R');
     })(root, null, null);
@@ -1014,6 +1412,23 @@
       if (!prevIds || !prevIds[id]) added[id] = true;
     });
     return added;
+  };
+
+  /* conexões do estado ATUAL que a próxima etapa vai refazer: o filho some
+   * da árvore (remoção) ou troca de pai (promoção). Alimenta só o aviso
+   * visual "esta relação vai mudar" — a alteração em si continua sendo
+   * derivada do passo real (treeChangedEdges), sem estado paralelo. */
+  DSV.treePendingEdges = function (root, nextRoot) {
+    var pending = Object.create(null);
+    if (!isObj(root) || !isObj(nextRoot)) return pending;
+    var cur = treeInfo(root);
+    var next = treeInfo(nextRoot);
+    Object.keys(cur).forEach(function (id) {
+      var n = cur[id];
+      if (n.parentId == null) return;
+      if (!next[id] || next[id].parentId !== n.parentId) pending[id] = true;
+    });
+    return pending;
   };
 
   /* ------------------------------------------------------------------ */
@@ -1133,16 +1548,21 @@
   var EDGE_HEAD = 9;         /* comprimento da ponta triangular */
   var EDGE_HEAD_HALF = 3.4;  /* meia-largura da ponta triangular */
   var INDICATOR_LEN = 18;    /* comprimento do indicador que percorre a conexão */
+  var EDGE_CONTROL = 0.5;    /* fração vertical dos pontos de controle (S suave) */
+  var EDGE_LEAN = 0.1;       /* fração do deslocamento horizontal que inclina as
+                              * tangentes na direção do filho: sem platô e sem
+                              * gancho quando o filho está muito ao lado */
 
   /**
-   * Traçado da conexão pai → filho: Bézier cúbica discreta que sai da região
-   * inferior do nó pai e chega à região superior do filho, mantendo folga das
-   * bordas. As tangentes verticais nas duas pontas mantêm a hierarquia legível
-   * em árvores assimétricas (a curva só se abre o quanto o deslocamento
-   * horizontal pede) e fazem a ponta apontar sempre para o filho. A ponta
-   * triangular é desenhada por um marcador SVG orientado pela tangente final;
-   * devolve o caminho da curva. Retorna null quando não há vão vertical para a
-   * curva e a ponta.
+   * Traçado da conexão pai → filho: Bézier cúbica que sai da região inferior
+   * do nó pai e chega à região superior do filho, mantendo folga das bordas.
+   * Os pontos de controle ficam no meio vertical e avançam uma fração discreta
+   * do deslocamento horizontal na direção do filho: a curva fica próxima de
+   * uma diagonal suave (sem o platô horizontal e o gancho vertical que
+   * apareciam em árvores muito abertas), e a tangente final aponta na direção
+   * real do traçado — que é a direção da ponta do marcador. Em pai e filho
+   * alinhados a conexão vira uma reta vertical limpa. Devolve o caminho da
+   * curva; retorna null quando não há vão vertical para a curva e a ponta.
    */
   DSV.treeEdgeGeometry = function (from, to, rFrom, rTo) {
     if (!from || !to) return null;
@@ -1154,18 +1574,45 @@
     var ey = to.y - rt - EDGE_TIP_GAP;
     var vh = ey - sy;
     if (!(vh > EDGE_HEAD + 2)) return null;
-    var c1y = sy + vh / 2;
-    var c2y = ey - vh / 2;
+    var dx = ex - sx;
+    var c1x = sx + dx * EDGE_LEAN;
+    var c1y = sy + vh * EDGE_CONTROL;
+    var c2x = ex - dx * EDGE_LEAN;
+    var c2y = ey - vh * EDGE_CONTROL;
     var curve = 'M' + round2(sx) + ' ' + round2(sy) +
-      'C' + round2(sx) + ' ' + round2(c1y) +
-      ' ' + round2(ex) + ' ' + round2(c2y) +
+      'C' + round2(c1x) + ' ' + round2(c1y) +
+      ' ' + round2(c2x) + ' ' + round2(c2y) +
       ' ' + round2(ex) + ' ' + round2(ey);
     return {
       sx: sx, sy: sy, ex: ex, ey: ey,
-      c1x: sx, c1y: c1y, c2x: ex, c2y: c2y,
+      c1x: c1x, c1y: c1y, c2x: c2x, c2y: c2y,
       curve: curve
     };
   };
+
+  /* trecho inicial (0..t) da curva, calculado por De Casteljau: é o que
+   * desenha a conexão "crescendo" do pai até o filho na revelação de uma
+   * conexão nova, com a ponta do marcador acompanhando a frente que avança */
+  function treeEdgeSegment(geo, t) {
+    if (!geo) return '';
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    var ax = geo.sx + (geo.c1x - geo.sx) * t;
+    var ay = geo.sy + (geo.c1y - geo.sy) * t;
+    var bx = geo.c1x + (geo.c2x - geo.c1x) * t;
+    var by = geo.c1y + (geo.c2y - geo.c1y) * t;
+    var cx = geo.c2x + (geo.ex - geo.c2x) * t;
+    var cy = geo.c2y + (geo.ey - geo.c2y) * t;
+    var dx = ax + (bx - ax) * t;
+    var dy = ay + (by - ay) * t;
+    var ex = bx + (cx - bx) * t;
+    var ey = by + (cy - by) * t;
+    var fx = dx + (ex - dx) * t;
+    var fy = dy + (ey - dy) * t;
+    return 'M' + round2(geo.sx) + ' ' + round2(geo.sy) +
+      'C' + round2(ax) + ' ' + round2(ay) +
+      ' ' + round2(dx) + ' ' + round2(dy) +
+      ' ' + round2(fx) + ' ' + round2(fy);
+  }
 
   /* ponto e direção (tangente unitária) do traçado em t: 0 = pai, 1 = filho */
   DSV.treeEdgePointAt = function (geo, t) {
@@ -1214,11 +1661,12 @@
 
   /* marcadores reutilizáveis da ponta (um por estado visual); a orientação é
    * automática, pela tangente final de cada conexão — a mesma ponta vale para
-   * todas as conexões e continua proporcional ao desenho no zoom */
+   * todas as conexões e continua proporcional ao desenho no zoom. A conexão
+   * ativa não tem marcador próprio: a ponta dela é o indicador que percorre a
+   * curva, para não haver duas direções na mesma etapa. */
   var TREE_TIP_MARKERS = [
     ['tree-marker', 'tree-tip-base'],
-    ['tree-marker-new', 'tree-tip-new'],
-    ['tree-marker-active', 'tree-tip-active']
+    ['tree-marker-new', 'tree-tip-new']
   ];
 
   function treeTipMarkersHtml() {
@@ -1337,6 +1785,12 @@
       changedMap = DSV.treeChangedEdges(prevRoot, v);
       addedMap = DSV.treeAddedNodes(prevRoot, v);
     }
+    /* conexões que a próxima etapa vai refazer (remoção/promoção): aviso
+     * tracejado discreto, também derivado do histórico real */
+    var pendingMap = null;
+    if (ctx && ctx.nextStep) {
+      pendingMap = DSV.treePendingEdges(v, DSV.findTreeInStep(ctx.nextStep, sel, v));
+    }
 
     var lines = '';
     var circles = '';
@@ -1368,6 +1822,7 @@
         var cls = 'tree-edge';
         if (child.id === activeChild) cls += ' active';
         else if (changedMap && changedMap[child.id]) cls += ' new';
+        else if (pendingMap && pendingMap[child.id]) cls += ' changing';
         lines += '<path d="' + eg.curve + '" class="' + cls + '" vector-effect="non-scaling-stroke" />';
       });
     });
@@ -1725,8 +2180,18 @@
       ctx && ctx.prevStep ? DSV.findTreeInStep(ctx.prevStep, sel, currentRoot) : null,
       currentRoot
     );
+    /* conexões que a próxima etapa vai refazer: aviso tracejado antes da
+     * alteração (a mudança em si continua vindo do passo real) */
+    var pendingMap = null;
+    if (ctx && ctx.nextStep) {
+      pendingMap = DSV.treePendingEdges(currentRoot, DSV.findTreeInStep(ctx.nextStep, sel, currentRoot));
+    }
     /* as chaves de parentOf são strings; normaliza o id para comparar */
     var activeKey = activeChild == null ? null : String(activeChild);
+    /* chave do passo para a revelação da conexão nova: re-render do mesmo
+     * passo (zoom, resize) não reinicia; navegar para o passo de novo refaz */
+    var stepKey = ctx && ctx.stepIndex != null ? ctx.stepIndex : -1;
+    var revealDur = animDur(ctx);
 
     Object.keys(parentOf).forEach(function (cid) {
       var pid = parentOf[cid];
@@ -1737,15 +2202,35 @@
         path.setAttribute('vector-effect', 'non-scaling-stroke');
         e = scene.edges[cid] = {
           line: path,
-          parentId: null
+          parentId: null,
+          reveal: 1,
+          revealKey: null,
+          revealStart: 0,
+          revealDur: 0
         };
         scene.gEdges.appendChild(path);
       }
       e.parentId = pid;
       var cls = 'tree-edge';
+      var isNew = false;
       if (cid === activeKey) cls += ' active';
-      else if (changedMap[cid]) cls += ' new';
+      else if (changedMap[cid]) { cls += ' new'; isNew = true; }
+      else if (pendingMap && pendingMap[cid]) cls += ' changing';
       if (e.line.getAttribute('class') !== cls) e.line.setAttribute('class', cls);
+      if (isNew) {
+        /* a conexão nasce "crescendo" do pai até o filho; com movimento
+         * reduzido já nasce inteira */
+        var key = stepKey + '|' + cid;
+        if (e.revealKey !== key) {
+          e.revealKey = key;
+          e.revealStart = DSV.anim.now();
+          e.revealDur = DSV.anim.reducedMotion ? 0 : Math.max(0, revealDur);
+          e.reveal = e.revealDur > 0 ? 0 : 1;
+        }
+      } else {
+        e.revealKey = null;
+        e.reveal = 1;
+      }
     });
 
     Object.keys(scene.edges).forEach(function (cid) {
@@ -1811,7 +2296,25 @@
         return;
       }
       var eg = DSV.treeEdgeGeometry({ x: p.x, y: p.y }, { x: c.x, y: c.y }, p.r, c.r);
-      if (eg) e.line.setAttribute('d', eg.curve);
+      if (eg) {
+        var d = eg.curve;
+        if (e.reveal < 1) {
+          /* revelação progressiva: desenha o trecho inicial da curva e deixa
+           * a ponta do marcador avançar com a frente até o filho */
+          var rt = e.revealDur > 0 ? (t0 - e.revealStart) / e.revealDur : 1;
+          var rv = DSV.anim.ease(rt);
+          if (rv >= 1) {
+            e.reveal = 1;
+          } else {
+            e.reveal = rv;
+            /* no início a frente ainda é um ponto: não desenha para a ponta
+             * não aparecer girada no pai */
+            d = rv > 0.02 ? treeEdgeSegment(eg, rv) : null;
+            active = true;
+          }
+        }
+        if (d) e.line.setAttribute('d', d);
+      }
       var o = Math.min(p.op, c.op);
       e.line.setAttribute('opacity', round3(o));
       if (o < 0.99) active = true;
@@ -1882,7 +2385,7 @@
     ctx.step = step;
 
     if (sel.id == null) {
-      if (sel.type === 'list') renderMessage(container, 'Lista vazia — <code>' + esc(sel.label) + '</code> ainda não tem nós.');
+      if (sel.type === 'list') renderListEmpty(container, sel, ctx);
       else if (sel.type === 'tree') renderMessage(container, 'A árvore está vazia neste passo.');
       else renderMessage(container, 'Estrutura vazia.');
       return;
@@ -1918,4 +2421,5 @@
 
   DSV.shortName = shortName;
   DSV.treeMetrics = treeMetrics;
+  DSV.treeEdgeSegment = treeEdgeSegment;
 })(typeof window !== 'undefined' ? window : globalThis);

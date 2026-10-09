@@ -473,6 +473,516 @@ test('lista encadeada: visita 10, 20, 30 e tem ponteiro atual', () => {
   eq(last.globals.lista.props.inicio.props.proximo.props.valor.v, 20, '10 aponta para 20');
 });
 
+/* ---------------------------------------------------------------- */
+console.log('\n[lista simplesmente encadeada: operações, integridade e render]');
+
+const listaSimplesExample = () => DSV.EXAMPLES.find((e) => e.id === 'lista-simples');
+
+/* executa o corpo de teste com as classes Node/LinkedList do exemplo real,
+ * sem repetir a definição em cada caso */
+function runLista(corpo) {
+  const ex = listaSimplesExample();
+  assert(ex, 'exemplo lista-simples existe');
+  const classes = ex.code.split('\nconst lista = new LinkedList();')[0];
+  return run(classes + '\nconst lista = new LinkedList();\n' + corpo);
+}
+
+function listaWrapper(step, name) {
+  const holder = (step.globals && step.globals[name]) || (step.locals && step.locals[name]);
+  return holder && holder.t === 'o' ? holder : null;
+}
+
+function listaHead(wrapper) {
+  if (!wrapper) return null;
+  const p = prop(wrapper, '#head') || prop(wrapper, 'head');
+  return p && p.t === 'o' ? p : null;
+}
+
+/* valores na ordem real das referências; para em ciclo acidental */
+function listaValues(wrapper) {
+  const out = [];
+  const seen = {};
+  let n = listaHead(wrapper);
+  while (n && !seen[n.id]) {
+    seen[n.id] = true;
+    const v = prop(n, 'value') || prop(n, 'valor');
+    out.push(v && v.t === 'p' ? v.v : '?');
+    const nx = prop(n, 'next') || prop(n, 'proximo');
+    n = nx && nx.t === 'o' ? nx : null;
+  }
+  return out;
+}
+
+function listaLength(wrapper) {
+  if (!wrapper) return null;
+  const p = prop(wrapper, '#length') || prop(wrapper, 'length') || prop(wrapper, 'tamanho');
+  return p && p.t === 'p' ? p.v : null;
+}
+
+/* último nó e a referência que o encerra (para conferir o terminador) */
+function listaTail(wrapper) {
+  let n = listaHead(wrapper);
+  const seen = {};
+  while (n && !seen[n.id]) {
+    seen[n.id] = true;
+    const nx = prop(n, 'next') || prop(n, 'proximo');
+    if (!(nx && nx.t === 'o')) return { node: n, ref: nx };
+    n = nx;
+  }
+  return { node: null, ref: null };
+}
+
+/* um ciclo acidental faria a caminhada rever um id já visto */
+function listaHasCycle(wrapper) {
+  const seen = {};
+  let n = listaHead(wrapper);
+  while (n) {
+    if (seen[n.id]) return true;
+    seen[n.id] = true;
+    const nx = prop(n, 'next') || prop(n, 'proximo');
+    n = nx && nx.t === 'o' ? nx : null;
+  }
+  return false;
+}
+
+function finalLista(trace) {
+  return listaWrapper(lastStep(trace), 'lista');
+}
+
+function assertLista(trace, esperado, tamanho, rotulo) {
+  const w = finalLista(trace);
+  assert(!listaHasCycle(w), (rotulo || 'lista') + ': sem ciclo acidental');
+  eq(listaValues(w).join(','), esperado, (rotulo || 'valores') + ' na ordem dos nós');
+  eq(listaLength(w), tamanho, (rotulo || 'lista') + ': tamanho');
+  const tail = listaTail(w);
+  if (esperado) {
+    assert(tail.node, (rotulo || 'lista') + ': último nó existe');
+    assert(tail.ref && tail.ref.t === 'p' && (tail.ref.v === undefined || tail.ref.v === null),
+      (rotulo || 'lista') + ': último nó termina em undefined/null');
+  } else {
+    assert(!listaHead(w), (rotulo || 'lista') + ': lista vazia não tem head');
+  }
+  return w;
+}
+
+function renderListaStep(trace, step, extra) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'list')[0];
+  assert(sel, 'lista detectada para o render');
+  const container = {};
+  DSV.renderStructure(container, sel, step, Object.assign({
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    visit: DSV.computeVisitOrder(trace.steps)
+  }, extra || {}));
+  return { html: container.innerHTML, sel: sel };
+}
+
+test('lista simples: detecção usa o wrapper e o head privado (#head)', () => {
+  const t = runLista('lista.insertAtBeginning(10);');
+  noError(t);
+  const cands = DSV.detectStructures(lastStep(t), DSV.buildOpsMap(t.steps));
+  eq(cands[0].type, 'list', 'melhor candidato é a lista');
+  eq(cands[0].label, 'lista', 'rótulo é o nome da variável');
+  assert(cands[0].id != null, 'identifica o nó do início');
+  assertLista(t, '10', 1, 'após inserir');
+});
+
+test('lista simples: insertAtBeginning no início e no fim da lista', () => {
+  let t = runLista('lista.insertAtBeginning(10);');
+  noError(t);
+  assertLista(t, '10', 1, 'lista vazia + começo');
+
+  t = runLista('lista.insertAtBeginning(10);\nlista.insertAtBeginning(20);');
+  noError(t);
+  const w = assertLista(t, '20,10', 2, 'lista preenchida + começo');
+  eq(prop(listaHead(w), 'value').v, 20, 'head atualizado para o novo nó');
+});
+
+test('lista simples: insertAtEnd no início e no fim da lista', () => {
+  let t = runLista('lista.insertAtEnd(10);');
+  noError(t);
+  assertLista(t, '10', 1, 'lista vazia + fim');
+
+  t = runLista('lista.insertAtEnd(10);\nlista.insertAtEnd(20);\nlista.insertAtEnd(30);');
+  noError(t);
+  assertLista(t, '10,20,30', 3, 'lista preenchida + fim');
+});
+
+test('lista simples: valores duplicados são permitidos e preservam a ordem', () => {
+  const t = runLista([
+    'lista.insertAtBeginning(10);',
+    'lista.insertAtBeginning(10);',
+    'lista.insertAtEnd(10);'
+  ].join('\n'));
+  noError(t);
+  assertLista(t, '10,10,10', 3, 'duplicados');
+});
+
+test('lista simples: find encontra primeiro, intermediário e último; ausente é undefined', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'console.log(lista.find(10).value);',
+    'console.log(lista.find(20).value);',
+    'console.log(lista.find(30).value);',
+    'console.log(lista.find(99) === undefined);'
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[0], '10', 'primeiro elemento');
+  eq(outs[1], '20', 'elemento intermediário');
+  eq(outs[2], '30', 'último elemento');
+  eq(outs[3], 'true', 'valor inexistente retorna undefined');
+  assertLista(t, '10,20,30', 3, 'busca não altera a lista');
+});
+
+test('lista simples: find em lista vazia devolve undefined sem erro', () => {
+  const t = runLista('console.log(lista.find(1) === undefined, lista.isEmpty());');
+  noError(t);
+  eq(outputs(t)[0], 'true true');
+});
+
+test('lista simples: removeByValue remove o primeiro, o intermediário e o último', () => {
+  let t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(10);'
+  ].join('\n'));
+  noError(t);
+  const w1 = assertLista(t, '20,30', 2, 'remover o primeiro');
+  eq(prop(listaHead(w1), 'value').v, 20, 'head passa para o sucessor');
+
+  t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(20);'
+  ].join('\n'));
+  noError(t);
+  assertLista(t, '10,30', 2, 'remover o intermediário');
+
+  t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(30);'
+  ].join('\n'));
+  noError(t);
+  assertLista(t, '10,20', 2, 'remover o último');
+});
+
+test('lista simples: remover valor inexistente ou de lista vazia preserva a estrutura', () => {
+  let t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'console.log(lista.removeByValue(99));'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], 'false', 'inexistente devolve false');
+  assertLista(t, '10,20', 2, 'nada foi removido');
+
+  t = runLista('console.log(lista.removeByValue(1), lista.size(), lista.isEmpty());');
+  noError(t);
+  eq(outputs(t)[0], 'false 0 true', 'lista vazia devolve false e continua vazia');
+  assertLista(t, '', 0, 'lista vazia');
+});
+
+test('lista simples: removeByValue remove só a primeira ocorrência duplicada', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(10);'
+  ].join('\n'));
+  noError(t);
+  assertLista(t, '20,10,30', 3, 'a segunda ocorrência do 10 permanece');
+});
+
+test('lista simples: remover todos os elementos consecutivamente deixa a lista vazia', () => {
+  const t = runLista([
+    'lista.insertAtEnd(1);',
+    'lista.insertAtEnd(2);',
+    'lista.insertAtEnd(3);',
+    'lista.removeByValue(1);',
+    'lista.removeByValue(2);',
+    'lista.removeByValue(3);',
+    'console.log(lista.isEmpty(), lista.size(), lista.toString(), lista.find(1) === undefined);'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], 'true 0 {  } true');
+  assertLista(t, '', 0, 'lista esvaziada');
+});
+
+test('lista simples: #length confere com a cadeia real depois de cada operação', () => {
+  const ex = listaSimplesExample();
+  const t = run(ex.code);
+  noError(t, 'exemplo lista simples');
+  const src = ex.code.split('\n');
+  let conferidas = 0;
+  t.steps.forEach((s) => {
+    const lineText = src[s.line - 1] || '';
+    if (!/\.(insertAtBeginning|insertAtEnd|removeByValue)\s*\(/.test(lineText)) return;
+    if ((s.stack || []).length) return; /* dentro do método ainda não terminou */
+    const w = s.globals.lista;
+    if (!w || w.t !== 'o') return;
+    conferidas++;
+    assert(!listaHasCycle(w), 'sem ciclo acidental na linha ' + s.line);
+    const vals = listaValues(w);
+    eq(vals.length, listaLength(w), 'tamanho confere na linha ' + s.line);
+    const h = listaHead(w);
+    if (vals.length) {
+      eq(prop(h, 'value').v, vals[0], 'head é o primeiro nó na linha ' + s.line);
+      const tail = listaTail(w);
+      assert(tail.node && tail.ref && tail.ref.t === 'p' && tail.ref.v === undefined,
+        'último nó termina em undefined na linha ' + s.line);
+    } else {
+      assert(!h, 'sem head depois de esvaziar na linha ' + s.line);
+    }
+  });
+  assert(conferidas >= 8, 'confere tamanho em várias operações: ' + conferidas);
+});
+
+test('lista simples: operações consecutivas mantêm ordem, tamanho e terminador', () => {
+  const t = runLista([
+    'lista.insertAtBeginning(1);',
+    'lista.insertAtEnd(2);',
+    'lista.insertAtEnd(3);',
+    'lista.insertAtBeginning(0);',
+    'lista.removeByValue(0);',
+    'lista.removeByValue(2);',
+    'lista.insertAtEnd(4);',
+    'lista.removeByValue(4);',
+    'console.log(lista.toString(), lista.size(), lista.isEmpty());'
+  ].join('\n'));
+  noError(t);
+  const outs = outputs(t);
+  eq(outs[outs.length - 1], '{ 1 -> 3 } 2 false', 'estado final coerente');
+  assertLista(t, '1,3', 2, 'depois das operações mistas');
+});
+
+test('lista simples: toString na ordem dos nós, inclusive vazia', () => {
+  let t = runLista('console.log(lista.toString());');
+  noError(t);
+  eq(outputs(t)[0], '{  }', 'lista vazia');
+
+  t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'console.log(lista.toString());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '{ 10 -> 20 }', 'ordem das referências');
+});
+
+test('lista simples: size e isEmpty refletem o estado real', () => {
+  let t = runLista('console.log(lista.size(), lista.isEmpty());');
+  noError(t);
+  eq(outputs(t)[0], '0 true', 'lista vazia');
+
+  t = runLista('lista.insertAtBeginning(5);\nconsole.log(lista.size(), lista.isEmpty());');
+  noError(t);
+  eq(outputs(t)[0], '1 false', 'com um nó');
+});
+
+test('lista simples: valores de comprimentos diferentes mantêm a ordem', () => {
+  const t = runLista([
+    "lista.insertAtEnd('Ana');",
+    "lista.insertAtEnd('Guilherme');",
+    "lista.insertAtEnd('Bia');",
+    'console.log(lista.toString());'
+  ].join('\n'));
+  noError(t);
+  eq(outputs(t)[0], '{ Ana -> Guilherme -> Bia }');
+  assertLista(t, 'Ana,Guilherme,Bia', 3, 'strings de tamanhos diferentes');
+});
+
+test('lista simples: visitas seguem o ponteiro current por operação', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.find(20);'
+  ].join('\n'));
+  noError(t);
+  const visit = DSV.computeVisitOrder(t.steps);
+  assert(visit.hasCurrentLike, 'reconhece o cursor current');
+  assert(visit.order.length >= 2, 'nós visitados na operação: ' + visit.order.length);
+});
+
+test('render da lista: VALUE e NEXT separados, HEAD no primeiro nó e terminador fiel', () => {
+  const t = run(listaSimplesExample().code);
+  noError(t);
+  const last = lastStep(t);
+  const r = renderListaStep(t, last);
+  assert(r.html.indexOf('list-value">') >= 0, 'região VALUE desenhada');
+  assert(r.html.indexOf('list-next"') >= 0 || r.html.indexOf('list-next ') >= 0, 'região NEXT desenhada');
+  assert(r.html.indexOf('list-head-tag') >= 0, 'indicador HEAD');
+  eq(r.html.split('list-head-tag').length - 1, 1, 'um único HEAD (primeiro nó)');
+  assert(r.html.indexOf('list-link') >= 0, 'conexão a partir da região NEXT');
+  assert(r.html.indexOf('list-next') < r.html.indexOf('list-link'), 'a conexão vem depois da região NEXT');
+  assert(r.html.indexOf('class="cell list-null"') >= 0, 'terminador desenhado');
+  assert(r.html.indexOf('>undefined</div>') >= 0, 'terminador é undefined (fiel à referência)');
+});
+
+test('render da lista vazia: HEAD aponta para o terminador, sem nó inventado', () => {
+  const t = run(listaSimplesExample().code);
+  noError(t);
+  const idx = t.steps.findIndex((s) => s.globals.lista && s.globals.lista.t === 'o' && !s.globals.lista.props['#head'].v
+    && s.globals.lista.props['#head'].t === 'p');
+  assert(idx >= 0, 'existe passo com a lista vazia');
+  const r = renderListaStep(t, t.steps[idx]);
+  eq(r.sel.id, null, 'seleção sem nó de início');
+  assert(r.html.indexOf('list-head-tag') >= 0, 'HEAD desenhado');
+  assert(r.html.indexOf('list-link') >= 0, 'conexão até o terminador');
+  assert(r.html.indexOf('class="cell list-null"') >= 0, 'terminador desenhado');
+  assert(r.html.indexOf('list-value') < 0, 'nenhum nó com valor');
+  assert(r.html.indexOf('A lista está vazia neste passo.') >= 0, 'nota discreta de vazio');
+});
+
+test('render da lista: nó atual em roxo, visitados e referência alterada destacados', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.find(30);'
+  ].join('\n'));
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let ativos = 0;
+  let visitados = 0;
+  t.steps.forEach((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel || sel.id == null) return;
+    const r = renderListaStep(t, s, { visit: visit, prevStep: i > 0 ? t.steps[i - 1] : null, steps: t.steps, stepIndex: i });
+    if (/list-node active/.test(r.html)) ativos++;
+    if (/list-node visited/.test(r.html)) visitados++;
+  });
+  assert(ativos >= 3, 'nós examinados com realce principal: ' + ativos);
+  assert(visitados >= 1, 'visitados em roxo suave: ' + visitados);
+});
+
+test('render da lista: nó criado aparece fora da lista, ligação e HEAD em destaque', () => {
+  const t = runLista([
+    'lista.insertAtBeginning(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtBeginning(5);'
+  ].join('\n'));
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let pendente = false;
+  let nextChanged = false;
+  let headChanged = false;
+  t.steps.forEach((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel) return;
+    const r = renderListaStep(t, s, {
+      visit: visit,
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null,
+      steps: t.steps,
+      stepIndex: i
+    });
+    if (/list-unit pending/.test(r.html)) pendente = true;
+    if (/list-next changed/.test(r.html)) nextChanged = true;
+    if (/list-head-tag changed/.test(r.html)) headChanged = true;
+  });
+  assert(pendente, 'nó recém-criado aparece fora da lista até ser ligado');
+  assert(nextChanged, 'referência NEXT alterada destacada (inserção no final)');
+  assert(headChanged, 'HEAD destacado quando passa para outro nó');
+});
+
+test('render da lista: nó removido não continua no desenho', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(20);'
+  ].join('\n'));
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let nextChanged = false;
+  t.steps.forEach((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel || sel.id == null) return;
+    const r = renderListaStep(t, s, { visit: visit, prevStep: i > 0 ? t.steps[i - 1] : null, steps: t.steps, stepIndex: i });
+    if (/list-next changed/.test(r.html)) nextChanged = true;
+    if (i === t.steps.length - 1) {
+      const vals = (r.html.match(/list-value">([^<]*)</g) || []).map((x) => x.replace('list-value">', '').replace('<', ''));
+      eq(vals.join(','), '10,30', 'o nó removido não aparece');
+    }
+  });
+  assert(nextChanged, 'referência do predecessor destacada na remoção');
+});
+
+test('render da lista: nó que será removido no próximo passo fica sinalizado', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);',
+    'lista.removeByValue(20);'
+  ].join('\n'));
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let alvo = null;
+  for (let i = 0; i < t.steps.length - 1 && alvo == null; i++) {
+    const sel = DSV.detectStructures(t.steps[i], opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel || sel.id == null) continue;
+    const r = renderListaStep(t, t.steps[i], {
+      visit: visit,
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: t.steps[i + 1],
+      steps: t.steps,
+      stepIndex: i
+    });
+    const m = r.html.match(/list-node[^"]*target[^"]*"[^>]*>[\s\S]*?list-value">([^<]*)</);
+    if (m) alvo = m[1];
+  }
+  eq(alvo, '20', 'o nó sinalizado é o que a comparação identificou');
+});
+
+test('explicação da lista: criação, ligação, HEAD, remoção e não encontrado', () => {
+  const ex = listaSimplesExample();
+  const t = run(ex.code);
+  noError(t);
+  const src = ex.code.split('\n');
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const infos = t.steps.map((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    return DSV.explainStep(s, sel, {
+      prevStep: i > 0 ? t.steps[i - 1] : null,
+      nextStep: i < t.steps.length - 1 ? t.steps[i + 1] : null,
+      lineText: (src[s.line - 1] || '').trim()
+    });
+  });
+  assert(infos.some((x) => x.op === 'Inserção no início' && /novo nó 10 já aponta para o antigo início/.test(x.text || '')), 'ligação no início');
+  assert(infos.some((x) => x.op === 'Inserção no final' && /passou a apontar para o novo nó/.test(x.text || '')), 'ligação no final');
+  assert(infos.some((x) => x.op === 'Inserção no início' && /HEAD agora aponta/.test(x.text || '')), 'mudança de HEAD');
+  assert(infos.some((x) => x.op === 'Busca' && /não foi encontrado/.test(x.text || '')), 'busca sem resultado');
+  assert(infos.some((x) => x.op === 'Remoção' && /nada foi removido/.test(x.text || '')), 'remoção sem resultado');
+  assert(infos.some((x) => x.op === 'Remoção' && /foi removido da lista/.test(x.text || '')), 'remoção efetiva');
+  assert(infos.some((x) => x.op === 'Tamanho' && /contador da lista registra/.test(x.text || '')), 'consulta de tamanho');
+});
+
+test('CSS da lista: linha única, nó em duas regiões e valor sem compressão', () => {
+  const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+  const wrap = css.match(/\.list-wrap\s*\{[^}]*\}/);
+  assert(wrap && /nowrap/.test(wrap[0]), 'linha única navegada por zoom/pan');
+  const node = css.match(/\.list-node\s*\{[^}]*\}/);
+  assert(node && /display:\s*flex/.test(node[0]), 'nó com regiões lado a lado');
+  const value = css.match(/\.list-value\s*\{[^}]*\}/);
+  assert(value && /min-width/.test(value[0]), 'VALUE com largura mínima (não comprime)');
+  const next = css.match(/\.list-next\s*\{[^}]*\}/);
+  assert(next && /border-left/.test(next[0]), 'divisória entre VALUE e NEXT');
+});
+
 test('árvore em-ordem: saída crescente e ponteiro "no"', () => {
   const example = DSV.EXAMPLES.find((e) => e.id === 'arvore-em-ordem');
   const t = run(example.code);
@@ -1224,10 +1734,26 @@ test('conexões: curva sai do fundo do pai e termina antes do filho', () => {
   assert(Math.abs(g.sy - 22) < 0.01, 'sai após o raio do pai + folga: ' + g.sy);
   assert(Math.abs(g.ey - 77) < 0.01, 'termina antes do raio do filho + folga: ' + g.ey);
   assert(g.curve.indexOf('M') === 0 && g.curve.indexOf('C') > 0, 'traçado em Bézier cúbica');
-  assert(Math.abs(g.c1x - g.sx) < 0.01 && Math.abs(g.c2x - g.ex) < 0.01, 'tangentes verticais nas duas pontas');
+  assert(g.c1x > g.sx && g.c2x < g.ex, 'pontos de controle inclinam na direção do filho');
+  assert(Math.abs((g.c1x - g.sx) - (g.ex - g.c2x)) < 0.01, 'inclinação simétrica nas duas pontas');
+  assert(Math.abs(g.c1x - (g.sx + (g.ex - g.sx) / 10)) < 0.01, 'inclinação discreta (sem virar reta)');
   const reta = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 0, y: 100 }, 20, 20);
   eq(reta.curve, 'M0 22C0 49.5 0 49.5 0 77', 'pai e filho alinhados geram reta vertical limpa');
   assert(DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 0, y: 30 }, 20, 20) === null, 'sem vão vertical não inventa traçado');
+});
+
+test('conexões: trecho inicial da revelação preserva o pai e avança com t', () => {
+  const g = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 120, y: 100 }, 20, 20);
+  const metade = DSV.treeEdgeSegment(g, 0.5);
+  assert(metade.indexOf('M0 22C') === 0, 'trecho começa na saída do pai: ' + metade.slice(0, 16));
+  assert(metade.indexOf('77') < 0, 'trecho ainda não chegou ao filho');
+  eq(DSV.treeEdgeSegment(g, 1), g.curve, 't = 1 devolve a curva inteira');
+  eq(DSV.treeEdgeSegment(null, 0.5), '', 'sem geometria não há trecho');
+  /* o ponto final do trecho é o próprio ponto da curva em t */
+  const fim = DSV.treeEdgeSegment(g, 0.5).match(/C[\d.\-]+ [\d.\-]+ [\d.\-]+ [\d.\-]+ ([\d.\-]+) ([\d.\-]+)/);
+  const pt = DSV.treeEdgePointAt(g, 0.5);
+  assert(fim && Math.abs(parseFloat(fim[1]) - pt.x) < 0.01 && Math.abs(parseFloat(fim[2]) - pt.y) < 0.01,
+    'frente da revelação anda sobre a curva');
 });
 
 test('conexões: ponto e tangente percorrem a curva do pai ao filho', () => {
@@ -1237,7 +1763,11 @@ test('conexões: ponto e tangente percorrem a curva do pai ao filho', () => {
   const pm = DSV.treeEdgePointAt(g, 0.5);
   assert(Math.abs(p0.x - g.sx) < 0.01 && Math.abs(p0.y - g.sy) < 0.01, 't=0 é a saída do pai');
   assert(Math.abs(p1.x - g.ex) < 0.01 && Math.abs(p1.y - g.ey) < 0.01, 't=1 é a chegada no filho');
-  assert(p0.uy > 0.99 && p1.uy > 0.99, 'tangente vertical nas pontas: a ponta aponta para o filho');
+  assert(p0.uy > 0 && p1.uy > 0, 'a tangente desce do pai para o filho nas duas pontas');
+  assert(p0.ux > 0 && p1.ux > 0, 'a tangente aponta na direção do filho');
+  const vertical = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 0, y: 100 }, 20, 20);
+  const v0 = DSV.treeEdgePointAt(vertical, 0);
+  assert(Math.abs(v0.ux) < 0.01 && v0.uy > 0.99, 'conexão alinhada tem tangente vertical');
   assert(pm.x > p0.x && pm.x < p1.x && pm.y > p0.y && pm.y < p1.y, 'meio do caminho fica entre os dois nós');
   assert(DSV.treeEdgePointAt(null, 0.5) === null, 'sem geometria não há ponto');
 });
@@ -1249,7 +1779,7 @@ test('conexões: render usa curvas Bézier com marcador de ponta reutilizável',
   const step = t.steps.filter((s) => shapeOf(treeRootOf(s, 'arvore')) === alvo)[0];
   const html = renderTreeStep(t, step).html;
   assert(html.indexOf('<marker id="tree-marker"') >= 0, 'marcador base definido uma vez');
-  assert(html.indexOf('<marker id="tree-marker-active"') >= 0, 'marcador do estado ativo definido');
+  assert(html.indexOf('<marker id="tree-marker-active"') < 0, 'conexão ativa usa o indicador como ponta, sem marcador duplicado');
   assert(html.indexOf('<marker id="tree-marker-new"') >= 0, 'marcador da conexão nova definido');
   const paths = html.match(/<path d="M[^"]*" class="tree-edge"[^>]*>/g) || [];
   eq(paths.length, 5, 'cinco conexões');
@@ -1296,6 +1826,30 @@ test('conexões: prévia da vaga é uma curva tracejada da borda do pai à vaga'
   const pre = html.match(/<path d="(M[^"]*)" class="tree-preview-edge"/);
   assert(pre, 'prévia desenhada como path');
   assert(pre[1].indexOf('C') > 0, 'prévia usa o mesmo traçado curvo das conexões');
+});
+
+test('conexões: aviso tracejado marca as conexões que a remoção vai refazer', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  /* passo imediatamente antes de uma promoção: as conexões antigas do nó
+   * estão prestes a mudar e a nova relação chega destacada na etapa seguinte */
+  let idx = -1;
+  for (let i = 1; i + 1 < t.steps.length; i++) {
+    const cur = treeRootAt(t, i);
+    if (!cur) continue;
+    const sel = DSV.detectStructures(t.steps[i], opsMap).filter((c) => c.type === 'tree')[0];
+    const next = DSV.findTreeInStep(t.steps[i + 1], sel, cur);
+    if (!next || !Object.keys(DSV.treePendingEdges(cur, next)).length) continue;
+    if (renderTreeStepAt(t, i + 1, true).indexOf('tree-edge new') >= 0) { idx = i; break; }
+  }
+  assert(idx > 0, 'existe passo com conexão prestes a mudar');
+  const html = renderTreeStepAt(t, idx, true);
+  assert(html.indexOf('class="tree-edge changing"') >= 0, 'aviso tracejado desenhado antes da mudança');
+  const depois = renderTreeStepAt(t, idx + 1, true);
+  assert(depois.indexOf('tree-edge new') >= 0, 'a nova relação chega destacada');
+  const fim = renderTreeStepAt(t, idx + 2, true);
+  assert(fim.indexOf('tree-edge changing') < 0, 'o aviso some depois da mudança');
 });
 
 test('setas: render desenha a seta só quando o passo tem transição', () => {
@@ -1542,6 +2096,72 @@ test('conexões: com movimento reduzido o indicador já nasce no destino', () =>
       const to = scene.nodes[trs[0].toId];
       const dTip = Math.hypot(parseFloat(m[1]) - to.x, parseFloat(m[2]) - to.y);
       assert(Math.abs(dTip - (to.r + 3)) < 0.01, 'já posicionado no destino (' + dTip.toFixed(2) + ')');
+    });
+  } finally {
+    DSV.anim.reducedMotion = saved;
+  }
+});
+
+test('conexões: revelação da conexão nova é progressiva e conclui sozinha', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  /* primeiro passo em que um filho troca de pai/aparece: a conexão é nova */
+  let idx = -1;
+  let cid = -1;
+  for (let i = 1; i < t.steps.length; i++) {
+    const cur = treeRootAt(t, i);
+    const prev = treeRootAt(t, i - 1);
+    if (!cur || !prev) continue;
+    const changed = DSV.treeChangedEdges(prev, cur);
+    const novas = Object.keys(changed).filter((k) => changed[k]);
+    if (novas.length) { idx = i; cid = Number(novas[0]); break; }
+  }
+  assert(idx > 0 && cid > 0, 'passo com conexão nova');
+
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const render = (dom) => {
+    const step = t.steps[idx];
+    const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+    const container = dom.mkEl('div');
+    DSV.renderStructure(container, sel, step, {
+      opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [],
+      steps: t.steps, stepIndex: idx,
+      prevStep: t.steps[idx - 1], nextStep: t.steps[idx + 1],
+      animMs: 300
+    });
+    return container.__treeScene;
+  };
+
+  withFakeDom((dom) => {
+    const now0 = DSV.anim.now();
+    const scene = render(dom);
+    const edge = scene.edges[cid];
+    assert(edge, 'aresta da conexão nova na cena');
+    assert(edge.reveal < 1, 'nasce incompleta, em revelação');
+    assert((edge.line.getAttribute('class') || '').indexOf('new') >= 0, 'classe de conexão nova');
+    dom.runFrame(now0 + 40);
+    const parcial = edge.line.getAttribute('d');
+    const p = scene.nodes[edge.parentId];
+    const c = scene.nodes[cid];
+    const cheia = DSV.treeEdgeGeometry({ x: p.x, y: p.y }, { x: c.x, y: c.y }, p.r, c.r).curve;
+    assert(parcial && parcial.indexOf('C') > 0, 'trecho parcial desenhado no primeiro quadro');
+    assert(parcial !== cheia, 'a frente ainda não chegou ao filho');
+    for (let k = 2; k <= 30 && edge.reveal < 1; k++) dom.runFrame(now0 + k * 40);
+    assert(edge.reveal === 1, 'a revelação conclui sozinha');
+    const fim = scene.nodes[edge.parentId];
+    const cFim = scene.nodes[cid];
+    eq(edge.line.getAttribute('d'),
+      DSV.treeEdgeGeometry({ x: fim.x, y: fim.y }, { x: cFim.x, y: cFim.y }, fim.r, cFim.r).curve,
+      'estado final é a conexão inteira');
+  });
+
+  /* com movimento reduzido a conexão já nasce inteira (sem revelação) */
+  const saved = DSV.anim.reducedMotion;
+  DSV.anim.reducedMotion = true;
+  try {
+    withFakeDom((dom) => {
+      const scene = render(dom);
+      assert(scene.edges[cid].reveal === 1, 'sem revelação quando o movimento é reduzido');
     });
   } finally {
     DSV.anim.reducedMotion = saved;

@@ -90,6 +90,12 @@ globalThis.document = {
 
 globalThis.window = globalThis;
 
+/* eventos de janela (resize) registrados pelo app */
+globalThis.addEventListener = function (type, fn) {
+  if (!handlers.__win) handlers.__win = {};
+  handlers.__win[type] = fn;
+};
+
 const storage = {};
 globalThis.localStorage = {
   getItem(k) { return Object.prototype.hasOwnProperty.call(storage, k) ? storage[k] : null; },
@@ -327,6 +333,132 @@ test('lista encadeada: nós, chips e null', () => {
   assert(all.indexOf('Visitando o nó') < 0, 'saída de console não vaza para a estrutura');
 });
 
+test('lista simples: percorre todos os passos com VALUE/NEXT, HEAD e terminador', () => {
+  const all = percorrerExemplo('lista-simples');
+  assert(all.indexOf('Lista encadeada') >= 0, 'título');
+  assert(all.indexOf('list-value') >= 0, 'região VALUE');
+  assert(all.indexOf('list-next') >= 0, 'região NEXT');
+  assert(all.indexOf('list-link') >= 0, 'conexões saindo do NEXT');
+  assert(all.indexOf('list-head-tag') >= 0, 'indicador HEAD');
+  assert(all.indexOf('list-null') >= 0, 'terminador');
+  assert(all.indexOf('ptr-chip') >= 0, 'chips de ponteiro (current/newNode)');
+  assert(all.indexOf('list-unit pending') >= 0, 'nó criado aparece fora da lista até ser ligado');
+  assert(all.indexOf('Visitando') < 0, 'saída de console não vaza para a estrutura');
+});
+
+test('lista simples: estado vazio mostra HEAD e terminador sem nó', () => {
+  const snaps = snapshotExample('lista-simples');
+  const vazio = snaps.find((s) => s.indexOf('A lista está vazia neste passo.') >= 0 && s.indexOf('list-value') < 0);
+  assert(vazio, 'existe passo de lista vazia sem nós');
+  assert(vazio.indexOf('list-head-tag') >= 0, 'HEAD desenhado no vazio');
+  assert(vazio.indexOf('list-link') >= 0, 'conexão até o terminador');
+  assert(vazio.indexOf('list-null') >= 0, 'terminador desenhado');
+});
+
+test('lista simples: destaques de nó atual, visitado e referência alterada', () => {
+  $('exampleSelect').value = 'lista-simples';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let viuAtivo = false;
+  let viuVisitado = false;
+  let viuNextChanged = false;
+  let viuHeadChanged = false;
+  const vistos = { ativo: -1, visitado: -1, changed: -1, head: -1 };
+  for (let i = 0; i <= total; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    const html = $('structure').innerHTML;
+    if (!viuAtivo && html.indexOf('list-node active') >= 0) { viuAtivo = true; vistos.ativo = i; }
+    if (!viuVisitado && html.indexOf('list-node visited') >= 0) { viuVisitado = true; vistos.visitado = i; }
+    if (!viuNextChanged && html.indexOf('list-next changed') >= 0) { viuNextChanged = true; vistos.changed = i; }
+    if (!viuHeadChanged && html.indexOf('list-head-tag changed') >= 0) { viuHeadChanged = true; vistos.head = i; }
+  }
+  assert(viuAtivo, 'nó examinado com realce principal');
+  assert(viuVisitado, 'nó visitado em roxo suave');
+  assert(viuNextChanged, 'referência NEXT alterada destacada');
+  assert(viuHeadChanged, 'HEAD destacado quando muda de nó');
+});
+
+test('lista simples: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('lista-simples');
+  const idx = snaps.findIndex((s) => s.indexOf('list-node active') >= 0 && s.indexOf('list-value">20<') >= 0);
+  assert(idx > 0, 'passo com nó 20 destacado existe');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz a próxima etapa idêntica');
+  fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'voltar de novo restaura o mesmo estado');
+});
+
+test('lista simples: nova execução não deixa destaques da anterior', () => {
+  const snaps = snapshotExample('lista-simples');
+  assert(snaps.some((s) => s.indexOf('list-node active') >= 0 || s.indexOf('list-next changed') >= 0), 'execução anterior tinha destaques');
+  fire('btnRun', 'click');
+  assert(parseInt($('slider').value, 10) === 0, 'volta ao primeiro passo');
+  const html = $('structure').innerHTML;
+  assert(html.indexOf('list-node active') < 0 && html.indexOf('list-next changed') < 0 && html.indexOf('list-head-tag changed') < 0,
+    'nenhum destaque antigo permanece');
+});
+
+test('lista simples: zoom, pan e ajuste à tela funcionam', () => {
+  $('exampleSelect').value = 'lista-simples';
+  fire('exampleSelect', 'change');
+  fire('btnNext', 'click');
+  const z0 = $('btnZoomReset').textContent;
+  fire('btnZoomIn', 'click');
+  assert($('btnZoomReset').textContent !== z0, 'botão + altera o zoom');
+
+  const vp = { closest: (s) => (s === '.canvas-viewport' ? vp : null) };
+  const x0 = $('structure').style['--canvas-x'];
+  fire('structure', 'pointerdown', { button: 0, pointerId: 11, clientX: 100, clientY: 100, target: vp, preventDefault() {} });
+  fire('structure', 'pointermove', { pointerId: 11, clientX: 150, clientY: 130 });
+  fire('structure', 'pointerup', { pointerId: 11 });
+  assert($('structure').style['--canvas-x'] !== x0, 'arrasto move o canvas');
+
+  fire('btnZoomFit', 'click');
+  const fit = parseFloat($('structure').style['--canvas-zoom']);
+  assert(fit >= 0.25 && fit <= 1.5, 'ajuste à tela mantém o zoom no intervalo: ' + fit);
+  const options = $('structureSelect').innerHTML;
+  assert(options.indexOf('Lista') >= 0, 'drop-down lista a estrutura');
+});
+
+test('lista simples: enquadramento acompanha o crescimento sem saltos por passo', () => {
+  $('exampleSelect').value = 'lista-simples';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  fire('btnLast', 'click');
+  assert(parseInt($('slider').value, 10) === total, 'foi até o fim');
+  const h = $('structure').innerHTML;
+  const vals = (h.match(/list-value">([^<]*)</g) || []).length;
+  assert(vals >= 1, 'estrutura desenhada no fim: ' + vals);
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 6 * 150;
+  stage.offsetHeight = 120;
+  fire('btnZoomFit', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1 && zoom >= 0.25, 'lista extensa é reduzida para caber (zoom: ' + zoom + ')');
+});
+
+test('lista simples: redimensionar a janela reenquadra sem quebrar', () => {
+  $('exampleSelect').value = 'lista-simples';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  let achou = false;
+  for (let i = 0; i <= total && !achou; i++) {
+    if (i > 0) fire('btnNext', 'click');
+    if ($('structure').innerHTML.indexOf('list-head-tag') >= 0) achou = true;
+  }
+  assert(achou, 'chegou a um passo com a lista desenhada');
+  const resize = handlers.__win && handlers.__win.resize;
+  assert(typeof resize === 'function', 'handler de resize registrado');
+  resize();
+  const zoom = $('structure').style['--canvas-zoom'];
+  assert(zoom !== undefined, 'zoom aplicado após o redimensionamento');
+  assert($('structure').innerHTML.indexOf('list-head-tag') >= 0, 'lista continua desenhada');
+});
+
 test('árvore em-ordem: svg, destaque roxo e sem etiquetas', () => {
   const all = percorrerExemplo('arvore-em-ordem');
   assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');
@@ -387,6 +519,17 @@ test('árvore: seta contextual aparece nas transições e some nas etapas neutra
   assert(snaps.some((s) => s.indexOf('tree-edge active') >= 0), 'conexão percorrida destacada em roxo');
   assert(snaps.some((s) => s.indexOf('tree-node') >= 0 && s.indexOf('tree-edge active') < 0), 'conexões neutras sem destaque ativo');
   assert(snaps[0].indexOf('tree-edge active') < 0, 'sem execução nenhuma conexão fica ativa');
+});
+
+test('árvore: conexão refeita na remoção é avisada e depois destacada', () => {
+  const snaps = snapshotExample('arvore-simples-remocao');
+  const comAviso = snaps.findIndex((s) => s.indexOf('tree-edge changing') >= 0);
+  assert(comAviso > 0, 'aviso tracejado aparece antes de refazer a conexão');
+  const comNova = snaps.findIndex((s, i) => i > comAviso && s.indexOf('tree-edge new') >= 0);
+  assert(comNova > comAviso, 'a nova relação é destacada depois do aviso');
+  const fim = snaps[snaps.length - 1];
+  assert(fim.indexOf('tree-edge changing') < 0 && fim.indexOf('tree-edge new') < 0,
+    'os destaques temporários somem no estado final');
 });
 
 test('árvore: retroceder restaura a seta exatamente como estava', () => {

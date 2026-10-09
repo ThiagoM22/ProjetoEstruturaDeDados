@@ -339,7 +339,7 @@
   var ZOOM_FIT_MAX = 1.5;
   var canvasView = { x: 0, y: 0, zoom: 1, key: null, moved: false };
   var canvasDrag = null;
-  var canvasTreeKey = null; /* tamanho da última árvore enquadrada */
+  var canvasFitKey = null; /* tamanho do último desenho enquadrado (árvore/lista) */
 
   function canvasSupported() {
     return !!(els.structure &&
@@ -425,9 +425,10 @@
     canvasZoomAt((e.vp.clientWidth || 0) / 2, (e.vp.clientHeight || 0) / 2, factor);
   }
 
-  /* árvore: reenquadra quando o desenho muda de tamanho (inserção/remoção),
-   * sem ampliar além de 100% — mantém a árvore visível e centralizada */
-  function canvasTreeFit() {
+  /* árvore e lista: reenquadra quando o desenho muda de tamanho (inserção/
+   * remoção), sem ampliar além de 100% — mantém a estrutura visível e
+   * centralizada, sem saltos a cada passo */
+  function canvasAutoFit() {
     var e = canvasParts();
     if (!e.vp || !e.stage) return;
     var vw = e.vp.clientWidth || 0;
@@ -436,8 +437,8 @@
     var sh = e.stage.offsetHeight || 0;
     if (!vw || !vh || !sw || !sh) return;
     var sig = Math.round(sw) + 'x' + Math.round(sh);
-    if (sig !== canvasTreeKey) {
-      canvasTreeKey = sig;
+    if (sig !== canvasFitKey) {
+      canvasFitKey = sig;
       var pad = 64;
       var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
       canvasCenter(fit < 1 ? Math.max(ZOOM_MIN, fit) : 1);
@@ -449,15 +450,16 @@
   /* chamado a cada renderização: acompanha a estrutura até o usuário mexer */
   function canvasAfterRender(sel) {
     if (!canvasSupported()) return;
-    /* a árvore mantém o enquadramento entre passos mesmo quando a raiz muda
-     * (remoção); o fit inicial acontece quando a estrutura aparece ou esvazia */
+    /* árvore e lista mantêm o enquadramento entre passos mesmo quando a
+     * identidade do desenho muda (raiz ou head trocam de nó); o fit inicial
+     * acontece quando a estrutura aparece ou esvazia */
     var key;
     if (!sel || sel.id == null) key = 'none';
-    else if (sel.type === 'tree') key = 'tree|' + sel.label;
+    else if (sel.type === 'tree' || sel.type === 'list') key = sel.type + '|' + sel.label;
     else key = sel.type + '|' + sel.id;
     if (key !== canvasView.key) {
       canvasView.moved = false;
-      canvasTreeKey = null;
+      canvasFitKey = null;
       if (canvasHome()) canvasView.key = key;
       return;
     }
@@ -465,7 +467,7 @@
      * linha inteira de uma vez (salto). O enquadramento fica com o usuário. */
     if (sel && sel.type === 'queue') return;
     if (!canvasView.moved) {
-      if (sel && sel.type === 'tree') canvasTreeFit();
+      if (sel && (sel.type === 'tree' || sel.type === 'list')) canvasAutoFit();
       else canvasCenter(canvasView.zoom);
     }
   }
@@ -555,7 +557,7 @@
   }
 
   function afterLayoutChange() {
-    canvasTreeKey = null;
+    canvasFitKey = null;
     if (!canvasView.moved) canvasCenter(canvasView.zoom);
   }
 
@@ -1155,7 +1157,7 @@
 
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('resize', function () {
-      canvasTreeKey = null;
+      canvasFitKey = null;
       /* ao cruzar o breakpoint responsivo, reaplica as colunas dos painéis
        * recolhidos para não deixar faixas vazias na grade */
       if (collapsed.code || collapsed.side) applyLayout();

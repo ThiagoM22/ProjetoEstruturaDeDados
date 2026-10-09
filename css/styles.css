@@ -860,8 +860,6 @@ kbd {
 
 .queue-cell.front .cell-val { color: var(--accent-text); }
 
-.arrow { color: var(--text-muted); font-size: 13px; }
-
 /* array */
 .array-wrap { display: flex; }
 
@@ -897,37 +895,164 @@ kbd {
   color: var(--accent-text);
 }
 
-/* lista */
+/* lista encadeada — cada nó tem duas regiões: VALUE (o valor) e NEXT (a
+ * referência); a conexão parte da região NEXT e a linha é navegada por
+ * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós) */
 .list-wrap {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-2);
 }
 
-.list-unit { display: flex; align-items: center; gap: var(--sp-2); }
+.list-empty-note { margin-top: var(--sp-1); }
 
-.list-node-wrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.list-unit { flex: none; display: flex; }
+
+.list-node-wrap { display: flex; flex-direction: column; align-items: center; }
+
+/* faixa reservada das etiquetas (HEAD, ponteiros e visitas): altura fixa
+ * para o nó não pular quando as etiquetas aparecem */
+.list-ptrs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 25px;
+  padding-bottom: 5px;
+}
+
+.list-box-row { display: flex; align-items: center; }
 
 .list-node {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: clamp(52px, 4vw, 64px);
-  padding: 10px var(--sp-4);
+  align-items: stretch;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font: 600 13.5px var(--font-mono);
+  overflow: hidden;
+}
+
+.list-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  padding: 10px 12px;
+  font: 600 14px var(--font-mono);
   color: var(--text-primary);
 }
 
-.list-node.tagged {
+/* referência discretamente menor que o valor; o ponto é a origem da
+ * conexão que sai para o próximo nó (sem seta dentro da região) */
+.list-next {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-left: 1px solid var(--border);
+  font: 600 9.5px/1 var(--font-mono);
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.list-next-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+/* referência alterada nesta etapa */
+.list-next.changed {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-left-color: var(--accent-muted);
+}
+
+.list-next.changed .list-next-dot { background: var(--accent); }
+
+/* nó recém-inserido (destaque discreto na etapa em que entra) */
+.list-node.new { border-color: var(--accent-muted); }
+
+/* visitado na operação atual: roxo suave */
+.list-node.visited { background: var(--accent-soft); border-color: var(--accent-muted); }
+
+/* nó da operação atual: realce principal */
+.list-node.active { background: var(--accent-fill); border-color: var(--accent); }
+.list-node.active .list-value { color: var(--accent-text); }
+
+/* nó criado e ainda não ligado: tracejado, fora da corrente */
+.list-node.pending {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+}
+
+/* nó identificado pela comparação, que o próximo passo vai remover */
+.list-node.target {
+  background: var(--accent-soft);
+  border-color: var(--accent-muted);
+  box-shadow: inset 0 0 0 1px var(--accent-muted);
+}
+
+.list-pending-note {
+  font: 10.5px var(--font-ui);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* HEAD: etiqueta discreta acima do primeiro nó, com a ponta voltada para
+ * ele; quando HEAD muda de nó, a etiqueta fica em roxo naquela etapa */
+.list-head-tag {
+  position: relative;
+  font: 600 10.5px/18px var(--font-mono);
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 6px;
+}
+
+.list-head-tag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  transform: translateX(-50%);
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid var(--border-strong);
+}
+
+.list-head-tag.changed {
+  color: var(--accent-text);
   background: var(--accent-soft);
   border-color: var(--accent-muted);
 }
 
+.list-head-tag.changed::after { border-top-color: var(--accent); }
+
+/* conexão entre a região NEXT e o próximo nó (ou o terminador) */
+.list-link { flex: none; display: block; margin: 0 var(--sp-1); }
+
+.list-link-shape {
+  fill: var(--border-strong);
+  stroke: var(--border-strong);
+  stroke-width: 0;
+}
+
+.list-link.empty .list-link-shape { fill: var(--text-muted); stroke: var(--text-muted); }
+
+.list-link.new .list-link-shape { fill: var(--accent-muted); stroke: var(--accent-muted); }
+
+.list-link.active .list-link-shape { fill: var(--accent); stroke: var(--accent); }
+
+/* terminador: não é um nó, é o fim da lista (next === undefined/null) */
 .list-null {
   padding: 6px 10px;
   color: var(--text-muted);
@@ -935,6 +1060,7 @@ kbd {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-sm);
   background: transparent;
+  white-space: nowrap;
 }
 
 .list-null.cycle {
@@ -942,8 +1068,6 @@ kbd {
   border-color: rgba(201, 161, 95, 0.4);
   background: rgba(201, 161, 95, 0.08);
 }
-
-.ptr-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); justify-content: center; }
 
 .ptr-chip {
   font: 600 10.5px/18px var(--font-mono);
@@ -974,16 +1098,22 @@ kbd {
  * desenhada por um marcador SVG orientado pela tangente da curva */
 .tree-edge { stroke: var(--border-strong); stroke-width: 1.25; fill: none; marker-end: url(#tree-marker); }
 
-/* conexão recém-criada ou alterada: destaque temporário */
+/* conexão recém-criada ou alterada: destaque temporário e revelação
+ * progressiva (a ponta avança com o traçado até o filho) */
 .tree-edge.new { stroke: var(--accent-muted); marker-end: url(#tree-marker-new); }
 
-/* conexão percorrida pelo passo atual: destaque principal */
-.tree-edge.active { stroke: var(--accent); marker-end: url(#tree-marker-active); }
+/* conexão percorrida pelo passo atual: destaque principal. A ponta desta
+ * etapa é o próprio indicador que percorre a curva (uma única direção
+ * visível) — por isso a conexão ativa não repete o marcador estático */
+.tree-edge.active { stroke: var(--accent); marker-end: none; }
+
+/* conexão que a próxima etapa vai refazer (remoção/promoção): aviso
+ * tracejado discreto, some quando a nova relação é estabelecida */
+.tree-edge.changing { stroke: var(--accent-muted); stroke-dasharray: 6 4; }
 
 /* ponta triangular: um desenho por estado visual (mesma proporção sempre) */
 .tree-tip-base { fill: var(--border-strong); }
 .tree-tip-new { fill: var(--accent-muted); }
-.tree-tip-active { fill: var(--accent); }
 
 .tree-node { fill: var(--bg-elevated); stroke: var(--border-strong); stroke-width: 1.25; }
 

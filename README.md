@@ -41,14 +41,26 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   grandes mantêm o tamanho legível e são navegadas por zoom/pan. O **nó da operação atual** recebe o
   realce principal (roxo forte), os **já visitados na mesma operação** ficam em roxo suave e os demais
   permanecem neutros; a **vaga da próxima inserção** aparece pontilhada por um instante e a conexão
-  criada/alterada é destacada durante a etapa correspondente. As conexões são **curvas suaves com
-  pontas pequenas** apontando do pai para o filho, e a **conexão percorrida no passo** fica roxa
-  enquanto um indicador discreto percorre a curva na direção real do movimento. Durante as operações,
+  criada/alterada é destacada durante a etapa correspondente. As conexões são **curvas S discretas com
+  pontas pequenas** apontando do pai para o filho — a curva se inclina na direção do filho, sem o platô
+  horizontal nem o gancho vertical que apareciam quando o filho estava muito ao lado — a **conexão
+  criada/alterada é revelada progressivamente** do pai ao filho e a **conexão percorrida no passo** fica
+  roxa enquanto um indicador discreto percorre a curva na direção real do movimento (uma única ponta
+  visível por etapa). Durante as operações,
   uma **seta contextual** mostra a transição real do ponteiro ativo entre as etapas (a varredura da
   BFS, a descida da busca, a recursão dos percursos), o nó recém-inserido ganha um destaque sutil e
   nada é desenhado no estado neutro. O enquadramento se ajusta sozinho para manter a árvore visível e
-  centralizada quando a estrutura muda de tamanho. (Na lista encadeada, os ponteiros continuam
-  aparecendo como etiquetas.)
+  centralizada quando a estrutura muda de tamanho.
+- **Lista simplesmente encadeada**: cada nó é uma caixa dividida em **VALUE** (o valor, com mais
+  destaque) e **NEXT** (a referência); a conexão parte da região NEXT e aponta para o próximo nó —
+  a seta nunca é desenhada dentro da região. **HEAD** é uma etiqueta discreta sobre o primeiro nó e
+  o fim da corrente é marcado com **NULL/`undefined`** (sem virar um nó com valor); na lista vazia, o
+  diagrama mostra `HEAD → terminador`. O nó em exame fica em **roxo forte**, os já visitados na
+  operação em **roxo suave**, e a **referência alterada** e o **HEAD que mudou de nó** ficam em
+  destaque naquela etapa. Um nó recém-criado que ainda não foi ligado aparece **tracejado, "fora da
+  lista"**, até a ligação acontecer; a conexão que o cursor `current` percorre fica ativa, como a
+  seta contextual da árvore. As etiquetas de ponteiro continuam aparecendo sobre os nós, e a lista em
+  linha única é navegada por zoom/pan quando cresce (sem comprimir os nós).
 - Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
   (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
   acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó
@@ -108,13 +120,16 @@ próxima linha. Se o programa terminar (ou parar em um erro), a barra avisa.
 A representação gráfica é animada para que a execução seja fácil de acompanhar:
 
 - **Elementos deslizam** de uma posição para outra (técnica FLIP) — numa pilha, as caixas sobem/descem;
-  numa fila, deslizam para a frente; numa troca do bubble sort, os valores passam um pelo outro;
+  numa fila, deslizam para a frente; numa lista, acompanham a troca de HEAD quando um nó entra no início;
+  numa troca do bubble sort, os valores passam um pelo outro;
 - **O que entra aparece suavemente** (fade + deslocamento na direção certa) e **o que sai se despede**
   com um clone que desvanece — dá para ver exatamente *o que* saiu, de onde e para onde;
 - **Na árvore**, os nós são interpolados quadro a quadro: a árvore "cresce" e se reorganiza sem saltos,
-  as arestas são **curvas com ponta** que acompanham os nós, a conexão percorrida fica roxa com um
-  indicador percorrendo a direção do movimento e a **vaga da inserção** aparece pontilhada por um
-  instante; o nó da operação fica em **roxo forte** e os visitados na mesma operação em **roxo suave**,
+  as arestas são **curvas S com ponta** que acompanham os nós e se inclinam na direção do filho, a
+  conexão criada/alterada é **revelada progressivamente** (a ponta avança com o traçado), a conexão
+  percorrida fica roxa com um indicador percorrendo a direção do movimento e a **vaga da inserção**
+  aparece pontilhada por um instante; as conexões que a remoção vai refazer ficam **tracejadas** por
+  um passo; o nó da operação fica em **roxo forte** e os visitados na mesma operação em **roxo suave**,
   sem etiquetas de texto sobre os nós (os ponteiros continuam visíveis como etiquetas na lista
   encadeada);
 - A **duração das animações se adapta à velocidade** do play (mais curtas em 4×, mais longas em 0,5×).
@@ -129,6 +144,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Fila com classe | API `enfileirar`/`desenfileirar`/`frente`/`estaVazia`/`tamanho` |
 | Fila com campos privados (#) | `#itens` encapsulado de verdade + campo arrow |
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
+| Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
 | Árvore binária simples — inserção por nível | BFS preenchendo da esquerda para a direita + percursos pré/em/pós |
@@ -147,7 +163,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 |---|---|
 | **Pilha** | variável/classe com nome `pilha`/`stack`, ou array com `push/pop` |
 | **Fila** | nome `fila`/`queue`, ou array com `push/shift` (ou `unshift/pop`) |
-| **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (ou classe `Lista*`) |
+| **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`) |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (ou classe `Arvore*`/`Tree*`) |
 | **Array** | qualquer vetor comum |
 
@@ -211,7 +227,9 @@ node tests/run-ui-smoke.js
 Os testes cobrem: precedência de operadores, classes/campos privados/recursão, erros com linha
 correta, limites de laço/recursão, identidade visual dos itens animados (chaves estáveis), a árvore
 binária simples (inserção por nível, busca, remoção com promoção, percursos, snapshots e explicação
-contextual), recolhimento de painéis, os 12 exemplos e a renderização de todos os passos na interface.
+contextual), a lista simplesmente encadeada (operações, tamanho após cada operação, terminador,
+remoção de duplicados, render VALUE/NEXT/HEAD, destaques e explicação), recolhimento de painéis, os
+13 exemplos e a renderização de todos os passos na interface.
 
 ## Ideias de evolução
 
