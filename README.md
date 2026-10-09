@@ -22,7 +22,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   elevada, borda de 1px, raio de 6px, sombra, itens com hover discreto e o item atual em roxo suave;
   em navegadores que ainda não suportam a lista customizável do `<select>`, a lista nativa continua
   funcionando como antes.
-- O editor tem **abas de arquivo** (os exemplos abertos ficam em abas, com a ativa destacada), mantendo o
+- O editor tem **abas de arquivo** (os exemplos abertos ficam em abas, com a ativa destacada; feche pelo
+  `×` ou com o **clique do meio do mouse**), mantendo o
   **syntax highlighting do VS Code Dark+** (palavras-chave `#569cd6`, controle `#c586c0`,
   strings `#ce9178`, funções `#dcdcaa`, números `#b5cea8`, comentários `#6a9955`, tipos `#4ec9b0`), com
   números de linha, `▶` na margem e a linha em execução destacada de forma discreta.
@@ -94,8 +95,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 
 ## Como usar
 
-1. Escolha um exemplo no seletor (cada exemplo vira uma aba; clique na aba para trocar e no `×` para
-   fechar) ou escreva seu próprio código no editor.
+1. Escolha um exemplo no seletor (cada exemplo vira uma aba; clique na aba para trocar, no `×` ou com o
+   **clique do meio do mouse** — a roda — para fechar) ou escreva seu próprio código no editor.
 2. Clique em **Executar ▶** (ou `Ctrl+Enter`).
 3. Navegue com **▶/❚❚**, os botões de passo, a **barra de progresso** ou o teclado:
    - `←` / `→` — passo anterior / próximo

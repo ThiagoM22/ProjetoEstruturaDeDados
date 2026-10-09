@@ -1112,6 +1112,21 @@
     if (tab) openTab(tab.getAttribute('data-tab'));
   });
 
+  /* clicar na aba com a roda do mouse (botão do meio) fecha, como no VS Code */
+  els.tabs.addEventListener('mousedown', function (ev) {
+    if (ev.button !== 1) return;
+    if (typeof ev.preventDefault === 'function') ev.preventDefault(); /* sem rolagem automática */
+  });
+
+  els.tabs.addEventListener('auxclick', function (ev) {
+    if (ev.button !== 1) return;
+    var t = ev.target;
+    var tab = t && typeof t.closest === 'function' ? t.closest('.tab') : null;
+    if (!tab || typeof tab.getAttribute !== 'function') return;
+    if (typeof ev.preventDefault === 'function') ev.preventDefault();
+    closeTab(tab.getAttribute('data-tab'));
+  });
+
   /* canvas: controles, roda do mouse e arrasto */
   els.btnZoomIn.addEventListener('click', function () { canvasZoomCenter(1.25); });
   els.btnZoomOut.addEventListener('click', function () { canvasZoomCenter(0.8); });

@@ -758,6 +758,31 @@ test('painéis: recolher e expandir editor e painel lateral', () => {
   assert(!$('sidePanel').classList.contains('collapsed'), 'painel lateral reexpandido');
 });
 
+test('abas de código: clique do meio fecha a aba', () => {
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  $('exampleSelect').value = 'fila-array';
+  fire('exampleSelect', 'change');
+  assert($('tabs').innerHTML.indexOf('fila-array') >= 0, 'aba da fila aberta');
+  const target = {
+    closest(sel) { return sel === '.tab' ? this : null; },
+    getAttribute(name) { return name === 'data-tab' ? 'fila-array' : null; }
+  };
+  fire('tabs', 'auxclick', { button: 1, target, preventDefault() {} });
+  assert($('tabs').innerHTML.indexOf('fila-array') < 0, 'aba fechada com o botão do meio');
+  assert($('tabs').innerHTML.indexOf('pilha-array') >= 0, 'aba ativa voltou para a anterior');
+  assert($('exampleSelect').value === 'pilha-array', 'exemplo anterior recarregado');
+});
+
+test('abas de código: botão do meio não dispara rolagem automática', () => {
+  let prevented = false;
+  fire('tabs', 'mousedown', { button: 1, preventDefault() { prevented = true; } });
+  assert(prevented, 'mousedown do meio teve preventDefault');
+  prevented = false;
+  fire('tabs', 'mousedown', { button: 0, preventDefault() { prevented = true; } });
+  assert(!prevented, 'mousedown esquerdo segue livre');
+});
+
 test('erro de código mostra banner com a linha', () => {
   $('code').value = 'const a = 1;\nnull.x;';
   fire('btnRun', 'click');
