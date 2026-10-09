@@ -287,6 +287,25 @@ test('fila com classe: detecta this.itens e mantém FRONT/REAR', () => {
   assert(all.indexOf('push(') >= 0 && all.indexOf('shift() → ') >= 0, 'operações de enqueue/dequeue');
 });
 
+test('fila com índices (#inicio/#fim): FRONT/REAR seguem a janela viva', () => {
+  const snaps = snapshotExample('fila-indices');
+  const all = snaps.join('\n');
+  assert(all.indexOf('ptr-front') >= 0 && all.indexOf('ptr-rear') >= 0, 'indicadores FRONT/REAR');
+  assert(all.indexOf('cell-val">undefined') < 0, 'buracos do delete ficam fora do desenho');
+  const bc = snaps.filter((h) => h.indexOf('&quot;B&quot;') >= 0 && h.indexOf('&quot;C&quot;') >= 0 && h.indexOf('&quot;D&quot;') < 0).pop();
+  assert(bc, 'passo com B e C depois de A sair');
+  assert(bc.split('queue-cell').length - 1 === 2, 'dois elementos na janela viva');
+  assert(bc.indexOf('índice 1') >= 0 && bc.indexOf('índice 2') >= 0, 'índices reais [1] e [2]');
+  assert(bc.indexOf('índice 0') < 0, 'buraco do índice 0 fora do desenho');
+  const unidades = bc.split('queue-unit');
+  assert(unidades[1].indexOf('ptr-front') >= 0 && unidades[1].indexOf('&quot;B&quot;') >= 0, 'FRONT em B');
+  assert(unidades[2].indexOf('ptr-rear') >= 0 && unidades[2].indexOf('&quot;C&quot;') >= 0, 'REAR em C');
+  const ultimo = snaps[snaps.length - 1];
+  assert(ultimo.split('queue-cell').length - 1 === 1, 'E é o único elemento no fim');
+  assert(ultimo.indexOf('[0]') >= 0 && ultimo.indexOf('&quot;E&quot;') >= 0, 'E reusa o índice 0 depois do reset');
+  assert(ultimo.indexOf('ptr-front') >= 0 && ultimo.indexOf('ptr-rear') >= 0, 'FRONT e REAR em E');
+});
+
 test('fila: zoom (botões e roda) e pan funcionam durante a visualização', () => {
   $('exampleSelect').value = 'fila-array';
   fire('exampleSelect', 'change');

@@ -29,7 +29,7 @@
       <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
       <span class="btn-label">Depurar</span>
     </button>
-    <select id="structureSelect" class="select" title="Estrutura exibida"></select>
+    <select id="structureSelect" class="select" title="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
     <button id="btnToggleCode" class="btn ghost small toggle" title="Recolher/expandir o editor de código" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="btn-label">Código</span>
@@ -53,7 +53,7 @@
     <div class="panel-head code-head">
       <div id="tabs" class="tabs" role="tablist"></div>
       <div class="row code-actions">
-        <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"></select>
+        <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"><button><selectedcontent></selectedcontent></button></select>
       </div>
     </div>
     <div class="editor" id="editor">
@@ -146,6 +146,7 @@
     </button>
   </div>
   <select id="speedSelect" class="select speed" title="Velocidade de reprodução" aria-label="Velocidade de reprodução">
+    <button><selectedcontent></selectedcontent></button>
     <option value="0.5">0,5×</option>
     <option value="1" selected>1×</option>
     <option value="2">2×</option>

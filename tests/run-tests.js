@@ -327,6 +327,38 @@ test('campos privados (#): a Fila com #items/#inicio/#fim roda sem mudanças', (
   eq(props['#fim'].v, 0, '#fim volta a zero');
   const cands = DSV.detectStructures(last, DSV.buildOpsMap(t.steps));
   assert(cands.some((c) => c.type === 'queue'), 'portal continua detectando a fila com campo privado');
+
+  /* o desenho segue a janela #inicio/#fim, não o array bruto com buracos */
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const renders = [];
+  t.steps.forEach((step) => {
+    const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'queue')[0];
+    if (!sel) return;
+    const container = {};
+    DSV.renderStructure(container, sel, step, { opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [] });
+    renders.push(container.innerHTML);
+  });
+  assert(renders.length > 5, 'renderiza a fila ao longo do trace');
+  renders.forEach((html, i) => {
+    assert(html.indexOf('cell-val">undefined') < 0, 'passo ' + i + ': buraco do delete não vira célula da fila');
+  });
+  const todosABC = renders.filter((h) => h.indexOf('&quot;A&quot;') >= 0 && h.indexOf('&quot;B&quot;') >= 0 && h.indexOf('&quot;C&quot;') >= 0).pop();
+  assert(todosABC, 'passo com A, B e C');
+  assert(todosABC.split('queue-cell').length - 1 === 3, 'três elementos enfileirados');
+  const unidadesABC = todosABC.split('queue-unit');
+  assert(unidadesABC[1].indexOf('ptr-front') >= 0 && unidadesABC[1].indexOf('&quot;A&quot;') >= 0, 'FRONT em A (índice real 0)');
+  assert(unidadesABC[3].indexOf('ptr-rear') >= 0 && unidadesABC[3].indexOf('&quot;C&quot;') >= 0, 'REAR em C (índice real 2)');
+  const passoBC = renders.filter((h) => h.indexOf('&quot;B&quot;') >= 0 && h.indexOf('&quot;C&quot;') >= 0 && h.indexOf('&quot;D&quot;') < 0).pop();
+  assert(passoBC, 'passo com a fila B, C');
+  assert(passoBC.split('queue-cell').length - 1 === 2, 'só B e C desenhados, sem buracos');
+  assert(passoBC.indexOf('índice 1') >= 0 && passoBC.indexOf('índice 2') >= 0, 'índices reais [1] e [2]');
+  assert(passoBC.indexOf('índice 0') < 0, 'buraco do índice 0 fora do desenho');
+  const unidadesBC = passoBC.split('queue-unit');
+  assert(unidadesBC[1].indexOf('ptr-front') >= 0 && unidadesBC[1].indexOf('&quot;B&quot;') >= 0, 'FRONT em B (índice real 1)');
+  assert(unidadesBC[2].indexOf('ptr-rear') >= 0 && unidadesBC[2].indexOf('&quot;C&quot;') >= 0, 'REAR em C');
+  const ultimoRender = renders[renders.length - 1];
+  assert(ultimoRender.indexOf('A fila está vazia neste passo.') >= 0, 'fila vazia mesmo com histórico no array');
+  assert(ultimoRender.indexOf('ptr-front') < 0 && ultimoRender.indexOf('ptr-rear') < 0, 'sem indicadores no vazio');
 });
 
 test('campo privado fora da classe: erro de sintaxe', () => {

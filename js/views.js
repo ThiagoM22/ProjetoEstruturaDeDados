@@ -83,6 +83,23 @@
     return null;
   }
 
+  /* Fila com índices (#inicio/#fim): a janela viva é [inicio, fim); o resto
+   * do array é histórico de posições (os buracos que o "delete" deixa).
+   * Devolve null quando o wrapper não guarda índices (ex.: push/shift). */
+  function queueWindow(sv, items) {
+    if (!isObj(sv) || !isArr(items)) return null;
+    var startP = propOf(sv, ['#inicio', '#início', 'inicio', 'início']);
+    var endP = propOf(sv, ['#fim', 'fim']);
+    if (!startP || !endP) return null;
+    if (!startP.value || startP.value.t !== 'p' || typeof startP.value.v !== 'number') return null;
+    if (!endP.value || endP.value.t !== 'p' || typeof endP.value.v !== 'number') return null;
+    var start = startP.value.v;
+    var end = endP.value.v;
+    if (!isFinite(start) || !isFinite(end)) return null;
+    if (start < 0 || end < start || end > items.items.length) return null;
+    return { start: start, end: end };
+  }
+
   function childNodeProp(sv, keys) {
     for (var i = 0; i < keys.length; i++) {
       var p = propOf(sv, [keys[i]]);
@@ -332,11 +349,11 @@
           if (isStack && !isQueue) {
             push({ type: 'stack', id: items.value.id, label: shownLabel, score: 9 + (ops.pop ? 1 : 0) });
           } else if (isQueue && !isStack) {
-            push({ type: 'queue', id: items.value.id, label: shownLabel, score: 9 + (ops.shift ? 1 : 0) });
+            push({ type: 'queue', id: items.value.id, label: shownLabel, score: 9 + (ops.shift ? 1 : 0), win: queueWindow(v, items.value) });
           } else if (ops.pop && !ops.shift) {
             push({ type: 'stack', id: items.value.id, label: shownLabel, score: 9 });
           } else {
-            push({ type: 'queue', id: items.value.id, label: shownLabel, score: 9 });
+            push({ type: 'queue', id: items.value.id, label: shownLabel, score: 9, win: queueWindow(v, items.value) });
           }
           return;
         }
@@ -495,7 +512,10 @@
     empilhar: 'Empilhamento',
     desempilhar: 'Desempilhamento',
     enfileirar: 'Enfileiramento',
-    desenfileirar: 'Desenfileiramento'
+    desenfileirar: 'Desenfileiramento',
+    enqueue: 'Enfileiramento',
+    dequeue: 'Desenfileiramento',
+    front: 'Consulta à frente'
   };
 
   /* operações da lista simplesmente encadeada (mesmos nomes da aula):
@@ -530,6 +550,9 @@
     if (/posOrdem\s*\(/.test(line)) return 'Percurso pós-ordem';
     if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
     if (/\.estaVazia\s*\(/.test(line)) return 'Verificação';
+    if (/\.enqueue\s*\(/.test(line)) return 'Enfileiramento';
+    if (/\.dequeue\s*\(/.test(line)) return 'Desenfileiramento';
+    if (/\.front\s*\(/.test(line)) return 'Consulta à frente';
     /* chamadas da lista simplesmente encadeada (o passo da chamada já
      * rodou a operação; a pilha não tem mais o frame do método) */
     if (/\.insertAtBeginning\s*\(/.test(line)) return 'Inserção no início';
@@ -848,17 +871,26 @@
   }
 
   function renderQueue(container, v, sel, ctx) {
-    var n = v.items.length;
+    var items = v.items;
     var ops = (ctx.opsMap || {})[sel.id] || {};
     /* fila implementada com unshift/pop: a frente fica na outra extremidade */
     var reverse = !!(ops.unshift && ops.pop && !ops.shift);
+    /* fila com índices (#inicio/#fim): a fila é só a janela viva [inicio, fim);
+     * o resto do array é histórico de posições e fica fora do desenho */
+    var win = sel.win || null;
+    var from = win ? win.start : 0;
+    var to = win ? win.end : items.length;
+    /* entre o delete e o #inicio++ o buraco fica na frente: não é elemento */
+    while (win && from < to && isNullSer(items[from])) from++;
+    var shown = items.slice(from, to);
+    var n = shown.length;
     var badge = eventsBadge(sel, ctx);
-    var keys = itemKeys(v.items);
+    var keys = itemKeys(shown);
     var dur = animDur(ctx);
     var enterDir = reverse ? 'left' : 'right';
     var exitDir = reverse ? 'right' : 'left';
-    var frontIdx = reverse ? n - 1 : 0;
-    var rearIdx = reverse ? 0 : n - 1;
+    var frontIdx = win ? 0 : (reverse ? n - 1 : 0);
+    var rearIdx = win ? n - 1 : (reverse ? 0 : n - 1);
 
     DSV.flipRender(container, function () {
       var html = head('Fila', structureSub(sel, n, 'item', 'itens'), badge);
@@ -877,10 +909,10 @@
             (isFront ? '<span class="queue-ptr ptr-front" title="primeiro a sair">FRONT</span>' : '') +
             (isRear ? '<span class="queue-ptr ptr-rear" title="último a entrar">REAR</span>' : '') +
             '</div>';
-          html += '<div class="queue-cell' + (isFront ? ' front' : '') + '" title="índice ' + i + '">' +
-            '<span class="cell-val">' + esc(DSV.fmtSerializedShort(v.items[i])) + '</span>' +
+          html += '<div class="queue-cell' + (isFront ? ' front' : '') + '" title="índice ' + (from + i) + '">' +
+            '<span class="cell-val">' + esc(DSV.fmtSerializedShort(shown[i])) + '</span>' +
             '</div>';
-          html += '<div class="queue-idx">[' + i + ']</div>';
+          html += '<div class="queue-idx">[' + (from + i) + ']</div>';
           html += '</div>';
         }
         html += '</div>';

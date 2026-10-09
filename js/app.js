@@ -261,7 +261,8 @@
   }
 
   function buildStructureOptions() {
-    var html = '<option value="auto">Automático</option>';
+    var html = '<button><selectedcontent></selectedcontent></button>' +
+      '<option value="auto">Automático</option>';
     state.candidates.forEach(function (c) {
       html += '<option value="' + esc(c.type + '|' + c.id) + '">' +
         esc(DSV.typeLabel(c.type) + ' — ' + c.label) + '</option>';
@@ -846,9 +847,16 @@
   /* ------------------------------------------------------------------ */
 
   function chooseSelection(step) {
-    if (state.forced) return state.forced;
-
     var candidates = DSV.detectStructures(step, state.opsMap);
+    if (state.forced) {
+      /* a escolha manual guarda type/id; os metadados do passo (ex.: a janela
+       * #inicio/#fim da fila) vêm sempre do candidato recalculado agora */
+      for (var f = 0; f < candidates.length; f++) {
+        if (candidates[f].type === state.forced.type && candidates[f].id === state.forced.id) return candidates[f];
+      }
+      return state.forced;
+    }
+
     if (state.sticky) {
       var found = null;
       for (var i = 0; i < candidates.length; i++) {
@@ -1212,7 +1220,7 @@
   /* ------------------------------------------------------------------ */
 
   function init() {
-    var options = '';
+    var options = '<button><selectedcontent></selectedcontent></button>';
     DSV.EXAMPLES.forEach(function (ex) {
       options += '<option value="' + esc(ex.id) + '">' + esc(ex.name) + '</option>';
     });

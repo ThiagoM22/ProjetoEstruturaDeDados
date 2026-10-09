@@ -18,6 +18,10 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   `--border`, `--text-primary`, `--text-secondary`, `--accent`…); as três regiões são planas e separadas
   por divisórias de 1px, e o roxo (`#8957e5`) é a cor de **destaque**, usada só no botão de execução, na
   linha em execução, no elemento afetado pela operação e na timeline.
+- Os **seletores** (estrutura, exemplo e velocidade) abrem a lista no mesmo padrão do tema — superfície
+  elevada, borda de 1px, raio de 6px, sombra, itens com hover discreto e o item atual em roxo suave;
+  em navegadores que ainda não suportam a lista customizável do `<select>`, a lista nativa continua
+  funcionando como antes.
 - O editor tem **abas de arquivo** (os exemplos abertos ficam em abas, com a ativa destacada), mantendo o
   **syntax highlighting do VS Code Dark+** (palavras-chave `#569cd6`, controle `#c586c0`,
   strings `#ce9178`, funções `#dcdcaa`, números `#b5cea8`, comentários `#6a9955`, tipos `#4ec9b0`), com
@@ -33,7 +37,9 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   **FRONT** (primeiro a sair) e **REAR** (último a entrar) acompanham as posições reais a cada passo.
   Com um único elemento, os dois apontam para o mesmo nó; com a fila vazia, nenhum indicador aparece.
   `enqueue` entra pela extremidade REAR e `dequeue` sai pela FRONT (na variante `unshift/pop`, as
-  extremidades se invertem).
+  extremidades se invertem). Numa fila com índices (`#inicio`/`#fim`), o desenho mostra **só a janela
+  viva**: FRONT é o `#inicio`, REAR é `#fim - 1`, os `[i]` são as posições reais no array e os buracos
+  deixados pelo `delete` ficam fora do desenho.
 - **Árvore binária limpa e contextual**: nós circulares, conexões finas e hierarquia raiz→filhos, sem
   rótulos permanentes de "esquerda/direita", sem indicadores fixos de filhos vazios e **sem etiquetas de
   texto sobre os nós**. O tamanho dos nós e o espaçamento entre níveis **se adaptam ao tamanho da
@@ -143,6 +149,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Fila com array (push/shift) | FIFO, indicadores FRONT/REAR |
 | Fila com classe | API `enfileirar`/`desenfileirar`/`frente`/`estaVazia`/`tamanho` |
 | Fila com campos privados (#) | `#itens` encapsulado de verdade + campo arrow |
+| Fila com índices (#inicio/#fim) | fila sem `shift`: FRONT/REAR seguem a janela viva `[#inicio, #fim)` e os buracos do `delete` ficam fora do desenho |
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
@@ -160,7 +167,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Estrutura | Como é reconhecida |
 |---|---|
 | **Pilha** | variável/classe com nome `pilha`/`stack`, ou array com `push/pop` |
-| **Fila** | nome `fila`/`queue`, ou array com `push/shift` (ou `unshift/pop`) |
+| **Fila** | nome `fila`/`queue`, array com `push/shift` (ou `unshift/pop`) ou classe com array interno e índices `#inicio`/`#fim` |
 | **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`) |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (ou classe `Arvore*`/`Tree*`) |
 

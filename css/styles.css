@@ -352,6 +352,72 @@ body {
 
 .select-compact:focus-visible { border-color: var(--accent); }
 
+/* lista suspensa no padrão do tema (customizable select; nos navegadores
+   sem suporte, o select nativo continua como está — degradação suave) */
+@supports (appearance: base-select) {
+  select.select,
+  select.select::picker(select) { appearance: base-select; }
+
+  /* o chevron deixa de ser background e passa a ser o ::picker-icon */
+  select.select,
+  .topbar select.select {
+    align-items: center;
+    padding-right: var(--sp-2);
+    background-image: none;
+  }
+
+  select.select::picker-icon {
+    content: "";
+    width: 10px;
+    height: 10px;
+    margin-left: var(--sp-2);
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+  }
+
+  select.select:open { color: var(--text-primary); border-color: var(--accent-muted); }
+
+  /* o rótulo selecionado encolhe com truncamento em vez de empurrar o layout */
+  select.select > button > selectedcontent,
+  select.select selectedcontent {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* a lista: superfície elevada, borda, raio e sombra dos painéis do tema */
+  select.select::picker(select) {
+    max-width: min(420px, calc(100vw - 16px));
+    max-height: 320px;
+    margin-top: var(--sp-1);
+    padding: var(--sp-1);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+  }
+
+  select.select option {
+    padding: 4px var(--sp-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font: 12px var(--font-ui);
+    white-space: nowrap;
+  }
+
+  select.select option:hover,
+  select.select option:focus-visible { background: var(--bg-hover); }
+
+  select.select option:checked {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  select.select option::checkmark { color: var(--accent); }
+}
+
 kbd {
   font: 600 10.5px var(--font-mono);
   background: var(--bg-primary);
