@@ -344,11 +344,11 @@ test('fila extensa: linha única, navegável e com ajuste à tela', () => {
   assert(zoom < 1 && zoom >= 0.25, 'ajuste reduz o zoom para caber (zoom: ' + zoom + ')');
 });
 
-test('lista encadeada: nós, chips e null', () => {
+test('lista encadeada: nós, chips e terminador compacto', () => {
   const all = percorrerExemplo('lista-encadeada');
   assert(all.indexOf('Lista encadeada') >= 0, 'título');
   assert(all.indexOf('ptr-chip') >= 0, 'chip de ponteiro');
-  assert(all.indexOf('list-null') >= 0, 'terminador null');
+  assert(all.indexOf('list-end') >= 0, 'terminador compacto (null)');
   assert(all.indexOf('Visitando o nó') < 0, 'saída de console não vaza para a estrutura');
 });
 
@@ -359,9 +359,11 @@ test('lista simples: percorre todos os passos com VALUE/NEXT, HEAD e terminador'
   assert(all.indexOf('list-next') >= 0, 'região NEXT');
   assert(all.indexOf('list-link') >= 0, 'conexões saindo do NEXT');
   assert(all.indexOf('list-head-tag') >= 0, 'indicador HEAD');
-  assert(all.indexOf('list-null') >= 0, 'terminador');
+  assert(all.indexOf('list-end') >= 0, 'terminador compacto');
   assert(all.indexOf('ptr-chip') >= 0, 'chips de ponteiro (current/newNode)');
   assert(all.indexOf('list-unit pending') >= 0, 'nó criado aparece fora da lista até ser ligado');
+  assert(all.indexOf('visit-chip') < 0 && all.indexOf('✓true') < 0, 'sem chips de visita decorativos');
+  assert(all.indexOf('--list-scale:') >= 0, 'escala por faixa aplicada ao desenho');
   assert(all.indexOf('Visitando') < 0, 'saída de console não vaza para a estrutura');
 });
 
@@ -371,7 +373,27 @@ test('lista simples: estado vazio mostra HEAD e terminador sem nó', () => {
   assert(vazio, 'existe passo de lista vazia sem nós');
   assert(vazio.indexOf('list-head-tag') >= 0, 'HEAD desenhado no vazio');
   assert(vazio.indexOf('list-link') >= 0, 'conexão até o terminador');
-  assert(vazio.indexOf('list-null') >= 0, 'terminador desenhado');
+  assert(vazio.indexOf('list-end') >= 0, 'terminador compacto desenhado');
+  assert(vazio.indexOf('>undefined</div>') < 0, 'terminador não é uma caixa com undefined');
+});
+
+test('lista longa: desenho usa o tamanho-base e continua navegável', () => {
+  $('code').value = [
+    'const inicio = { valor: 1, proximo: undefined };',
+    'let atual = inicio;',
+    'for (let i = 2; i <= 12; i++) {',
+    '  atual.proximo = { valor: i, proximo: undefined };',
+    '  atual = atual.proximo;',
+    '}'
+  ].join('\n');
+  fire('btnRun', 'click');
+  fire('btnLast', 'click');
+  const h = $('structure').innerHTML;
+  assert((h.match(/list-value">/g) || []).length === 12, '12 nós desenhados');
+  assert(h.indexOf('--list-scale:1"') >= 0, 'lista longa usa a escala-base');
+  fire('btnZoomFit', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1 && zoom >= 0.25, 'ajuste à tela reduz para caber (zoom: ' + zoom + ')');
 });
 
 test('lista simples: destaques de nó atual, visitado e referência alterada', () => {

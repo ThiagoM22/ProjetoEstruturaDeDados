@@ -751,6 +751,11 @@
         if (op === 'Inserção no final' && ref.id != null && chain.ids[ref.id]) {
           return 'O novo nó ' + valText(pendingNode) + ' está no fim e será ligado ao último nó.';
         }
+        /* durante o percurso até o último nó, o passo é a caminhada — não a
+         * criação do nó (que já apareceu quando aconteceu) */
+        if (op === 'Inserção no final' && aid != null && map[aid]) {
+          return 'Percorrendo a lista até o último nó.';
+        }
         return 'O novo nó ' + valText(pendingNode) + ' foi criado; a referência next ainda não foi ligada.';
       }
       if (headChanged && chain.nodes.length) {
@@ -989,6 +994,7 @@
      * construtor e o resumo da chamada já expõem o objeto na serialização,
      * então o critério é a presença na cadeia, não no escopo. */
     var pending = [];
+    var pendingChanged = Object.create(null);
     var opFrame = ctx && ctx.step ? opFrameName(ctx.step.stack) : null;
     var inserting = opFrame === 'insertAtBeginning' || opFrame === 'insertAtEnd';
     if (ctx && ctx.pointers && inserting) {
@@ -996,7 +1002,12 @@
         var id = Number(idStr);
         if (chain.ids[id] || prevChain.ids[id]) return;
         var sv = DSV.findValueById(ctx.step, id);
-        if (isObj(sv) && isListNode(sv)) pending.push(sv);
+        if (!isObj(sv) || !isListNode(sv)) return;
+        pending.push(sv);
+        /* o pendente também troca de referência (ex.: "newNode.next = head"):
+         * compara com o passo anterior para destacar a ligação na hora */
+        var prevSv = ctx.prevStep ? DSV.findValueById(ctx.prevStep, id) : null;
+        if (isObj(prevSv) && nextRef(prevSv).id !== nextRef(sv).id) pendingChanged[id] = true;
       });
     }
 
@@ -1006,6 +1017,7 @@
       prevById: prevById,
       changed: changed,
       pending: pending,
+      pendingChanged: pendingChanged,
       headChanged: !!(prevSel && prevSel.id !== sel.id)
     };
   }
@@ -1067,8 +1079,25 @@
       '</svg>';
   }
 
+  /* fim da lista: undefined/null viram um indicador compacto (∅ desenhado,
+   * para não depender da fonte), sem a aparência de um nó com VALUE/NEXT;
+   * outros primitivos mantêm o valor real da referência */
+  function listEndHtml(ref) {
+    var isEnd = !ref || ref.val === 'undefined' || ref.val === 'null';
+    if (!isEnd) {
+      return '<div class="cell list-null" title="fim da lista: a referência next aponta para este valor">' + esc(ref.val) + '</div>';
+    }
+    var why = ref && ref.val === 'null' ? 'null' : 'undefined';
+    return '<span class="list-end" role="img" aria-label="fim da lista (next = ' + why + ')" ' +
+      'title="fim da lista: a referência next não aponta para nenhum nó (' + why + ')">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/>' +
+      '<path d="M7.4 16.6 16.6 7.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+      '</svg></span>';
+  }
+
   /* unidades dos nós recém-criados que ainda não fazem parte da lista */
-  function listPendingUnitsHtml(list, ctx, chain, side) {
+  function listPendingUnitsHtml(list, ctx, chain, side, changedMap) {
     var out = '';
     list.forEach(function (node) {
       var ref = nextRef(node);
@@ -1077,6 +1106,7 @@
         chips: chipsFor((ctx.pointers || {})[node.id]),
         pending: true,
         isNew: true,
+        changedRef: !!(changedMap && changedMap[node.id]),
         arrow: linked,
         arrowCls: 'new',
         enterDir: side,
@@ -1084,6 +1114,25 @@
       });
     });
     return out;
+  }
+
+  /* Métricas do desenho por faixa de tamanho: listas curtas ganham nós e
+   * espaçamentos maiores (para ocupar o canvas sem parecerem minúsculas);
+   * listas longas mantêm o tamanho-base, que segue legível — a navegação
+   * fica por conta do zoom/pan. Determinístico: só depende da contagem de nós. */
+  var LIST_TIERS = [
+    { max: 2, scale: 1.4 },
+    { max: 4, scale: 1.22 },
+    { max: 7, scale: 1.08 },
+    { max: Infinity, scale: 1 }
+  ];
+
+  function listScale(nodeCount) {
+    var n = Math.max(1, nodeCount || 0);
+    for (var i = 0; i < LIST_TIERS.length; i++) {
+      if (n <= LIST_TIERS[i].max) return LIST_TIERS[i].scale;
+    }
+    return 1;
   }
 
   /* unidade da lista: chips acima, nó dividido em VALUE/NEXT e a seta que
@@ -1106,7 +1155,6 @@
     (opts.chips || []).forEach(function (c) {
       ptrs += '<span class="ptr-chip">' + esc(c) + '</span>';
     });
-    if (opts.visitNum) ptrs += '<span class="visit-chip" title="ordem de visita">✓' + opts.visitNum + '</span>';
     if (opts.pending) ptrs += '<span class="list-pending-note" title="nó criado que ainda não faz parte da lista">fora da lista</span>';
 
     return '<div class="list-unit' + (opts.pending ? ' pending' : '') + '" data-k="n' + node.id + '" data-enter="' + opts.enterDir + '" data-exit="' + opts.exitDir + '">' +
@@ -1134,6 +1182,7 @@
     var willRemove = listRemovedTargets(sel, ctx, chain);
     var badge = eventsBadge(sel, ctx);
     var dur = animDur(ctx);
+    var scale = listScale(nodes.length);
     var terminador = nodes.length ? nextRef(nodes[nodes.length - 1]) : { val: 'null' };
 
     var pendingLeft = [];
@@ -1145,9 +1194,9 @@
     DSV.flipRender(container, function () {
       var html = head('Lista encadeada', structureSub(sel, nodes.length, 'nó', 'nós', 'Lista encadeada'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
-      html += '<div class="list-wrap">';
+      html += '<div class="list-wrap" style="--list-scale:' + scale + '">';
 
-      html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left');
+      html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left', diff.pendingChanged);
 
       for (var i = 0; i < nodes.length; i++) {
         var node = nodes[i];
@@ -1156,7 +1205,6 @@
         var changedRef = !!diff.changed[node.id];
         html += listUnitHtml(node, {
           chips: chipsFor((ctx.pointers || {})[node.id]),
-          visitNum: visitMap[node.id],
           isNew: !diff.prevChain.ids[node.id],
           visited: !!visitMap[node.id] && !isActive,
           active: isActive,
@@ -1176,10 +1224,10 @@
           '<div class="list-box-row"><div class="cell list-null cycle" title="a lista voltou para um nó já visitado">↩ nó #' + chain.cycleId + ' (ciclo)</div></div></div></div>';
       } else {
         html += '<div class="list-unit" data-k="null"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
-          '<div class="list-box-row"><div class="cell list-null" title="fim da lista: a referência next não aponta para um nó">' + esc(terminador.val) + '</div></div></div></div>';
+          '<div class="list-box-row">' + listEndHtml(terminador) + '</div></div></div>';
       }
 
-      html += listPendingUnitsHtml(pendingRight, ctx, chain, 'right');
+      html += listPendingUnitsHtml(pendingRight, ctx, chain, 'right', diff.pendingChanged);
 
       html += '</div>';
       html += '</div>';
@@ -1210,14 +1258,14 @@
     DSV.flipRender(container, function () {
       var html = head('Lista encadeada', structureSub(sel, 0, 'nó', 'nós', 'Lista encadeada'), eventsBadge(sel, ctx));
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
-      html += '<div class="list-wrap">';
-      html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left');
+      html += '<div class="list-wrap" style="--list-scale:' + listScale(0) + '">';
+      html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left', diff.pendingChanged);
       html += '<div class="list-unit" data-k="head-empty"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
         '<div class="list-box-row"><span class="list-head-tag" title="início da lista (head)">HEAD</span>' +
-        listArrowHtml('empty') +
-        '<div class="cell list-null" title="a lista está vazia: HEAD não aponta para nenhum nó">' + esc(sentinel) + '</div>' +
+        listArrowHtml('start') +
+        listEndHtml({ val: sentinel }) +
         '</div></div></div>';
-      html += listPendingUnitsHtml(pendingRight, ctx, emptyChain, 'right');
+      html += listPendingUnitsHtml(pendingRight, ctx, emptyChain, 'right', diff.pendingChanged);
       html += '</div>';
       html += '<div class="empty-inline list-empty-note">A lista está vazia neste passo.</div>';
       html += '</div></div>';

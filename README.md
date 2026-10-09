@@ -60,13 +60,16 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 - **Lista simplesmente encadeada**: cada nó é uma caixa dividida em **VALUE** (o valor, com mais
   destaque) e **NEXT** (a referência); a conexão parte da região NEXT e aponta para o próximo nó —
   a seta nunca é desenhada dentro da região. **HEAD** é uma etiqueta discreta sobre o primeiro nó e
-  o fim da corrente é marcado com **NULL/`undefined`** (sem virar um nó com valor); na lista vazia, o
-  diagrama mostra `HEAD → terminador`. O nó em exame fica em **roxo forte**, os já visitados na
+  o fim da corrente é marcado por um indicador compacto **∅** (sem virar um nó, sem contar no
+  tamanho e preservando a referência real — `undefined`/`null` — no título); na lista vazia, o
+  diagrama mostra `HEAD → ∅`. O nó em exame fica em **roxo forte**, os já visitados na
   operação em **roxo suave**, e a **referência alterada** e o **HEAD que mudou de nó** ficam em
   destaque naquela etapa. Um nó recém-criado que ainda não foi ligado aparece **tracejado, "fora da
-  lista"**, até a ligação acontecer; a conexão que o cursor `current` percorre fica ativa, como a
-  seta contextual da árvore. As etiquetas de ponteiro continuam aparecendo sobre os nós, e a lista em
-  linha única é navegada por zoom/pan quando cresce (sem comprimir os nós).
+  lista"**, até a ligação acontecer (o NEXT dele também acende na atribuição); a conexão que o
+  cursor `current` percorre fica ativa, como a seta contextual da árvore. As etiquetas de ponteiro
+  continuam aparecendo sobre os nós, e o tamanho dos nós e o espaçamento **se adaptam à quantidade
+  de nós**: listas curtas desenham maiores e listas longas mantêm o tamanho-base, navegadas por
+  zoom/pan (sem comprimir os nós).
 - Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
   (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
   acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó

@@ -928,14 +928,17 @@ kbd {
 
 /* lista encadeada — cada nó tem duas regiões: VALUE (o valor) e NEXT (a
  * referência); a conexão parte da região NEXT e a linha é navegada por
- * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós) */
+ * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós).
+ * A escala acompanha o tamanho da lista (--list-scale, definido no render):
+ * listas curtas desenham maior; longas mantêm o tamanho-base. */
 .list-wrap {
+  --list-scale: 1;
   display: flex;
   align-items: flex-end;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-2);
+  gap: calc(var(--sp-2) * var(--list-scale));
+  padding: calc(var(--sp-3) * var(--list-scale)) calc(var(--sp-2) * var(--list-scale));
 }
 
 .list-empty-note { margin-top: var(--sp-1); }
@@ -951,8 +954,8 @@ kbd {
   align-items: flex-end;
   justify-content: center;
   gap: var(--sp-1);
-  min-height: 25px;
-  padding-bottom: 5px;
+  min-height: calc(25px * var(--list-scale));
+  padding-bottom: calc(5px * var(--list-scale));
 }
 
 .list-box-row { display: flex; align-items: center; }
@@ -970,9 +973,9 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 46px;
-  padding: 10px 12px;
-  font: 600 14px var(--font-mono);
+  min-width: calc(46px * var(--list-scale));
+  padding: calc(10px * var(--list-scale)) calc(12px * var(--list-scale));
+  font: 600 calc(14px * var(--list-scale)) var(--font-mono);
   color: var(--text-primary);
 }
 
@@ -981,18 +984,18 @@ kbd {
 .list-next {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 8px;
+  gap: calc(5px * var(--list-scale));
+  padding: 0 calc(8px * var(--list-scale));
   border-left: 1px solid var(--border);
-  font: 600 9.5px/1 var(--font-mono);
+  font: 600 calc(9.5px * var(--list-scale))/1 var(--font-mono);
   letter-spacing: 0.4px;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .list-next-dot {
-  width: 5px;
-  height: 5px;
+  width: calc(5px * var(--list-scale));
+  height: calc(5px * var(--list-scale));
   border-radius: 50%;
   background: var(--border-strong);
 }
@@ -1069,7 +1072,13 @@ kbd {
 .list-head-tag.changed::after { border-top-color: var(--accent); }
 
 /* conexão entre a região NEXT e o próximo nó (ou o terminador) */
-.list-link { flex: none; display: block; margin: 0 var(--sp-1); }
+.list-link {
+  flex: none;
+  display: block;
+  width: calc(30px * var(--list-scale));
+  height: calc(14px * var(--list-scale));
+  margin: 0 calc(var(--sp-1) * var(--list-scale));
+}
 
 .list-link-shape {
   fill: var(--border-strong);
@@ -1077,13 +1086,28 @@ kbd {
   stroke-width: 0;
 }
 
-.list-link.empty .list-link-shape { fill: var(--text-muted); stroke: var(--text-muted); }
+.list-link.start .list-link-shape { fill: var(--text-muted); stroke: var(--text-muted); }
 
 .list-link.new .list-link-shape { fill: var(--accent-muted); stroke: var(--accent-muted); }
 
 .list-link.active .list-link-shape { fill: var(--accent); stroke: var(--accent); }
 
-/* terminador: não é um nó, é o fim da lista (next === undefined/null) */
+/* terminador: não é um nó, é o fim da lista (next === undefined/null);
+ * indicador compacto com o símbolo ∅ desenhado — some quando a referência
+ * passa a apontar para outro nó */
+.list-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(22px * var(--list-scale));
+  height: calc(22px * var(--list-scale));
+  color: var(--text-muted);
+}
+
+.list-end svg { display: block; width: 100%; height: 100%; }
+
+/* valor não-nulo na referência (ex.: next apontando para um primitivo):
+ * mantém o valor à mostra, como um chip discreto */
 .list-null {
   padding: 6px 10px;
   color: var(--text-muted);
@@ -1107,16 +1131,6 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 0 6px;
-  white-space: nowrap;
-}
-
-.visit-chip {
-  font: 600 10.5px/18px var(--font-mono);
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success-border);
-  border-radius: var(--radius-xs);
-  padding: 0 5px;
   white-space: nowrap;
 }
 

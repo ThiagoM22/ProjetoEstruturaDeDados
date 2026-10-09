@@ -856,8 +856,100 @@ test('render da lista: VALUE e NEXT separados, HEAD no primeiro nó e terminador
   eq(r.html.split('list-head-tag').length - 1, 1, 'um único HEAD (primeiro nó)');
   assert(r.html.indexOf('list-link') >= 0, 'conexão a partir da região NEXT');
   assert(r.html.indexOf('list-next') < r.html.indexOf('list-link'), 'a conexão vem depois da região NEXT');
-  assert(r.html.indexOf('class="cell list-null"') >= 0, 'terminador desenhado');
-  assert(r.html.indexOf('>undefined</div>') >= 0, 'terminador é undefined (fiel à referência)');
+  assert(r.html.indexOf('class="list-end"') >= 0, 'terminador compacto desenhado');
+  assert(r.html.indexOf('>undefined</div>') < 0 && r.html.indexOf('>null</div>') < 0,
+    'terminador não é desenhado como um nó com valor');
+  assert(r.html.indexOf('next = undefined') >= 0, 'a referência real (undefined) fica no título do indicador');
+});
+
+test('render da lista: terminador compacto também quando o exemplo usa null', () => {
+  const ex = DSV.EXAMPLES.find((e) => e.id === 'lista-encadeada');
+  const t = run(ex.code);
+  noError(t, 'exemplo lista-encadeada');
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let viuEnd = false;
+  t.steps.forEach((s) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel || sel.id == null) return;
+    const r = renderListaStep(t, s);
+    if (r.html.indexOf('class="list-end"') >= 0) {
+      viuEnd = true;
+      assert(r.html.indexOf('>null</div>') < 0, 'null não vira caixa de nó');
+      assert(r.html.indexOf('next = null') >= 0, 'referência null fica no título');
+    }
+  });
+  assert(viuEnd, 'terminador compacto aparece com null');
+});
+
+test('render da lista: sem chip decorativo de visita (✓true)', () => {
+  const t = run(listaSimplesExample().code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const visit = DSV.computeVisitOrder(t.steps);
+  let comVisita = 0;
+  t.steps.forEach((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel || sel.id == null) return;
+    const r = renderListaStep(t, s, { visit: visit, prevStep: i > 0 ? t.steps[i - 1] : null });
+    assert(r.html.indexOf('visit-chip') < 0 && r.html.indexOf('✓true') < 0,
+      'passo ' + i + ': nenhum chip de visita');
+    if (/list-node visited/.test(r.html)) comVisita++;
+  });
+  assert(comVisita >= 1, 'o destaque de visitado continua no nó (roxo suave)');
+});
+
+test('render da lista: listas curtas desenham maiores (--list-scale por faixa)', () => {
+  const curta = runLista('lista.insertAtEnd(10);');
+  noError(curta);
+  const r1 = renderListaStep(curta, lastStep(curta));
+  assert(r1.html.indexOf('--list-scale:1.4') >= 0, 'um nó usa a escala maior');
+
+  const media = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtEnd(20);',
+    'lista.insertAtEnd(30);'
+  ].join('\n'));
+  noError(media);
+  const r3 = renderListaStep(media, lastStep(media));
+  assert(r3.html.indexOf('--list-scale:1.22') >= 0, 'três nós usam a escala intermediária');
+
+  const longa = runLista([
+    'for (let i = 1; i <= 9; i++) { lista.insertAtEnd(i); }'
+  ].join('\n'));
+  noError(longa);
+  const r9 = renderListaStep(longa, lastStep(longa));
+  assert(r9.html.indexOf('--list-scale:1"') >= 0, 'lista longa usa o tamanho-base');
+});
+
+test('render da lista: NEXT do nó pendente destaca a ligação ao antigo HEAD', () => {
+  const t = runLista([
+    'lista.insertAtEnd(10);',
+    'lista.insertAtBeginning(5);'
+  ].join('\n'));
+  noError(t);
+  const src = listaSimplesExample().code.split('\n');
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let viuPendingChanged = false;
+  let viuPendingEstavel = false;
+  t.steps.forEach((s, i) => {
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'list')[0];
+    if (!sel) return;
+    const r = renderListaStep(t, s, { prevStep: i > 0 ? t.steps[i - 1] : null });
+    const linha = (src[s.line - 1] || '').trim();
+    const pending = r.html.match(/<div class="list-unit pending"[\s\S]*?<\/div><\/div><\/div>/);
+    if (!pending) return;
+    const temChanged = pending[0].indexOf('list-next changed') >= 0;
+    if (linha === 'newNode.next = this.#head;') {
+      assert(temChanged, 'a atribuição de next no pendente fica destacada');
+      viuPendingChanged = true;
+    }
+    if (linha === 'const newNode = new Node(value);') {
+      assert(!temChanged, 'o nó recém-criado não nasce com destaque de referência');
+      viuPendingEstavel = true;
+    }
+  });
+  assert(viuPendingChanged, 'passo da ligação do pendente reconhecido');
+  assert(viuPendingEstavel, 'passo de criação do pendente reconhecido');
 });
 
 test('render da lista vazia: HEAD aponta para o terminador, sem nó inventado', () => {
@@ -870,7 +962,7 @@ test('render da lista vazia: HEAD aponta para o terminador, sem nó inventado', 
   eq(r.sel.id, null, 'seleção sem nó de início');
   assert(r.html.indexOf('list-head-tag') >= 0, 'HEAD desenhado');
   assert(r.html.indexOf('list-link') >= 0, 'conexão até o terminador');
-  assert(r.html.indexOf('class="cell list-null"') >= 0, 'terminador desenhado');
+  assert(r.html.indexOf('class="list-end"') >= 0, 'terminador compacto desenhado');
   assert(r.html.indexOf('list-value') < 0, 'nenhum nó com valor');
   assert(r.html.indexOf('A lista está vazia neste passo.') >= 0, 'nota discreta de vazio');
 });
@@ -996,6 +1088,7 @@ test('explicação da lista: criação, ligação, HEAD, remoção e não encont
   });
   assert(infos.some((x) => x.op === 'Inserção no início' && /novo nó 10 já aponta para o antigo início/.test(x.text || '')), 'ligação no início');
   assert(infos.some((x) => x.op === 'Inserção no final' && /passou a apontar para o novo nó/.test(x.text || '')), 'ligação no final');
+  assert(infos.some((x) => x.op === 'Inserção no final' && /Percorrendo a lista até o último nó/.test(x.text || '')), 'percurso até o último nó');
   assert(infos.some((x) => x.op === 'Inserção no início' && /HEAD agora aponta/.test(x.text || '')), 'mudança de HEAD');
   assert(infos.some((x) => x.op === 'Busca' && /não foi encontrado/.test(x.text || '')), 'busca sem resultado');
   assert(infos.some((x) => x.op === 'Remoção' && /nada foi removido/.test(x.text || '')), 'remoção sem resultado');
