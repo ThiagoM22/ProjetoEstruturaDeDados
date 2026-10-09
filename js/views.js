@@ -161,23 +161,31 @@
     return chipDefs(labels).map(function (c) { return c.text; });
   }
 
-  /* nó em destaque principal do passo: um único nó — o ponteiro da operação
-   * (atual/no/cursor…) tem prioridade sobre o alvo (alvo/removido) */
-  var ACTIVE_POINTER_RX = /^(atual|current|no|nó|node|cur|aux|cursor)$/i;
+  /* nó em destaque principal do passo: um único nó — o cursor da operação
+   * (atual/cursor…) tem prioridade sobre o nó em visita recursiva (no/node) e
+   * sobre o alvo (alvo/removido). A escolha olha os rótulos dos ponteiros
+   * reais, nunca os valores dos nós. */
+  var CURSOR_POINTER_RX = /^(atual|current|cur|cursor|aux)$/i;
+  var NODE_POINTER_RX = /^(no|nó|node)$/i;
   var TARGET_POINTER_RX = /^(alvo|target|removido)$/i;
 
-  function activeNodeId(pointers) {
+  function activeNodeInfo(pointers) {
     var best = null;
     var bestRank = 0;
     Object.keys(pointers || {}).forEach(function (id) {
       var labels = pointers[id] || [];
       for (var i = 0; i < labels.length; i++) {
         var s = shortName(labels[i]);
-        var rank = ACTIVE_POINTER_RX.test(s) ? 2 : TARGET_POINTER_RX.test(s) ? 1 : 0;
-        if (rank > bestRank) { bestRank = rank; best = Number(id); }
+        var rank = CURSOR_POINTER_RX.test(s) ? 3 : NODE_POINTER_RX.test(s) ? 2 : TARGET_POINTER_RX.test(s) ? 1 : 0;
+        if (rank > bestRank) { bestRank = rank; best = { id: Number(id), label: s }; }
       }
     });
-    return bestRank > 0 ? best : null;
+    return best;
+  }
+
+  function activeNodeId(pointers) {
+    var info = activeNodeInfo(pointers);
+    return info ? info.id : null;
   }
 
   /* marcas de visita visíveis no passo (época atual) */
@@ -836,11 +844,28 @@
   /* Árvore: geometria compartilhada (em-ordem × profundidade)           */
   /* ------------------------------------------------------------------ */
 
-  var TREE_HGAP = 72;
-  var TREE_VGAP = 84;
-  var TREE_R = 23;
-  var TREE_PADX = 48;
-  var TREE_PADY = 48;
+  /* Métricas do desenho por faixa de tamanho: árvores pequenas ganham nós
+   * e espaçamentos maiores (para ocupar o canvas sem parecerem minúsculas);
+   * árvores grandes mantêm o tamanho-base, que segue legível — a navegação
+   * fica por conta do zoom/pan. Determinístico: só depende da contagem de nós. */
+  var TREE_TIERS = [
+    { max: 2, r: 29, hgap: 108, vgap: 100 },
+    { max: 7, r: 27, hgap: 96, vgap: 96 },
+    { max: 15, r: 25, hgap: 88, vgap: 92 },
+    { max: 31, r: 23, hgap: 80, vgap: 88 },
+    { max: Infinity, r: 23, hgap: 76, vgap: 84 }
+  ];
+
+  function treeMetrics(nodeCount) {
+    var n = Math.max(1, nodeCount || 1);
+    for (var i = 0; i < TREE_TIERS.length; i++) {
+      if (n <= TREE_TIERS[i].max) {
+        var t = TREE_TIERS[i];
+        return { r: t.r, hgap: t.hgap, vgap: t.vgap };
+      }
+    }
+    return { r: 23, hgap: 76, vgap: 84 };
+  }
 
   /* percorre em-ordem: x = ordem horizontal (subárvores não se sobrepõem),
    * y = profundidade; guarda também pai e lado de cada nó */
@@ -861,17 +886,23 @@
     return { nodes: nodes, maxDepth: maxDepth };
   }
 
+  /* posições centralizadas: a caixa real da árvore (nós + margem) fica no
+   * meio do palco, com a mesma folga nas quatro bordas — a folga acompanha
+   * o raio do nó, então nada encosta na borda em nenhuma faixa de tamanho */
   function treePositions(layout) {
+    var m = treeMetrics(layout.nodes.length);
+    var pad = Math.max(48, m.r + 24);
+    var count = layout.nodes.length;
+    var width = 2 * pad + 2 * m.r + Math.max(0, count - 1) * m.hgap;
+    var height = 2 * pad + 2 * m.r + layout.maxDepth * m.vgap;
     var pos = Object.create(null);
-    var width = Math.max(layout.nodes.length * TREE_HGAP + TREE_PADX * 2, 360);
-    var height = (layout.maxDepth + 1) * TREE_VGAP + TREE_PADY + 40;
     layout.nodes.forEach(function (n) {
       pos[n.ser.id] = {
-        x: TREE_PADX + n.x * TREE_HGAP + TREE_HGAP / 2,
-        y: TREE_PADY + n.depth * TREE_VGAP
+        x: pad + m.r + n.x * m.hgap,
+        y: pad + m.r + n.depth * m.vgap
       };
     });
-    return { pos: pos, width: width, height: height };
+    return { pos: pos, width: width, height: height, r: m.r, hgap: m.hgap, vgap: m.vgap };
   }
 
   function treeIds(root) {
@@ -884,6 +915,36 @@
     })(root);
     return ids;
   }
+
+  /* conexões que mudaram em relação a outro passo: filho cujo pai é
+   * diferente (novo ou promovido). Serve só para o destaque da aresta —
+   * como é recalculado a cada render, o realce dura exatamente a etapa e
+   * sobrevive a zoom, pan e re-renderizações; ao retroceder, some sozinho. */
+  DSV.treeChangedEdges = function (prevRoot, root) {
+    var changed = Object.create(null);
+    if (!isObj(root)) return changed;
+    var prevParent = null;
+    if (isObj(prevRoot)) {
+      prevParent = Object.create(null);
+      (function walk(n) {
+        if (!isObj(n)) return;
+        var L = nodeChild(n, 'L');
+        var R = nodeChild(n, 'R');
+        if (L) prevParent[L.id] = n.id;
+        if (R) prevParent[R.id] = n.id;
+        walk(L);
+        walk(R);
+      })(prevRoot);
+    }
+    (function walk(n) {
+      if (!isObj(n)) return;
+      var L = nodeChild(n, 'L');
+      var R = nodeChild(n, 'R');
+      if (L) { changed[L.id] = prevParent ? prevParent[L.id] !== n.id : true; walk(L); }
+      if (R) { changed[R.id] = prevParent ? prevParent[R.id] !== n.id : true; walk(R); }
+    })(root);
+    return changed;
+  };
 
   /* localiza a mesma árvore em outro passo (inclusive quando a raiz mudou de
    * identidade, por promoção) pelos ids dos nós — nunca pela posição visual */
@@ -941,6 +1002,277 @@
     return info;
   }
 
+  /* nós que acabaram de entrar na árvore (primeira aparição), para o
+   * destaque discreto do novo nó na inserção; recalculado por passo, sem
+   * temporizador nem estado paralelo */
+  DSV.treeAddedNodes = function (prevRoot, root) {
+    var added = Object.create(null);
+    if (!isObj(root)) return added;
+    var prevIds = isObj(prevRoot) ? treeIds(prevRoot) : null;
+    var ids = treeIds(root);
+    Object.keys(ids).forEach(function (id) {
+      if (!prevIds || !prevIds[id]) added[id] = true;
+    });
+    return added;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Seta contextual: transição real do ponteiro ativo entre etapas      */
+  /* ------------------------------------------------------------------ */
+
+  /* operações cujo ponteiro ativo descreve um caminho real do algoritmo */
+  var TRANSITION_OPS = {
+    inserir: 1, inserirNo: 1, remover: 1, buscar: 1,
+    preOrdem: 1, emOrdem: 1, posOrdem: 1
+  };
+  var TRAVERSAL_OPS = { preOrdem: 1, emOrdem: 1, posOrdem: 1 };
+
+  function frameNames(stack) {
+    var list = stack || [];
+    var out = [];
+    for (var i = 0; i < list.length; i++) out.push(String(list[i].name || ''));
+    return out.join('>');
+  }
+
+  /* mesma chamada, chamada direta (um frame a mais) ou retorno direto: uma
+   * nova varredura que recomeça do zero não se conecta à anterior */
+  function oneFrameApart(shorter, longer) {
+    if (!shorter) return !!longer;
+    if (longer.indexOf(shorter + '>') !== 0) return false;
+    return longer.indexOf('>', shorter.length + 1) < 0;
+  }
+
+  function framesRelated(a, b) {
+    if (a === b) return true;
+    var longer = a.length >= b.length ? a : b;
+    var shorter = a.length >= b.length ? b : a;
+    return oneFrameApart(shorter, longer);
+  }
+
+  /**
+   * Transição do ponteiro ativo que o passo representa: procura o último
+   * passo da MESMA operação com o MESMO rótulo de cursor (atual/cursor/no…)
+   * em frames contínuos (mesma chamada, chamada ou retorno) e devolve
+   * {fromId, toId, op, label} quando o cursor realmente mudou de nó.
+   * Nos percursos, só aceita transições por uma conexão real pai-filho,
+   * para não sugerir uma ordem diferente da visita.
+   */
+  DSV.treeTransition = function (steps, index, root) {
+    if (!steps || index == null || index <= 0 || !isObj(root)) return null;
+    var step = steps[index];
+    if (!step) return null;
+    var cur = activeNodeInfo(step.pointers || {});
+    if (!cur) return null;
+    var op = opFrameName(step.stack);
+    if (!op || !TRANSITION_OPS[op]) return null;
+
+    var curFrames = frameNames(step.stack);
+    var from = null;
+    for (var j = index - 1; j >= 0; j--) {
+      var prev = steps[j];
+      if (opFrameName(prev.stack) !== op) break;
+      var info = activeNodeInfo(prev.pointers || {});
+      if (!info || info.label !== cur.label) continue;
+      if (!framesRelated(frameNames(prev.stack), curFrames)) continue;
+      from = { id: info.id, index: j };
+      break;
+    }
+    if (!from || from.id === cur.id) return null;
+
+    var ids = treeIds(root);
+    if (!ids[from.id] || !ids[cur.id]) return null;
+
+    if (TRAVERSAL_OPS[op]) {
+      var info2 = treeInfo(root);
+      var parentOfCur = info2[cur.id] ? info2[cur.id].parentId : null;
+      var parentOfFrom = info2[from.id] ? info2[from.id].parentId : null;
+      if (parentOfCur !== from.id && parentOfFrom !== cur.id) return null;
+    }
+    return { op: op, label: cur.label, fromId: from.id, toId: cur.id, fromIndex: from.index };
+  };
+
+  /* seta reta entre dois nós: encurtada pelo raio de cada um (nunca
+   * atravessa os círculos) e com ponta na direção do destino. Usada quando
+   * a transição do ponteiro não anda sobre uma conexão (a varredura da BFS,
+   * por exemplo, salta entre irmãos); conexões usam a curva de treeEdge. */
+  var ARROW_GAP = 3;         /* folga entre a ponta e a borda dos nós */
+  var ARROW_HEAD = 9;        /* comprimento da ponta */
+  var ARROW_HEAD_HALF = 3.4; /* meia-largura da ponta */
+
+  DSV.treeArrowGeometry = function (from, to, rFrom, rTo) {
+    if (!from || !to) return null;
+    var dx = to.x - from.x;
+    var dy = to.y - from.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var rf = rFrom || 0;
+    var rt = rTo || 0;
+    if (!(dist > rf + rt + ARROW_GAP * 2 + ARROW_HEAD)) return null;
+    var ux = dx / dist;
+    var uy = dy / dist;
+    var sx = from.x + ux * (rf + ARROW_GAP);
+    var sy = from.y + uy * (rf + ARROW_GAP);
+    var ex = to.x - ux * (rt + ARROW_GAP);
+    var ey = to.y - uy * (rt + ARROW_GAP);
+    var bx = ex - ux * ARROW_HEAD;
+    var by = ey - uy * ARROW_HEAD;
+    var px = -uy * ARROW_HEAD_HALF;
+    var py = ux * ARROW_HEAD_HALF;
+    var d = 'M' + round2(sx) + ' ' + round2(sy) + 'L' + round2(bx) + ' ' + round2(by) +
+      'M' + round2(ex) + ' ' + round2(ey) +
+      'L' + round2(bx + px) + ' ' + round2(by + py) +
+      'L' + round2(bx - px) + ' ' + round2(by - py) + 'Z';
+    return { sx: sx, sy: sy, ex: ex, ey: ey, d: d };
+  };
+
+  /* ---- conexão pai → filho: geometria única do estático e da cena ---- */
+
+  /* medidas centralizadas: o render estático e a cena animada usam as
+   * mesmas folgas e proporções em todas as conexões */
+  var EDGE_START_GAP = 2;    /* folga entre o início do traçado e o nó pai */
+  var EDGE_TIP_GAP = 3;      /* folga entre a ponta e o nó filho */
+  var EDGE_HEAD = 9;         /* comprimento da ponta triangular */
+  var EDGE_HEAD_HALF = 3.4;  /* meia-largura da ponta triangular */
+  var INDICATOR_LEN = 18;    /* comprimento do indicador que percorre a conexão */
+
+  /**
+   * Traçado da conexão pai → filho: Bézier cúbica discreta que sai da região
+   * inferior do nó pai e chega à região superior do filho, mantendo folga das
+   * bordas. As tangentes verticais nas duas pontas mantêm a hierarquia legível
+   * em árvores assimétricas (a curva só se abre o quanto o deslocamento
+   * horizontal pede) e fazem a ponta apontar sempre para o filho. A ponta
+   * triangular é desenhada por um marcador SVG orientado pela tangente final;
+   * devolve o caminho da curva. Retorna null quando não há vão vertical para a
+   * curva e a ponta.
+   */
+  DSV.treeEdgeGeometry = function (from, to, rFrom, rTo) {
+    if (!from || !to) return null;
+    var rf = rFrom || 0;
+    var rt = rTo || 0;
+    var sx = from.x;
+    var sy = from.y + rf + EDGE_START_GAP;
+    var ex = to.x;
+    var ey = to.y - rt - EDGE_TIP_GAP;
+    var vh = ey - sy;
+    if (!(vh > EDGE_HEAD + 2)) return null;
+    var c1y = sy + vh / 2;
+    var c2y = ey - vh / 2;
+    var curve = 'M' + round2(sx) + ' ' + round2(sy) +
+      'C' + round2(sx) + ' ' + round2(c1y) +
+      ' ' + round2(ex) + ' ' + round2(c2y) +
+      ' ' + round2(ex) + ' ' + round2(ey);
+    return {
+      sx: sx, sy: sy, ex: ex, ey: ey,
+      c1x: sx, c1y: c1y, c2x: ex, c2y: c2y,
+      curve: curve
+    };
+  };
+
+  /* ponto e direção (tangente unitária) do traçado em t: 0 = pai, 1 = filho */
+  DSV.treeEdgePointAt = function (geo, t) {
+    if (!geo) return null;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    var u = 1 - t;
+    var a = u * u * u;
+    var b = 3 * u * u * t;
+    var c = 3 * u * t * t;
+    var d = t * t * t;
+    var dx = 3 * u * u * (geo.c1x - geo.sx) + 6 * u * t * (geo.c2x - geo.c1x) + 3 * t * t * (geo.ex - geo.c2x);
+    var dy = 3 * u * u * (geo.c1y - geo.sy) + 6 * u * t * (geo.c2y - geo.c1y) + 3 * t * t * (geo.ey - geo.c2y);
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return {
+      x: a * geo.sx + b * geo.c1x + c * geo.c2x + d * geo.ex,
+      y: a * geo.sy + b * geo.c1y + c * geo.c2y + d * geo.ey,
+      ux: dx / len,
+      uy: dy / len
+    };
+  };
+
+  /* pequeno indicador com a ponta em (x,y) apontando na direção (ux,uy):
+   * haste reta + ponta fechada (mesma linguagem da seta contextual) */
+  function treeIndicatorPath(x, y, ux, uy) {
+    var tx = x - ux * INDICATOR_LEN;
+    var ty = y - uy * INDICATOR_LEN;
+    var bx = x - ux * EDGE_HEAD;
+    var by = y - uy * EDGE_HEAD;
+    var px = -uy * EDGE_HEAD_HALF;
+    var py = ux * EDGE_HEAD_HALF;
+    return 'M' + round2(tx) + ' ' + round2(ty) +
+      'L' + round2(bx) + ' ' + round2(by) +
+      'M' + round2(x) + ' ' + round2(y) +
+      'L' + round2(bx + px) + ' ' + round2(by + py) +
+      'L' + round2(bx - px) + ' ' + round2(by - py) + 'Z';
+  }
+
+  /* filho cuja conexão a transição percorre; null quando o salto não é uma
+   * aresta real (ex.: a varredura da BFS anda entre irmãos) */
+  function edgeChildOf(transition, parentOf) {
+    if (!transition) return null;
+    if (parentOf[transition.fromId] === transition.toId) return transition.fromId;
+    if (parentOf[transition.toId] === transition.fromId) return transition.toId;
+    return null;
+  }
+
+  /* marcadores reutilizáveis da ponta (um por estado visual); a orientação é
+   * automática, pela tangente final de cada conexão — a mesma ponta vale para
+   * todas as conexões e continua proporcional ao desenho no zoom */
+  var TREE_TIP_MARKERS = [
+    ['tree-marker', 'tree-tip-base'],
+    ['tree-marker-new', 'tree-tip-new'],
+    ['tree-marker-active', 'tree-tip-active']
+  ];
+
+  function treeTipMarkersHtml() {
+    var out = '<defs>';
+    TREE_TIP_MARKERS.forEach(function (m) {
+      out += '<marker id="' + m[0] + '" viewBox="0 0 12 10" refX="11" refY="5" markerWidth="12" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">' +
+        '<path class="' + m[1] + '" d="M2 1.6L11 5L2 8.4Z" />' +
+        '</marker>';
+    });
+    return out + '</defs>';
+  }
+
+  function createTreeTipMarkers() {
+    var defs = document.createElementNS(SVGNS, 'defs');
+    TREE_TIP_MARKERS.forEach(function (m) {
+      var marker = document.createElementNS(SVGNS, 'marker');
+      marker.setAttribute('id', m[0]);
+      marker.setAttribute('viewBox', '0 0 12 10');
+      marker.setAttribute('refX', '11');
+      marker.setAttribute('refY', '5');
+      marker.setAttribute('markerWidth', '12');
+      marker.setAttribute('markerHeight', '10');
+      marker.setAttribute('markerUnits', 'userSpaceOnUse');
+      marker.setAttribute('orient', 'auto');
+      var shape = document.createElementNS(SVGNS, 'path');
+      shape.setAttribute('class', m[1]);
+      shape.setAttribute('d', 'M2 1.6L11 5L2 8.4Z');
+      marker.appendChild(shape);
+      defs.appendChild(marker);
+    });
+    return defs;
+  }
+
+  /* indicador do render estático (sem rAF): parado no destino da transição,
+   * sobre a conexão e apontando na direção real do movimento; sem aresta
+   * (salto entre irmãos), mantém a seta reta completa entre os nós */
+  function staticTreeArrow(arrow, activeChild, parentOf, pos, R) {
+    if (activeChild != null) {
+      var pid = parentOf[activeChild];
+      var pg = DSV.treeEdgeGeometry(pos[pid], pos[activeChild], R, R);
+      if (pg) {
+        var down = arrow.fromId === pid;
+        var pt = DSV.treeEdgePointAt(pg, down ? 1 : 0);
+        if (pt) {
+          var dir = down ? 1 : -1;
+          return '<path class="tree-arrow" d="' + treeIndicatorPath(pt.x, pt.y, pt.ux * dir, pt.uy * dir) + '" />';
+        }
+      }
+      return '';
+    }
+    var straight = DSV.treeArrowGeometry(pos[arrow.fromId], pos[arrow.toId], R, R);
+    return straight ? '<path class="tree-arrow" d="' + straight.d + '" />' : '';
+  }
+
   /* vaga que o PRÓXIMO passo vai preencher (inserção): aparece um instante
    * antes do nó, sem indicadores permanentes de filhos vazios */
   function insertionPreview(sel, ctx, currentRoot) {
@@ -961,9 +1293,31 @@
         if (ci && ci.parentId === n.parentId && ci.side === n.side) { occupied = true; break; }
       }
       if (occupied) continue;
-      return { parentId: n.parentId, side: n.side, pos: geo.pos[n.ser.id] };
+      /* a caixa do próximo layout acompanha a prévia: o palco já assume o
+       * tamanho que a árvore terá quando o nó aparecer */
+      return {
+        parentId: n.parentId,
+        side: n.side,
+        pos: geo.pos[n.ser.id],
+        r: geo.r,
+        box: { width: geo.width, height: geo.height }
+      };
     }
     return null;
+  }
+
+  /* caixa do desenho: a vaga pontilhada pode apontar para um nível/coluna
+   * que a árvore atual ainda não ocupa; o palco usa a maior caixa (atual ×
+   * próxima) para a prévia nunca ser cortada — e o tamanho se mantém quando
+   * o nó aparece, evitando um segundo reenquadramento */
+  function treeBox(geo, preview) {
+    var w = geo.width;
+    var h = geo.height;
+    if (preview && preview.box) {
+      w = Math.max(w, preview.box.width);
+      h = Math.max(h, preview.box.height);
+    }
+    return { width: round2(w), height: round2(h) };
   }
 
   /* Renderização estática (fallback para ambientes sem DOM real, ex.: testes) */
@@ -972,26 +1326,62 @@
     var geo = treePositions(layout);
     var nodes = layout.nodes;
     var pos = geo.pos;
-    var R = TREE_R;
+    var R = geo.r;
+
+    /* conexões criadas/alteradas nesta etapa: destaque sutil, recalculado a
+     * cada render para não depender de temporizador nem de animação */
+    var changedMap = null;
+    var addedMap = null;
+    if (ctx && ctx.prevStep) {
+      var prevRoot = DSV.findTreeInStep(ctx.prevStep, sel, v);
+      changedMap = DSV.treeChangedEdges(prevRoot, v);
+      addedMap = DSV.treeAddedNodes(prevRoot, v);
+    }
 
     var lines = '';
     var circles = '';
+
+    /* vaga que o próximo passo vai preencher (temporária, só na inserção) e
+     * caixa do palco já com o tamanho do próximo layout */
+    var preview = insertionPreview(sel, ctx, v);
+    var box = treeBox(geo, preview);
+
+    /* mapa filho → pai: as conexões saem sempre do pai e apontam para o filho */
+    var parentOf = Object.create(null);
+    nodes.forEach(function (n) {
+      if (isObj(n.left) && pos[n.left.id]) parentOf[n.left.id] = n.ser.id;
+      if (isObj(n.right) && pos[n.right.id]) parentOf[n.right.id] = n.ser.id;
+    });
+
+    /* seta contextual da etapa: transição real do ponteiro ativo, calculada
+     * do trace a cada render (some sozinha ao avançar/retroceder) e a conexão
+     * percorrida por ela, quando a transição anda sobre uma aresta */
+    var arrow = ctx && ctx.steps ? DSV.treeTransition(ctx.steps, ctx.stepIndex, v) : null;
+    var activeChild = edgeChildOf(arrow, parentOf);
 
     nodes.forEach(function (n) {
       var p = pos[n.ser.id];
       [n.left, n.right].forEach(function (child) {
         if (!isObj(child) || !pos[child.id]) return;
-        var cp = pos[child.id];
-        lines += '<line x1="' + p.x + '" y1="' + (p.y + R) + '" x2="' + cp.x + '" y2="' + (cp.y - R) + '" class="tree-edge" />';
+        var eg = DSV.treeEdgeGeometry(p, pos[child.id], R, R);
+        if (!eg) return;
+        var cls = 'tree-edge';
+        if (child.id === activeChild) cls += ' active';
+        else if (changedMap && changedMap[child.id]) cls += ' new';
+        lines += '<path d="' + eg.curve + '" class="' + cls + '" vector-effect="non-scaling-stroke" />';
       });
     });
 
-    /* vaga que o próximo passo vai preencher (temporária, só na inserção) */
-    var preview = insertionPreview(sel, ctx, v);
+    if (arrow && pos[arrow.fromId] && pos[arrow.toId]) {
+      lines += staticTreeArrow(arrow, activeChild, parentOf, pos, R);
+    }
+
     if (preview && pos[preview.parentId] && preview.pos) {
-      var pp = pos[preview.parentId];
-      lines += '<line x1="' + pp.x + '" y1="' + pp.y + '" x2="' + preview.pos.x + '" y2="' + preview.pos.y + '" class="tree-preview-edge" />' +
-        '<circle cx="' + preview.pos.x + '" cy="' + preview.pos.y + '" r="' + R + '" class="tree-preview-slot" />';
+      var pg = DSV.treeEdgeGeometry(pos[preview.parentId], preview.pos, R, preview.r || R);
+      if (pg) {
+        lines += '<path d="' + pg.curve + '" class="tree-preview-edge" vector-effect="non-scaling-stroke" />';
+      }
+      lines += '<circle cx="' + preview.pos.x + '" cy="' + preview.pos.y + '" r="' + (preview.r || R) + '" class="tree-preview-slot" />';
     }
 
     var visitMap = visitedMapFor(ctx, ctx.step);
@@ -1003,6 +1393,7 @@
       var active = activeId === n.ser.id;
 
       var cls = 'tree-node';
+      if (addedMap && addedMap[n.ser.id]) cls += ' new';
       if (visited) cls += ' visited';
       if (active) cls += ' active';
 
@@ -1012,8 +1403,8 @@
       circles += '</g>';
     });
 
-    var svg = '<svg class="tree-svg" width="' + geo.width + '" height="' + geo.height + '" viewBox="0 0 ' + geo.width + ' ' + geo.height + '">' +
-      lines + circles + '</svg>';
+    var svg = '<svg class="tree-svg" width="' + box.width + '" height="' + box.height + '" viewBox="0 0 ' + box.width + ' ' + box.height + '">' +
+      treeTipMarkersHtml() + lines + circles + '</svg>';
 
     var badge = eventsBadge(sel, ctx);
     container.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), badge) +
@@ -1059,9 +1450,12 @@
     var svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'tree-svg');
     var gEdges = document.createElementNS(SVGNS, 'g');
+    var gArrows = document.createElementNS(SVGNS, 'g');
     var gPreview = document.createElementNS(SVGNS, 'g');
     var gNodes = document.createElementNS(SVGNS, 'g');
+    svg.appendChild(createTreeTipMarkers());
     svg.appendChild(gEdges);
+    svg.appendChild(gArrows);
     svg.appendChild(gPreview);
     svg.appendChild(gNodes);
     wrap.appendChild(svg);
@@ -1070,10 +1464,13 @@
     scene.wrap = wrap;
     scene.svg = svg;
     scene.gEdges = gEdges;
+    scene.gArrows = gArrows;
     scene.gPreview = gPreview;
     scene.gNodes = gNodes;
     scene.previewEls = null;
     scene.preview = null;
+    scene.arrowEl = null;
+    scene.arrow = null;
     return scene;
   }
 
@@ -1083,11 +1480,18 @@
     var geo = treePositions(layout);
     var nodes = layout.nodes;
 
-    scene.svg.setAttribute('width', geo.width);
-    scene.svg.setAttribute('height', geo.height);
-    scene.svg.setAttribute('viewBox', '0 0 ' + geo.width + ' ' + geo.height);
-    scene.wrap.style.minWidth = geo.width + 'px';
-    scene.wrap.style.height = geo.height + 'px';
+    /* prévia da vaga + caixa do palco (inclui o próximo layout quando há
+     * vaga): a prévia pontilhada nunca é cortada e, quando o nó aparece, o
+     * tamanho não muda */
+    var preview = insertionPreview(sel, ctx, v);
+    var box = treeBox(geo, preview);
+
+    scene.svg.setAttribute('width', box.width);
+    scene.svg.setAttribute('height', box.height);
+    scene.svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+    scene.wrap.style.minWidth = box.width + 'px';
+    scene.wrap.style.height = box.height + 'px';
+    scene.r = geo.r;
 
     var targets = Object.create(null);
     nodes.forEach(function (n) {
@@ -1095,6 +1499,7 @@
       targets[n.ser.id] = {
         x: p.x,
         y: p.y,
+        r: geo.r,
         ser: n.ser,
         left: n.left,
         right: n.right
@@ -1104,13 +1509,28 @@
     scene.head.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), eventsBadge(sel, ctx));
 
     var activeId = activeNodeId(ctx.pointers || {});
-    syncTreeNodes(scene, targets, dur, ctx, activeId);
-    syncTreeEdges(scene, targets, ctx, sel, v);
-    syncTreePreview(scene, insertionPreview(sel, ctx, v));
+    var addedMap = null;
+    if (ctx.prevStep) addedMap = DSV.treeAddedNodes(DSV.findTreeInStep(ctx.prevStep, sel, v), v);
+    syncTreeNodes(scene, targets, dur, ctx, activeId, addedMap);
+
+    /* mapa filho → pai do passo e transição real do ponteiro: a conexão
+     * percorrida fica ativa (roxa) e o indicador percorre a curva na direção
+     * do movimento — tudo derivado do estado do passo, sem estado paralelo */
+    var parentOf = Object.create(null);
+    nodes.forEach(function (n) {
+      if (isObj(n.left) && targets[n.left.id]) parentOf[n.left.id] = n.ser.id;
+      if (isObj(n.right) && targets[n.right.id]) parentOf[n.right.id] = n.ser.id;
+    });
+    var transition = ctx.steps ? DSV.treeTransition(ctx.steps, ctx.stepIndex, v) : null;
+    var activeChild = edgeChildOf(transition, parentOf);
+
+    syncTreeEdges(scene, ctx, sel, v, parentOf, activeChild);
+    syncTreeArrow(scene, transition, ctx, parentOf, activeChild, dur);
+    syncTreePreview(scene, preview);
     startTreeFrame(scene);
   }
 
-  function syncTreeNodes(scene, targets, dur, ctx, activeId) {
+  function syncTreeNodes(scene, targets, dur, ctx, activeId, addedMap) {
     var visitMap = visitedMapFor(ctx, ctx.step);
     var t0 = DSV.anim.now();
 
@@ -1118,22 +1538,23 @@
       var t = targets[id];
       var n = scene.nodes[id];
       if (!n) {
-        n = createNodeEls(id);
+        n = createNodeEls(id, t.r);
         n.x = t.x;
         n.y = t.y - 26;
         n.sc = 0.55;
         n.op = 0;
+        n.r = t.r;
         scene.nodes[id] = n;
         n.g.setAttribute('transform', 'translate(' + round2(t.x) + ',' + round2(t.y - 26) + ') scale(0.55)');
         scene.gNodes.appendChild(n.g);
       }
       n.exiting = false;
       n.anim = {
-        x0: n.x, y0: n.y, s0: n.sc, o0: n.op,
-        x1: t.x, y1: t.y, s1: 1, o1: 1,
+        x0: n.x, y0: n.y, r0: n.r, s0: n.sc, o0: n.op,
+        x1: t.x, y1: t.y, r1: t.r, s1: 1, o1: 1,
         start: t0, dur: dur > 0 ? Math.max(60, dur) : 0
       };
-      updateNodeContent(n, t, visitMap, activeId);
+      updateNodeContent(n, t, visitMap, activeId, addedMap);
     });
 
     Object.keys(scene.nodes).forEach(function (id) {
@@ -1142,20 +1563,21 @@
       if (n.exiting) return;
       n.exiting = true;
       n.anim = {
-        x0: n.x, y0: n.y, s0: n.sc, o0: n.op,
-        x1: n.x, y1: n.y, s1: 0.7, o1: 0,
+        x0: n.x, y0: n.y, r0: n.r, s0: n.sc, o0: n.op,
+        x1: n.x, y1: n.y, r1: n.r, s1: 0.7, o1: 0,
         start: t0, dur: dur > 0 ? Math.max(60, dur) : 0
       };
     });
   }
 
-  function createNodeEls(id) {
+  function createNodeEls(id, r) {
+    var radius = r || 23;
     var g = document.createElementNS(SVGNS, 'g');
     g.setAttribute('class', 'tree-group');
 
     var circle = document.createElementNS(SVGNS, 'circle');
     circle.setAttribute('class', 'tree-node');
-    circle.setAttribute('r', '23');
+    circle.setAttribute('r', String(radius));
     circle.setAttribute('cx', '0');
     circle.setAttribute('cy', '0');
     circle.setAttribute('vector-effect', 'non-scaling-stroke');
@@ -1168,24 +1590,107 @@
     g.appendChild(val);
     return {
       g: g, circle: circle, val: val,
-      x: 0, y: 0, sc: 1, op: 1, anim: null, exiting: false
+      x: 0, y: 0, r: radius, sc: 1, op: 1, anim: null, exiting: false
     };
   }
 
-  function updateNodeContent(n, t, visitMap, activeId) {
+  function updateNodeContent(n, t, visitMap, activeId, addedMap) {
     n.val.textContent = nodeValue(t.ser);
 
     var visited = !!visitMap[t.ser.id];
     var active = activeId === t.ser.id;
+    var isNew = !!(addedMap && addedMap[t.ser.id]);
 
     var cls = 'tree-node';
+    if (isNew) cls += ' new';
     if (visited) cls += ' visited';
     if (active) cls += ' active';
     if (n.circle.getAttribute('class') !== cls) n.circle.setAttribute('class', cls);
   }
 
-  /* prévia da vaga de inserção: linha tracejada do pai até o lugar exato
-   * onde o nó vai aparecer (some assim que ele aparece) */
+  /* indicador contextual: um único path. Sobre uma conexão, ele percorre a
+   * curva na direção real do movimento (ida e volta) e repousa no destino;
+   * sem conexão (salto entre irmãos), mantém a seta reta entre os nós.
+   * A chave (passo + par) evita reiniciar o percurso quando o mesmo passo é
+   * re-renderizado; navegar para o passo de novo refaz o percurso. */
+  function syncTreeArrow(scene, transition, ctx, parentOf, activeChild, dur) {
+    if (!transition) {
+      if (scene.arrowEl) { scene.arrowEl.remove(); scene.arrowEl = null; }
+      scene.arrow = null;
+      return;
+    }
+    if (!scene.arrowEl) {
+      var el = document.createElementNS(SVGNS, 'path');
+      el.setAttribute('class', 'tree-arrow');
+      el.setAttribute('vector-effect', 'non-scaling-stroke');
+      scene.gArrows.appendChild(el);
+      scene.arrowEl = el;
+    }
+    var stepKey = ctx && ctx.stepIndex != null ? ctx.stepIndex : -1;
+    var key = stepKey + '|' + transition.fromId + '>' + transition.toId;
+    if (!scene.arrow || scene.arrow.key !== key) {
+      scene.arrow = {
+        key: key,
+        fromId: transition.fromId,
+        toId: transition.toId,
+        childId: activeChild,
+        parentId: activeChild != null ? parentOf[activeChild] : null,
+        down: activeChild != null ? transition.fromId === parentOf[activeChild] : false,
+        start: DSV.anim.now(),
+        /* com movimento reduzido o indicador já nasce no destino */
+        dur: DSV.anim.reducedMotion ? 0 : Math.max(0, dur || 0)
+      };
+    }
+    positionTreeArrow(scene);
+  }
+
+  /* geometria calculada das posições atuais dos nós (raio incluso); se os
+   * nós ainda não existem na cena, o indicador fica invisível */
+  function positionTreeArrow(scene) {
+    if (!scene.arrow || !scene.arrowEl) return;
+    var arrow = scene.arrow;
+    var a = scene.nodes[arrow.fromId];
+    var b = scene.nodes[arrow.toId];
+    if (!a || !b) {
+      scene.arrowEl.setAttribute('opacity', '0');
+      return;
+    }
+    if (arrow.childId != null) {
+      /* transição sobre uma conexão real: segue a curva até o destino */
+      var p = scene.nodes[arrow.parentId];
+      var c = scene.nodes[arrow.childId];
+      if (!p || !c) {
+        scene.arrowEl.setAttribute('opacity', '0');
+        return;
+      }
+      var eg = DSV.treeEdgeGeometry({ x: p.x, y: p.y }, { x: c.x, y: c.y }, p.r, c.r);
+      if (!eg) {
+        scene.arrowEl.setAttribute('opacity', '0');
+        return;
+      }
+      var t = arrow.dur > 0 ? (DSV.anim.now() - arrow.start) / arrow.dur : 1;
+      var u = arrow.down ? DSV.anim.ease(t) : 1 - DSV.anim.ease(t);
+      var pt = DSV.treeEdgePointAt(eg, u);
+      if (!pt) {
+        scene.arrowEl.setAttribute('opacity', '0');
+        return;
+      }
+      var dir = arrow.down ? 1 : -1;
+      scene.arrowEl.setAttribute('d', treeIndicatorPath(pt.x, pt.y, pt.ux * dir, pt.uy * dir));
+    } else {
+      var straight = DSV.treeArrowGeometry({ x: a.x, y: a.y }, { x: b.x, y: b.y }, a.r, b.r);
+      if (!straight) {
+        scene.arrowEl.setAttribute('opacity', '0');
+        return;
+      }
+      scene.arrowEl.setAttribute('d', straight.d);
+    }
+    scene.arrowEl.setAttribute('opacity', round3(Math.min(a.op, b.op)));
+  }
+
+  /* prévia da vaga de inserção: curva tracejada do pai até o lugar exato
+   * onde o nó vai aparecer (some assim que ele aparece), no mesmo traçado
+   * que a conexão real terá */
   function syncTreePreview(scene, preview) {
     if (!preview || !preview.pos) {
       if (scene.previewEls) {
@@ -1197,50 +1702,34 @@
       return;
     }
     if (!scene.previewEls) {
-      var line = document.createElementNS(SVGNS, 'line');
+      var line = document.createElementNS(SVGNS, 'path');
       line.setAttribute('class', 'tree-preview-edge');
+      line.setAttribute('vector-effect', 'non-scaling-stroke');
       var circle = document.createElementNS(SVGNS, 'circle');
       circle.setAttribute('class', 'tree-preview-slot');
-      circle.setAttribute('r', String(TREE_R));
+      circle.setAttribute('r', String(preview.r || scene.r || 23));
       scene.gPreview.appendChild(line);
       scene.gPreview.appendChild(circle);
       scene.previewEls = { line: line, circle: circle };
     }
+    scene.previewEls.circle.setAttribute('r', String(preview.r || scene.r || 23));
     scene.previewEls.circle.setAttribute('cx', round2(preview.pos.x));
     scene.previewEls.circle.setAttribute('cy', round2(preview.pos.y));
-    scene.preview = { parentId: preview.parentId, pos: preview.pos };
+    scene.preview = { parentId: preview.parentId, pos: preview.pos, r: preview.r || scene.r || 23 };
   }
 
-  function syncTreeEdges(scene, targets, ctx, sel, currentRoot) {
-    var parentOf = Object.create(null);
-    Object.keys(targets).forEach(function (id) {
-      var t = targets[id];
-      if (t.left && targets[t.left.id]) parentOf[t.left.id] = id;
-      if (t.right && targets[t.right.id]) parentOf[t.right.id] = id;
-    });
+  function syncTreeEdges(scene, ctx, sel, currentRoot, parentOf, activeChild) {
+    /* conexão criada/alterada nesta etapa: o realce vale enquanto o passo
+     * estiver na tela (sem temporizador) e é recalculado ao navegar */
+    var changedMap = DSV.treeChangedEdges(
+      ctx && ctx.prevStep ? DSV.findTreeInStep(ctx.prevStep, sel, currentRoot) : null,
+      currentRoot
+    );
+    /* as chaves de parentOf são strings; normaliza o id para comparar */
+    var activeKey = activeChild == null ? null : String(activeChild);
 
-    /* para destacar conexão criada ou alterada, compara com o passo anterior */
-    var prevParent = null;
-    if (ctx && ctx.prevStep) {
-      var prevRoot = DSV.findTreeInStep(ctx.prevStep, sel, currentRoot);
-      if (prevRoot) {
-        prevParent = Object.create(null);
-        (function walk(n) {
-          if (!isObj(n)) return;
-          var L = nodeChild(n, 'L');
-          var R = nodeChild(n, 'R');
-          if (L) prevParent[L.id] = n.id;
-          if (R) prevParent[R.id] = n.id;
-          walk(L);
-          walk(R);
-        })(prevRoot);
-      }
-    }
-
-    var now = DSV.anim.now();
     Object.keys(parentOf).forEach(function (cid) {
       var pid = parentOf[cid];
-      var changed = prevParent ? prevParent[cid] !== pid : false;
       var e = scene.edges[cid];
       if (!e) {
         var path = document.createElementNS(SVGNS, 'path');
@@ -1248,20 +1737,15 @@
         path.setAttribute('vector-effect', 'non-scaling-stroke');
         e = scene.edges[cid] = {
           line: path,
-          parentId: null,
-          hlUntil: 0
+          parentId: null
         };
         scene.gEdges.appendChild(path);
-        changed = true;
       }
       e.parentId = pid;
-      if (changed) {
-        e.line.setAttribute('class', 'tree-edge new');
-        e.hlUntil = now + Math.max(240, animDur(ctx));
-      } else if (e.hlUntil && now >= e.hlUntil) {
-        e.line.setAttribute('class', 'tree-edge');
-        e.hlUntil = 0;
-      }
+      var cls = 'tree-edge';
+      if (cid === activeKey) cls += ' active';
+      else if (changedMap[cid]) cls += ' new';
+      if (e.line.getAttribute('class') !== cls) e.line.setAttribute('class', cls);
     });
 
     Object.keys(scene.edges).forEach(function (cid) {
@@ -1300,6 +1784,7 @@
         var e = DSV.anim.ease(t);
         n.x = DSV.anim.lerp(a.x0, a.x1, e);
         n.y = DSV.anim.lerp(a.y0, a.y1, e);
+        n.r = DSV.anim.lerp(a.r0, a.r1, e);
         n.sc = DSV.anim.lerp(a.s0, a.s1, e);
         n.op = DSV.anim.lerp(a.o0, a.o1, e);
         if (t >= 1) {
@@ -1313,6 +1798,7 @@
       }
       n.g.setAttribute('transform', 'translate(' + round2(n.x) + ',' + round2(n.y) + ') scale(' + round3(n.sc) + ')');
       n.g.setAttribute('opacity', round3(n.op));
+      n.circle.setAttribute('r', round2(n.r));
     });
 
     Object.keys(scene.edges).forEach(function (cid) {
@@ -1324,28 +1810,31 @@
         delete scene.edges[cid];
         return;
       }
-      e.line.setAttribute('d', 'M' + round2(p.x) + ' ' + round2(p.y + 23) + ' L' + round2(c.x) + ' ' + round2(c.y - 23));
+      var eg = DSV.treeEdgeGeometry({ x: p.x, y: p.y }, { x: c.x, y: c.y }, p.r, c.r);
+      if (eg) e.line.setAttribute('d', eg.curve);
       var o = Math.min(p.op, c.op);
       e.line.setAttribute('opacity', round3(o));
       if (o < 0.99) active = true;
-      if (e.hlUntil && t0 >= e.hlUntil) {
-        e.line.setAttribute('class', 'tree-edge');
-        e.hlUntil = 0;
-      }
     });
 
     /* prévia da vaga de inserção: acompanha o pai enquanto ele se move */
     if (scene.preview && scene.previewEls) {
       var pn = scene.nodes[scene.preview.parentId];
       if (pn) {
-        scene.previewEls.line.setAttribute('x1', round2(pn.x));
-        scene.previewEls.line.setAttribute('y1', round2(pn.y));
-        scene.previewEls.line.setAttribute('x2', round2(scene.preview.pos.x));
-        scene.previewEls.line.setAttribute('y2', round2(scene.preview.pos.y));
+        var pg = DSV.treeEdgeGeometry({ x: pn.x, y: pn.y }, scene.preview.pos, pn.r, scene.preview.r);
+        if (pg) scene.previewEls.line.setAttribute('d', pg.curve);
         scene.previewEls.line.setAttribute('opacity', round3(pn.op));
         scene.previewEls.circle.setAttribute('opacity', round3(Math.min(1, pn.op + 0.2)));
         if (pn.op < 0.99) active = true;
       }
+    }
+
+    /* indicador contextual: acompanha os nós na interpolação e percorre a
+     * conexão até o destino; o estado final não depende do fim da animação */
+    if (scene.arrow && scene.arrowEl) {
+      positionTreeArrow(scene);
+      if (scene.arrow.childId != null && scene.arrow.dur > 0 &&
+        t0 - scene.arrow.start < scene.arrow.dur) active = true;
     }
 
     return active;
@@ -1377,7 +1866,9 @@
   /**
    * Renderiza a estrutura selecionada.
    * sel: {type, id, label} — id null = estrutura vazia (raiz/início nulos)
-   * ctx: {opsMap, pointers, events, visit, prevStep}
+   * ctx: {opsMap, pointers, events, visit, prevStep, steps, stepIndex}
+   *   steps/stepIndex (trace completo + passo atual) habilitam a seta
+   *   contextual da árvore, sempre calculada dos ponteiros reais do passo.
    */
   DSV.renderStructure = function (container, sel, step, ctx) {
     if (!step) { renderMessage(container, 'Execute o código para começar.'); return; }
@@ -1426,4 +1917,5 @@
   };
 
   DSV.shortName = shortName;
+  DSV.treeMetrics = treeMetrics;
 })(typeof window !== 'undefined' ? window : globalThis);

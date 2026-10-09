@@ -793,7 +793,13 @@
       els.vars.innerHTML = '<div class="muted">—</div>';
       els.commands.innerHTML = '<div class="muted">—</div>';
       els.consoleEl.innerHTML = '';
-      if (els.stepExplainer) els.stepExplainer.classList.add('hidden');
+      /* sem execução: a faixa orienta o próximo passo em vez de sumir */
+      if (els.stepExplainer) {
+        els.stepExplainer.classList.remove('hidden');
+        els.stepOp.textContent = 'Execução';
+        els.stepText.textContent = 'Execute uma operação para acompanhar cada etapa.';
+        els.stepCount.textContent = '';
+      }
       updateButtons();
       return;
     }
@@ -869,6 +875,10 @@
       visit: state.visit,
       prevStep: state.index > 0 ? st[state.index - 1] : null,
       nextStep: state.index < st.length - 1 ? st[state.index + 1] : null,
+      /* trace + passo atual: a seta contextual da árvore é derivada dos
+       * ponteiros reais do passo, sem estado paralelo ao histórico */
+      steps: st,
+      stepIndex: state.index,
       /* animações mais curtas quando está tocando em velocidade alta */
       animMs: state.playing ? Math.max(90, Math.min(360, Math.round(430 / state.speed))) : 300
     });

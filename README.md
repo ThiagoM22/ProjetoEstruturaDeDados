@@ -36,11 +36,19 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   extremidades se invertem).
 - **Árvore binária limpa e contextual**: nós circulares, conexões finas e hierarquia raiz→filhos, sem
   rótulos permanentes de "esquerda/direita", sem indicadores fixos de filhos vazios e **sem etiquetas de
-  texto sobre os nós**. O **nó da operação atual** recebe o realce principal (roxo forte), os **já
-  visitados na mesma operação** ficam em roxo suave e os demais permanecem neutros; a **vaga da próxima
-  inserção** aparece pontilhada por um instante e a conexão criada/alterada é destacada durante a
-  animação. O enquadramento se ajusta sozinho para manter a árvore visível e centralizada quando a
-  estrutura muda de tamanho. (Na lista encadeada, os ponteiros continuam aparecendo como etiquetas.)
+  texto sobre os nós**. O tamanho dos nós e o espaçamento entre níveis **se adaptam ao tamanho da
+  árvore** — pequenas ganham nós e espaçamentos maiores, com layout centralizado e margens simétricas;
+  grandes mantêm o tamanho legível e são navegadas por zoom/pan. O **nó da operação atual** recebe o
+  realce principal (roxo forte), os **já visitados na mesma operação** ficam em roxo suave e os demais
+  permanecem neutros; a **vaga da próxima inserção** aparece pontilhada por um instante e a conexão
+  criada/alterada é destacada durante a etapa correspondente. As conexões são **curvas suaves com
+  pontas pequenas** apontando do pai para o filho, e a **conexão percorrida no passo** fica roxa
+  enquanto um indicador discreto percorre a curva na direção real do movimento. Durante as operações,
+  uma **seta contextual** mostra a transição real do ponteiro ativo entre as etapas (a varredura da
+  BFS, a descida da busca, a recursão dos percursos), o nó recém-inserido ganha um destaque sutil e
+  nada é desenhado no estado neutro. O enquadramento se ajusta sozinho para manter a árvore visível e
+  centralizada quando a estrutura muda de tamanho. (Na lista encadeada, os ponteiros continuam
+  aparecendo como etiquetas.)
 - Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
   (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
   acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó
@@ -104,9 +112,11 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 - **O que entra aparece suavemente** (fade + deslocamento na direção certa) e **o que sai se despede**
   com um clone que desvanece — dá para ver exatamente *o que* saiu, de onde e para onde;
 - **Na árvore**, os nós são interpolados quadro a quadro: a árvore "cresce" e se reorganiza sem saltos,
-  as arestas acompanham os nós e a **vaga da inserção** aparece pontilhada por um instante; o nó da
-  operação fica em **roxo forte** e os visitados na mesma operação em **roxo suave**, sem etiquetas de
-  texto sobre os nós (os ponteiros continuam visíveis como etiquetas na lista encadeada);
+  as arestas são **curvas com ponta** que acompanham os nós, a conexão percorrida fica roxa com um
+  indicador percorrendo a direção do movimento e a **vaga da inserção** aparece pontilhada por um
+  instante; o nó da operação fica em **roxo forte** e os visitados na mesma operação em **roxo suave**,
+  sem etiquetas de texto sobre os nós (os ponteiros continuam visíveis como etiquetas na lista
+  encadeada);
 - A **duração das animações se adapta à velocidade** do play (mais curtas em 4×, mais longas em 0,5×).
 
 ## Exemplos incluídos

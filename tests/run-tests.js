@@ -593,12 +593,12 @@ function treeNodesOf(html) {
   let m;
   while ((m = rx.exec(html))) {
     const block = m[1];
-    const c = block.match(/<circle cx="([\d.\-]+)" cy="([\d.\-]+)" r="23" class="(tree-node[^"]*)"/);
+    const c = block.match(/<circle cx="([\d.\-]+)" cy="([\d.\-]+)" r="([\d.]+)" class="(tree-node[^"]*)"/);
     const t = block.match(/<text x="[\d.\-]+" y="[\d.\-]+" class="tree-val">([^<]*)<\/text>/);
     if (c && t) {
       let val = t[1].replace(/&quot;/g, '"');
       if (val.length > 1 && val[0] === '"' && val[val.length - 1] === '"') val = val.slice(1, -1);
-      out.push({ val: val, cx: parseFloat(c[1]), cy: parseFloat(c[2]), cls: c[3] });
+      out.push({ val: val, cx: parseFloat(c[1]), cy: parseFloat(c[2]), r: parseFloat(c[3]), cls: c[4] });
     }
   }
   return out;
@@ -731,7 +731,8 @@ test('render da árvore: nós circulares, arestas atrás e layout por nível', (
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
       const d = Math.hypot(nodes[i].cx - nodes[j].cx, nodes[i].cy - nodes[j].cy);
-      assert(d >= 44, 'sem sobreposição entre ' + nodes[i].val + ' e ' + nodes[j].val + ' (d=' + d.toFixed(1) + ')');
+      assert(d >= nodes[i].r + nodes[j].r + 2,
+        'sem sobreposição entre ' + nodes[i].val + ' e ' + nodes[j].val + ' (d=' + d.toFixed(1) + ', r=' + nodes[i].r + ')');
     }
   }
 });
@@ -855,6 +856,114 @@ test('render da árvore: vaga da inserção aparece antes do nó e some depois',
   assert(html2.indexOf('tree-preview-slot') < 0, 'prévia some quando o nó aparece');
 });
 
+test('layout da árvore: métricas adaptativas mantêm a legibilidade', () => {
+  const tiny = DSV.treeMetrics(1);
+  const small = DSV.treeMetrics(6);
+  const big = DSV.treeMetrics(40);
+  assert(tiny.r > small.r && small.r >= big.r,
+    'raio encolhe conforme a árvore cresce: ' + tiny.r + ' > ' + small.r + ' >= ' + big.r);
+  assert(big.r >= 23, 'raio nunca abaixo do mínimo legível: ' + big.r);
+  assert(tiny.hgap > big.hgap && tiny.vgap > big.vgap, 'espaçamentos maiores nas árvores pequenas');
+  assert(big.hgap >= 72 && big.vgap >= 84,
+    'árvore grande não comprime abaixo do tamanho-base: ' + big.hgap + 'x' + big.vgap);
+});
+
+test('layout da árvore: nó único centralizado com margens simétricas', () => {
+  const t = run([
+    'class No {',
+    '  constructor(valor) {',
+    '    this.valor = valor;',
+    '    this.esquerda = null;',
+    '    this.direita = null;',
+    '  }',
+    '}',
+    "const raiz = new No('A');"
+  ].join('\n'));
+  noError(t, 'árvore de um nó');
+  const html = renderTreeStep(t, lastStep(t)).html;
+  const svg = html.match(/<svg class="tree-svg" width="([\d.]+)" height="([\d.]+)"/);
+  assert(svg, 'svg com dimensões');
+  const w = parseFloat(svg[1]);
+  const h = parseFloat(svg[2]);
+  const nodes = treeNodesOf(html);
+  eq(nodes.length, 1, 'um nó desenhado');
+  assert(Math.abs(nodes[0].cx - w / 2) <= 0.5, 'nó centralizado na horizontal (cx=' + nodes[0].cx + ', w=' + w + ')');
+  assert(Math.abs(nodes[0].cy - h / 2) <= 0.5, 'nó centralizado na vertical (cy=' + nodes[0].cy + ', h=' + h + ')');
+  const leftMargin = nodes[0].cx - nodes[0].r;
+  const rightMargin = w - (nodes[0].cx + nodes[0].r);
+  assert(Math.abs(leftMargin - rightMargin) <= 1, 'margens horizontais simétricas');
+  assert(leftMargin >= 48, 'margem preserva o nó (sem corte na borda): ' + leftMargin);
+});
+
+test('layout da árvore: árvore assimétrica também fica centrada no palco', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const alvo = 'A(B(D(.,.),E(.,.)),C(F(.,.),.))';
+  const step = t.steps.filter((s) => shapeOf(treeRootOf(s, 'arvore')) === alvo)[0];
+  assert(step, 'passo com a árvore A..F');
+  const html = renderTreeStep(t, step).html;
+  const svg = html.match(/<svg class="tree-svg" width="([\d.]+)"/);
+  assert(svg, 'svg com dimensão');
+  const w = parseFloat(svg[1]);
+  const nodes = treeNodesOf(html);
+  const minLeft = Math.min.apply(null, nodes.map((n) => n.cx - n.r));
+  const maxRight = Math.max.apply(null, nodes.map((n) => n.cx + n.r));
+  assert(Math.abs(minLeft - (w - maxRight)) <= 1,
+    'folga igual dos dois lados (esquerda: ' + minLeft + ', direita: ' + (w - maxRight) + ')');
+});
+
+test('conexão alterada: destaque acompanha a etapa e some ao retroceder', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+
+  /* passo em que B entra como filho esquerdo de A: só essa conexão é nova */
+  let idx = -1;
+  for (let i = 1; i < t.steps.length; i++) {
+    const cur = treeRootOf(t.steps[i], 'arvore');
+    const prev = treeRootOf(t.steps[i - 1], 'arvore');
+    if (!cur || !prev || shapeOf(cur).indexOf('A(B(') !== 0) continue;
+    const changed = DSV.treeChangedEdges(prev, cur);
+    const ativos = Object.keys(changed).filter((k) => changed[k]);
+    if (ativos.length === 1) { idx = i; break; }
+  }
+  assert(idx >= 0, 'passo de inserção de B');
+  const step = t.steps[idx];
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+
+  const comPrev = {};
+  DSV.renderStructure(comPrev, sel, step, {
+    opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [],
+    prevStep: t.steps[idx - 1]
+  });
+  eq((comPrev.innerHTML.match(/tree-edge new/g) || []).length, 1, 'a conexão nova é a única destacada');
+
+  const semPrev = {};
+  DSV.renderStructure(semPrev, sel, step, { opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [] });
+  eq((semPrev.innerHTML.match(/tree-edge new/g) || []).length, 0, 'sem passo anterior nenhum destaque é inventado');
+
+  const prevStep = t.steps[idx - 1];
+  const selPrev = DSV.detectStructures(prevStep, opsMap).filter((c) => c.type === 'tree')[0];
+  const voltar = {};
+  DSV.renderStructure(voltar, selPrev, prevStep, {
+    opsMap: opsMap, pointers: prevStep.pointers || {}, events: prevStep.events || [],
+    prevStep: idx > 1 ? t.steps[idx - 2] : null
+  });
+  eq((voltar.innerHTML.match(/tree-edge new/g) || []).length, 0, 'ao retroceder, o destaque antigo some');
+
+  /* promoção (remoção de B): a conexão de D com o novo pai é destacada */
+  const t2 = run(treeExample('arvore-simples-remocao').code);
+  noError(t2);
+  const promo = 'A(D(H(.,.),E(.,.)),G(.,.))';
+  let idx2 = -1;
+  for (let i = 1; i < t2.steps.length; i++) {
+    if (shapeOf(treeRootOf(t2.steps[i], 'arvore')) !== promo) continue;
+    const changed = DSV.treeChangedEdges(treeRootOf(t2.steps[i - 1], 'arvore'), treeRootOf(t2.steps[i], 'arvore'));
+    if (Object.keys(changed).filter((k) => changed[k]).length) { idx2 = i; break; }
+  }
+  assert(idx2 >= 0, 'passo da promoção de D após remover B');
+});
+
 test('explicação: nome da operação vem da chamada em execução', () => {
   const t = run(treeExample('arvore-simples').code);
   noError(t);
@@ -926,6 +1035,582 @@ test('detecção: a árvore tem prioridade sobre arrays internos da BFS dos exem
   noError(t);
   const cands = DSV.detectStructures(lastStep(t), DSV.buildOpsMap(t.steps));
   eq(cands[0].type, 'tree', 'melhor candidato é a árvore');
+});
+
+/* ---------------------------------------------------------------- */
+console.log('\n[setas contextuais da árvore]');
+
+/* árvore serializada do passo (detecção real, sem depender do nome da variável) */
+function treeRootAt(trace, i) {
+  const step = trace.steps[i];
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+  if (!sel || sel.id == null) return null;
+  return DSV.findValueById(step, sel.id);
+}
+
+/* todas as setas que o render desenharia ao longo do trace */
+function transitionsOf(trace) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const out = [];
+  for (let i = 1; i < trace.steps.length; i++) {
+    const step = trace.steps[i];
+    const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+    if (!sel || sel.id == null) continue;
+    const root = DSV.findValueById(step, sel.id);
+    if (!root) continue;
+    const tr = DSV.treeTransition(trace.steps, i, root);
+    if (tr) out.push(Object.assign({ i: i }, tr));
+  }
+  return out;
+}
+
+function treeValueById(root) {
+  const map = {};
+  (function walk(n) {
+    if (!n) return;
+    const v = prop(n, 'valor');
+    map[n.id] = String(v ? v.v : '?');
+    walk(childOf(n, 'esquerda'));
+    walk(childOf(n, 'direita'));
+  })(root);
+  return map;
+}
+
+function treeIdsOf(root) {
+  const ids = {};
+  (function walk(n) {
+    if (!n || ids[n.id]) return;
+    ids[n.id] = true;
+    walk(childOf(n, 'esquerda'));
+    walk(childOf(n, 'direita'));
+  })(root);
+  return ids;
+}
+
+function treeParentById(root) {
+  const map = {};
+  (function walk(n) {
+    if (!n) return;
+    const L = childOf(n, 'esquerda');
+    const R = childOf(n, 'direita');
+    if (L) map[L.id] = n.id;
+    if (R) map[R.id] = n.id;
+    walk(L);
+    walk(R);
+  })(root);
+  return map;
+}
+
+/* render de um passo, com ou sem o histórico (steps/stepIndex) */
+function renderTreeStepAt(trace, i, withHistory) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const step = trace.steps[i];
+  const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+  assert(sel, 'árvore detectada no passo ' + i);
+  const container = {};
+  const ctx = {
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    visit: DSV.computeVisitOrder(trace.steps),
+    prevStep: i > 0 ? trace.steps[i - 1] : null,
+    nextStep: i < trace.steps.length - 1 ? trace.steps[i + 1] : null
+  };
+  if (withHistory !== false) {
+    ctx.steps = trace.steps;
+    ctx.stepIndex = i;
+  }
+  DSV.renderStructure(container, sel, step, ctx);
+  return container.innerHTML;
+}
+
+test('setas: busca desce pela árvore seguindo o ponteiro "atual"', () => {
+  const t = run(treeExample('arvore-busca').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  eq(trs.length, 2, 'duas transições de descida na busca por 40');
+  const vals = treeValueById(treeRootAt(t, t.steps.length - 1));
+  const pairs = trs.map((tr) => vals[tr.fromId] + '→' + vals[tr.toId]);
+  assert(pairs.indexOf('50→30') >= 0, 'desce para 30: ' + pairs.join(', '));
+  assert(pairs.indexOf('30→40') >= 0, 'desce para 40: ' + pairs.join(', '));
+  trs.forEach((tr) => {
+    eq(tr.label, 'atual', 'cursor é o ponteiro atual');
+    assert(tr.op === 'buscar', 'operação de busca');
+  });
+  const linhas = trs.map((tr) => t.steps[tr.i].line).sort();
+  eq(linhas.join(','), '29,31', 'setas exatamente nas atribuições de descida');
+});
+
+test('setas: inserção por nível mostra a varredura real do cursor', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const trs = transitionsOf(t).filter((tr) => tr.op === 'inserir');
+  eq(trs.length, 4, 'quatro varreduras do cursor na inserção (A→B e B→C)');
+  trs.forEach((tr) => eq(tr.label, 'cursor', 'cursor da BFS de inserção'));
+  const vals = treeValueById(treeRootAt(t, t.steps.length - 1));
+  const pairs = trs.map((tr) => vals[tr.fromId] + '→' + vals[tr.toId]);
+  assert(pairs.indexOf('A→B') >= 0, 'varredura A→B: ' + pairs.join(', '));
+  assert(pairs.indexOf('B→C') >= 0, 'varredura B→C: ' + pairs.join(', '));
+});
+
+test('setas: percursos só conectam nós adjacentes (pai e filho)', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const trs = transitionsOf(t).filter((tr) => /^(pre|em|pos)Ordem$/.test(tr.op));
+  assert(trs.length >= 10, 'transições nos percursos: ' + trs.length);
+  for (const tr of trs) {
+    const root = treeRootAt(t, tr.i);
+    const parents = treeParentById(root);
+    const adjacente = parents[tr.fromId] === tr.toId || parents[tr.toId] === tr.fromId;
+    assert(adjacente, 'transição ' + tr.fromId + '→' + tr.toId + ' segue uma conexão real');
+  }
+  /* ids de nós são estáveis no trace: a sequência de visita é a real */
+  const vals = treeValueById(treeRootAt(t, t.steps.length - 1));
+  const pares = trs.map((tr) => vals[tr.fromId] + '→' + vals[tr.toId]);
+  assert(pares.indexOf('A→B') >= 0 && pares.indexOf('B→D') >= 0, 'descidas do percurso presentes: ' + pares.slice(0, 6).join(', '));
+});
+
+test('setas: regra ignora transição fora da operação, frame ou conexão', () => {
+  const node = (id, val, L, R) => ({
+    t: 'o', id: id, props: {
+      valor: { t: 'p', v: val },
+      esquerda: L || { t: 'p', v: null },
+      direita: R || { t: 'p', v: null }
+    }
+  });
+  const root = node(1, 'A', node(2, 'B'), node(3, 'C'));
+  const st = (name, id) => ({ stack: [{ name: name, line: 1 }], pointers: id == null ? {} : { [id]: ['no'] } });
+
+  /* mesmo frame, percurso: B→C são irmãos, não uma conexão real — sem seta */
+  assert(DSV.treeTransition([st('emOrdem', 2), st('emOrdem', 3)], 1, root) === null, 'percurso não inventa salto entre irmãos B→C');
+  /* A→B é conexão real: seta */
+  const ok = DSV.treeTransition([st('emOrdem', 1), st('emOrdem', 2)], 1, root);
+  assert(ok && ok.fromId === 1 && ok.toId === 2, 'percurso desenha A→B');
+  /* C→A é o retorno pela mesma conexão: seta no sentido inverso */
+  const volta = DSV.treeTransition([st('emOrdem', 3), st('emOrdem', 1)], 1, root);
+  assert(volta && volta.fromId === 3 && volta.toId === 1, 'percurso desenha o retorno C→A');
+
+  /* frames não relacionados (novo laço BFS na mesma operação): sem seta */
+  const busca = { stack: [{ name: 'remover' }, { name: 'buscar' }], pointers: { 1: ['atual'] } };
+  const paiDe = { stack: [{ name: 'remover' }, { name: 'paiDe' }], pointers: { 3: ['atual'] } };
+  assert(DSV.treeTransition([busca, paiDe], 1, root) === null, 'novo laço não conecta ao anterior');
+
+  /* operação diferente no meio: sem seta */
+  const fora = { stack: [], pointers: { 1: ['atual'] } };
+  const busca2 = { stack: [{ name: 'buscar' }], pointers: { 2: ['atual'] } };
+  assert(DSV.treeTransition([fora, busca2], 1, root) === null, 'sem operação em execução não há seta');
+
+  /* ponteiro ativo não mudou de nó: sem seta */
+  assert(DSV.treeTransition([st('buscar', 2), st('buscar', 2)], 1, root) === null, 'mesmo nó não gera seta');
+  /* primeiro passo do trace: sem seta */
+  assert(DSV.treeTransition([st('buscar', 2)], 0, root) === null, 'sem histórico não há seta');
+});
+
+test('setas: geometria termina antes das bordas dos nós', () => {
+  const g = DSV.treeArrowGeometry({ x: 0, y: 0 }, { x: 100, y: 0 }, 20, 20);
+  assert(g, 'geometria calculada');
+  assert(Math.abs(g.sx - 23) < 0.01, 'origem depois do raio + folga: ' + g.sx);
+  assert(Math.abs(g.ex - 77) < 0.01, 'ponta antes do raio do destino: ' + g.ex);
+  assert(Math.abs(g.sy) < 0.01 && Math.abs(g.ey) < 0.01, 'seta alinhada ao eixo');
+  assert(g.d.indexOf('M') === 0 && /Z$/.test(g.d), 'path com haste e ponta fechada');
+  assert(DSV.treeArrowGeometry({ x: 0, y: 0 }, { x: 30, y: 0 }, 20, 20) === null, 'sem espaço entre os nós, nada é desenhado');
+  assert(DSV.treeArrowGeometry({ x: 0, y: 0 }, { x: 0, y: 90 }, 20, 20).ey > 60, 'direção vertical correta');
+});
+
+test('conexões: curva sai do fundo do pai e termina antes do filho', () => {
+  const g = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 120, y: 100 }, 20, 20);
+  assert(g, 'geometria calculada');
+  assert(Math.abs(g.sy - 22) < 0.01, 'sai após o raio do pai + folga: ' + g.sy);
+  assert(Math.abs(g.ey - 77) < 0.01, 'termina antes do raio do filho + folga: ' + g.ey);
+  assert(g.curve.indexOf('M') === 0 && g.curve.indexOf('C') > 0, 'traçado em Bézier cúbica');
+  assert(Math.abs(g.c1x - g.sx) < 0.01 && Math.abs(g.c2x - g.ex) < 0.01, 'tangentes verticais nas duas pontas');
+  const reta = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 0, y: 100 }, 20, 20);
+  eq(reta.curve, 'M0 22C0 49.5 0 49.5 0 77', 'pai e filho alinhados geram reta vertical limpa');
+  assert(DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 0, y: 30 }, 20, 20) === null, 'sem vão vertical não inventa traçado');
+});
+
+test('conexões: ponto e tangente percorrem a curva do pai ao filho', () => {
+  const g = DSV.treeEdgeGeometry({ x: 0, y: 0 }, { x: 120, y: 100 }, 20, 20);
+  const p0 = DSV.treeEdgePointAt(g, 0);
+  const p1 = DSV.treeEdgePointAt(g, 1);
+  const pm = DSV.treeEdgePointAt(g, 0.5);
+  assert(Math.abs(p0.x - g.sx) < 0.01 && Math.abs(p0.y - g.sy) < 0.01, 't=0 é a saída do pai');
+  assert(Math.abs(p1.x - g.ex) < 0.01 && Math.abs(p1.y - g.ey) < 0.01, 't=1 é a chegada no filho');
+  assert(p0.uy > 0.99 && p1.uy > 0.99, 'tangente vertical nas pontas: a ponta aponta para o filho');
+  assert(pm.x > p0.x && pm.x < p1.x && pm.y > p0.y && pm.y < p1.y, 'meio do caminho fica entre os dois nós');
+  assert(DSV.treeEdgePointAt(null, 0.5) === null, 'sem geometria não há ponto');
+});
+
+test('conexões: render usa curvas Bézier com marcador de ponta reutilizável', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const alvo = 'A(B(D(.,.),E(.,.)),C(F(.,.),.))';
+  const step = t.steps.filter((s) => shapeOf(treeRootOf(s, 'arvore')) === alvo)[0];
+  const html = renderTreeStep(t, step).html;
+  assert(html.indexOf('<marker id="tree-marker"') >= 0, 'marcador base definido uma vez');
+  assert(html.indexOf('<marker id="tree-marker-active"') >= 0, 'marcador do estado ativo definido');
+  assert(html.indexOf('<marker id="tree-marker-new"') >= 0, 'marcador da conexão nova definido');
+  const paths = html.match(/<path d="M[^"]*" class="tree-edge"[^>]*>/g) || [];
+  eq(paths.length, 5, 'cinco conexões');
+  paths.forEach((p) => assert(p.indexOf('C') > 0, 'conexão é curva Bézier: ' + p.slice(0, 44)));
+});
+
+test('conexões: só a conexão percorrida no passo fica ativa', () => {
+  ['arvore-busca', 'arvore-em-ordem'].forEach((exId) => {
+    const t = run(treeExample(exId).code);
+    noError(t, exId);
+    let viram = 0;
+    let reveses = 0;
+    for (let i = 0; i < t.steps.length; i++) {
+      const root = treeRootAt(t, i);
+      if (!root) continue;
+      const tr = DSV.treeTransition(t.steps, i, root);
+      const parents = treeParentById(root);
+      const temAresta = !!(tr && (parents[tr.fromId] === tr.toId || parents[tr.toId] === tr.fromId));
+      if (tr && parents[tr.fromId] === tr.toId) reveses++; /* retorno filho → pai */
+      const html = renderTreeStepAt(t, i, true);
+      const ativos = (html.match(/class="tree-edge active"/g) || []).length;
+      eq(ativos, temAresta ? 1 : 0, exId + ' passo ' + i + ': conexão ativa coerente com a transição');
+      if (temAresta) viram++;
+    }
+    assert(viram > 0, exId + ': houve passo com conexão ativa (' + viram + ')');
+    if (exId === 'arvore-em-ordem') assert(reveses > 0, 'percursos têm retornos (filho → pai) exercitados');
+  });
+});
+
+test('conexões: prévia da vaga é uma curva tracejada da borda do pai à vaga', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let alvo = -1;
+  for (let i = 0; i < t.steps.length - 1; i++) {
+    const s = t.steps[i];
+    const sel = DSV.detectStructures(s, opsMap).filter((c) => c.type === 'tree')[0];
+    if (!sel || sel.id == null) continue;
+    const info = DSV.explainStep(s, sel, { nextStep: t.steps[i + 1] });
+    if (info.text && info.text.indexOf('primeira posição disponível') >= 0) { alvo = i; break; }
+  }
+  assert(alvo >= 0, 'passo imediatamente antes de uma inserção');
+  const html = renderTreeStepAt(t, alvo, true);
+  const pre = html.match(/<path d="(M[^"]*)" class="tree-preview-edge"/);
+  assert(pre, 'prévia desenhada como path');
+  assert(pre[1].indexOf('C') > 0, 'prévia usa o mesmo traçado curvo das conexões');
+});
+
+test('setas: render desenha a seta só quando o passo tem transição', () => {
+  const t = run(treeExample('arvore-busca').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  assert(trs.length > 0, 'existe transição na busca');
+  const idx = trs[0].i;
+
+  const com = renderTreeStepAt(t, idx, true);
+  assert(com.indexOf('tree-arrow') >= 0, 'seta desenhada no passo da transição');
+  const semHistorico = renderTreeStepAt(t, idx, false);
+  assert(semHistorico.indexOf('tree-arrow') < 0, 'sem histórico a seta não é inventada');
+
+  /* passo neutro (sem transição e com a árvore visível) não ganha seta */
+  let neutro = -1;
+  for (let i = 1; i < t.steps.length; i++) {
+    const root = treeRootAt(t, i);
+    if (!root) continue;
+    if (DSV.treeTransition(t.steps, i, root) == null && treeRootAt(t, i - 1)) { neutro = i; break; }
+  }
+  assert(neutro > 0, 'existe passo neutro');
+  assert(renderTreeStepAt(t, neutro, true).indexOf('tree-arrow') < 0, 'estado neutro permanece limpo');
+
+  /* a ponta não invade os círculos: coordenadas do path coerentes com o raio */
+  const html = com;
+  const from = treeValueById(treeRootAt(t, idx));
+  assert(from[trs[0].fromId] && from[trs[0].toId], 'nós da seta existem na árvore');
+});
+
+test('setas: nó recém-inserido recebe destaque discreto na etapa e some depois', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  let idx = -1;
+  for (let i = 1; i < t.steps.length; i++) {
+    const cur = treeRootOf(t.steps[i], 'arvore');
+    const prev = treeRootOf(t.steps[i - 1], 'arvore');
+    if (cur && prev && shapeOf(prev) === 'A(.,.)' && shapeOf(cur).indexOf('A(B') === 0) { idx = i; break; }
+  }
+  assert(idx > 0, 'passo da inserção de B');
+  assert(/class="tree-node new"/.test(renderTreeStepAt(t, idx, true)), 'nó novo destacado discretamente');
+  assert(!/class="tree-node new"/.test(renderTreeStepAt(t, idx + 1, true)), 'destaque some na etapa seguinte');
+});
+
+test('setas: remoção mantém setas apenas entre nós presentes na árvore', () => {
+  const t = run(treeExample('arvore-simples-remocao').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  assert(trs.length >= 20, 'transições durante as remoções: ' + trs.length);
+  trs.forEach((tr) => {
+    const ids = treeIdsOf(treeRootAt(t, tr.i));
+    assert(ids[tr.fromId] && ids[tr.toId], 'passo ' + tr.i + ': seta presa a nós presentes (nunca ao removido)');
+  });
+  /* a promoção de D após remover B é uma remontagem da conexão: nenhuma
+   * seta inventada ligando o nó removido ao novo pai */
+  const promo = 'A(D(H(.,.),E(.,.)),G(.,.))';
+  const passo = t.steps.findIndex((s) => shapeOf(treeRootOf(s, 'arvore')) === promo);
+  assert(passo > 0, 'passo após a promoção');
+  for (let i = passo; i <= passo + 1 && i < t.steps.length; i++) {
+    const root = treeRootAt(t, i);
+    if (!root) continue;
+    const tr = DSV.treeTransition(t.steps, i, root);
+    const ids = treeIdsOf(root);
+    if (tr) assert(ids[tr.fromId] && ids[tr.toId], 'sem seta órfã após a promoção');
+  }
+});
+
+/* DOM mínimo para exercitar o caminho animado (o app real usa SVG + rAF) */
+function withFakeDom(fn) {
+  const savedDoc = globalThis.document;
+  const savedRaf = globalThis.requestAnimationFrame;
+  const savedNow = DSV.anim.now;
+  let rafCb = null;
+  function mkEl(tag) {
+    return {
+      tag: tag, children: [], attrs: {}, style: {}, innerHTML: '', textContent: '',
+      className: '', parentNode: null,
+      appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
+      remove() { if (this.parentNode) { const i = this.parentNode.children.indexOf(this); if (i >= 0) this.parentNode.children.splice(i, 1); } },
+      animate() { return null; }
+    };
+  }
+  globalThis.document = {
+    createElement(tag) { return mkEl(tag); },
+    createElementNS(ns, tag) { return mkEl(tag); },
+    body: mkEl('body')
+  };
+  globalThis.requestAnimationFrame = function (cb) { rafCb = cb; return 1; };
+  const dom = {
+    mkEl: mkEl,
+    /* executa o próximo quadro com um instante controlado */
+    runFrame(when) {
+      const cb = rafCb;
+      rafCb = null;
+      if (when != null) DSV.anim.now = () => when;
+      if (cb) { cb(); return true; }
+      return false;
+    }
+  };
+  try {
+    return fn(dom);
+  } finally {
+    globalThis.document = savedDoc;
+    globalThis.requestAnimationFrame = savedRaf;
+    DSV.anim.now = savedNow;
+  }
+}
+
+test('setas: cena animada desenha e reposiciona a seta a cada quadro', () => {
+  const t = run(treeExample('arvore-busca').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  assert(trs.length > 0, 'passo com transição');
+  const idx = trs[0].i;
+
+  withFakeDom((dom) => {
+    const step = t.steps[idx];
+    const opsMap = DSV.buildOpsMap(t.steps);
+    const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+    const container = dom.mkEl('div');
+    const now0 = DSV.anim.now();
+    DSV.renderStructure(container, sel, step, {
+      opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [],
+      steps: t.steps, stepIndex: idx,
+      prevStep: t.steps[idx - 1], nextStep: t.steps[idx + 1]
+    });
+    const scene = container.__treeScene;
+    assert(scene && scene.arrowEl, 'cena animada com o path da seta');
+    eq(scene.arrowEl.getAttribute('class'), 'tree-arrow', 'classe da seta');
+
+    const lerD = () => scene.arrowEl.getAttribute('d');
+    const dInicial = lerD();
+    assert(dInicial && dInicial.indexOf('M') === 0, 'seta posicionada já no render');
+    let dDepois = dInicial;
+    for (let k = 1; k <= 20; k++) {
+      if (!dom.runFrame(now0 + k * 40)) break;
+      dDepois = lerD();
+    }
+    assert(dDepois !== dInicial, 'a seta acompanha os nós durante a interpolação');
+    eq(scene.arrowEl.getAttribute('opacity'), '1', 'seta visível ao fim da animação');
+
+    /* geometria: a ponta repousa na borda do destino (raio + folga) e o
+     * indicador conserva haste + ponta na direção do movimento */
+    const m = dDepois.match(/^M([\d.\-]+) ([\d.\-]+)L[\d.\-]+ [\d.\-]+M([\d.\-]+) ([\d.\-]+)L/);
+    assert(m, 'path no formato haste + ponta: ' + dDepois);
+    const from = scene.nodes[trs[0].fromId];
+    const to = scene.nodes[trs[0].toId];
+    const dHaste = Math.hypot(parseFloat(m[3]) - parseFloat(m[1]), parseFloat(m[4]) - parseFloat(m[2]));
+    const dTip = Math.hypot(parseFloat(m[3]) - to.x, parseFloat(m[4]) - to.y);
+    assert(Math.abs(dTip - (to.r + 3)) < 0.01, 'ponta repousa antes do destino (' + dTip.toFixed(2) + ' ~ ' + (to.r + 3).toFixed(2) + ')');
+    assert(Math.abs(dHaste - 18) < 0.01, 'indicador tem comprimento fixo e legível (' + dHaste.toFixed(2) + ')');
+    const dTail = Math.hypot(parseFloat(m[1]) - from.x, parseFloat(m[2]) - from.y);
+    assert(dTail > dTip, 'indicador termina mais perto do destino do que da origem');
+
+    /* passo sem transição: a cena remove a seta */
+    let neutro = -1;
+    for (let i = 1; i < t.steps.length; i++) {
+      const root = treeRootAt(t, i);
+      if (root && DSV.treeTransition(t.steps, i, root) == null) { neutro = i; break; }
+    }
+    assert(neutro > 0, 'passo neutro');
+    const stepN = t.steps[neutro];
+    const selN = DSV.detectStructures(stepN, DSV.buildOpsMap(t.steps)).filter((c) => c.type === 'tree')[0];
+    DSV.renderStructure(container, selN, stepN, {
+      opsMap: DSV.buildOpsMap(t.steps), pointers: stepN.pointers || {}, events: stepN.events || [],
+      steps: t.steps, stepIndex: neutro, prevStep: t.steps[neutro - 1]
+    });
+    const cenaN = container.__treeScene;
+    assert(cenaN && cenaN.arrowEl == null, 'seta removida quando a etapa não tem transição');
+  });
+});
+
+test('conexões: cena animada marca a conexão percorrida como ativa', () => {
+  const t = run(treeExample('arvore-busca').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  assert(trs.length > 0, 'passo com transição');
+  const idx = trs[0].i;
+
+  withFakeDom((dom) => {
+    const container = dom.mkEl('div');
+    const render = (i) => {
+      const step = t.steps[i];
+      const sel = DSV.detectStructures(step, DSV.buildOpsMap(t.steps)).filter((c) => c.type === 'tree')[0];
+      DSV.renderStructure(container, sel, step, {
+        opsMap: DSV.buildOpsMap(t.steps), pointers: step.pointers || {}, events: step.events || [],
+        steps: t.steps, stepIndex: i,
+        prevStep: i > 0 ? t.steps[i - 1] : null,
+        nextStep: i + 1 < t.steps.length ? t.steps[i + 1] : null
+      });
+      return container.__treeScene;
+    };
+    const ativosDa = (scene) => Object.keys(scene.edges).filter((cid) => {
+      const cls = scene.edges[cid].line.getAttribute('class') || '';
+      return cls.indexOf('active') >= 0;
+    });
+
+    const scene = render(idx);
+    const ativos = ativosDa(scene);
+    eq(ativos.length, 1, 'uma única conexão ativa no passo da transição');
+    const parents = treeParentById(treeRootAt(t, idx));
+    const childId = Number(ativos[0]);
+    eq(parents[childId], trs[0].fromId, 'a conexão ativa liga a origem ao destino da transição');
+    eq(childId, trs[0].toId, 'o filho da conexão ativa é o nó de destino');
+
+    /* passo neutro: nenhuma conexão ativa, e ao voltar o destaque some */
+    let neutro = -1;
+    for (let i = 1; i < t.steps.length; i++) {
+      const root = treeRootAt(t, i);
+      if (root && DSV.treeTransition(t.steps, i, root) == null) { neutro = i; break; }
+    }
+    assert(neutro > 0, 'passo neutro');
+    eq(ativosDa(render(neutro)).length, 0, 'sem transição nenhuma conexão fica ativa');
+    eq(ativosDa(render(idx)).length, 1, 'ao voltar, a conexão percorrida volta a ficar ativa');
+  });
+});
+
+test('conexões: com movimento reduzido o indicador já nasce no destino', () => {
+  const t = run(treeExample('arvore-busca').code);
+  noError(t);
+  const trs = transitionsOf(t);
+  assert(trs.length > 0, 'passo com transição');
+  const idx = trs[0].i;
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const saved = DSV.anim.reducedMotion;
+  DSV.anim.reducedMotion = true;
+  try {
+    withFakeDom((dom) => {
+      const step = t.steps[idx];
+      const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+      const container = dom.mkEl('div');
+      DSV.renderStructure(container, sel, step, {
+        opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [],
+        steps: t.steps, stepIndex: idx,
+        prevStep: t.steps[idx - 1], nextStep: t.steps[idx + 1]
+      });
+      const scene = container.__treeScene;
+      assert(scene && scene.arrow && scene.arrowEl, 'indicador criado');
+      eq(scene.arrow.dur, 0, 'sem percurso quando o movimento é reduzido');
+      const m = scene.arrowEl.getAttribute('d').match(/^M[\d.\-]+ [\d.\-]+L[\d.\-]+ [\d.\-]+M([\d.\-]+) ([\d.\-]+)L/);
+      assert(m, 'path do indicador no formato esperado');
+      const to = scene.nodes[trs[0].toId];
+      const dTip = Math.hypot(parseFloat(m[1]) - to.x, parseFloat(m[2]) - to.y);
+      assert(Math.abs(dTip - (to.r + 3)) < 0.01, 'já posicionado no destino (' + dTip.toFixed(2) + ')');
+    });
+  } finally {
+    DSV.anim.reducedMotion = saved;
+  }
+});
+
+test('vaga da inserção: palco reserva a prévia e não salta duas vezes', () => {
+  const t = run(treeExample('arvore-simples').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+
+  /* caminho estático (DOM simulado/testes): a vaga nunca sai do palco */
+  let vistos = 0;
+  for (let i = 0; i + 1 < t.steps.length; i++) {
+    if (!treeRootAt(t, i)) continue;
+    const html = renderTreeStepAt(t, i, true);
+    const slot = html.match(/<circle cx="([\d.\-]+)" cy="([\d.\-]+)" r="([\d.]+)" class="tree-preview-slot"/);
+    if (!slot) continue;
+    vistos++;
+    const dim = html.match(/<svg class="tree-svg" width="([\d.]+)" height="([\d.]+)"/);
+    assert(dim, 'svg com dimensões no passo ' + i);
+    const W = parseFloat(dim[1]);
+    const H = parseFloat(dim[2]);
+    const cx = parseFloat(slot[1]);
+    const cy = parseFloat(slot[2]);
+    const r = parseFloat(slot[3]);
+    assert(cx - r >= 0 && cy - r >= 0 && cx + r <= W && cy + r <= H,
+      'vaga inteira dentro do palco no passo ' + i + ' (vaga até ' + (cy + r).toFixed(1) + ', palco ' + W + 'x' + H + ')');
+  }
+  assert(vistos >= 5, 'passos com prévia de inserção: ' + vistos);
+
+  /* caminho animado: o svg/palco assume o tamanho do próximo layout e mantém
+   * o enquadramento quando o nó aparece */
+  let idxPrev = -1;
+  for (let i = 0; i + 1 < t.steps.length; i++) {
+    if (!treeRootAt(t, i)) continue;
+    if (renderTreeStepAt(t, i, true).indexOf('tree-preview-slot') >= 0) { idxPrev = i; break; }
+  }
+  assert(idxPrev > 0, 'passo com vaga');
+
+  withFakeDom((dom) => {
+    const container = dom.mkEl('div');
+    const render = (i) => {
+      const step = t.steps[i];
+      const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'tree')[0];
+      DSV.renderStructure(container, sel, step, {
+        opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [],
+        steps: t.steps, stepIndex: i,
+        prevStep: i > 0 ? t.steps[i - 1] : null,
+        nextStep: i + 1 < t.steps.length ? t.steps[i + 1] : null
+      });
+      return container.__treeScene;
+    };
+    const scene = render(idxPrev);
+    const W = parseFloat(scene.svg.getAttribute('width'));
+    const H = parseFloat(scene.svg.getAttribute('height'));
+    const slotEl = scene.previewEls && scene.previewEls.circle;
+    assert(slotEl, 'cena animada com a vaga pontilhada');
+    const cx = parseFloat(slotEl.getAttribute('cx'));
+    const cy = parseFloat(slotEl.getAttribute('cy'));
+    const r = parseFloat(slotEl.getAttribute('r'));
+    assert(cx - r >= 0 && cy - r >= 0 && cx + r <= W && cy + r <= H,
+      'cena reserva o palco da vaga (vaga até ' + (cy + r).toFixed(1) + ', palco ' + W + 'x' + H + ')');
+
+    const scene2 = render(idxPrev + 1);
+    assert(scene2 === scene, 'mesma cena ao inserir');
+    eq(parseFloat(scene2.svg.getAttribute('width')) + 'x' + parseFloat(scene2.svg.getAttribute('height')),
+      W + 'x' + H, 'palco mantém o tamanho quando o nó aparece (sem segundo reenquadramento)');
+  });
 });
 
 /* ---------------------------------------------------------------- */

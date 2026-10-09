@@ -970,18 +970,42 @@ kbd {
 
 .tree-svg { display: block; }
 
-.tree-edge { stroke: var(--border-strong); stroke-width: 1.25; fill: none; }
+/* conexões: curva suave do pai ao filho com ponta pequena e nítida,
+ * desenhada por um marcador SVG orientado pela tangente da curva */
+.tree-edge { stroke: var(--border-strong); stroke-width: 1.25; fill: none; marker-end: url(#tree-marker); }
 
 /* conexão recém-criada ou alterada: destaque temporário */
-.tree-edge.new { stroke: var(--accent-muted); }
+.tree-edge.new { stroke: var(--accent-muted); marker-end: url(#tree-marker-new); }
+
+/* conexão percorrida pelo passo atual: destaque principal */
+.tree-edge.active { stroke: var(--accent); marker-end: url(#tree-marker-active); }
+
+/* ponta triangular: um desenho por estado visual (mesma proporção sempre) */
+.tree-tip-base { fill: var(--border-strong); }
+.tree-tip-new { fill: var(--accent-muted); }
+.tree-tip-active { fill: var(--accent); }
 
 .tree-node { fill: var(--bg-elevated); stroke: var(--border-strong); stroke-width: 1.25; }
+
+/* nó recém-inserido: destaque discreto na etapa em que aparece */
+.tree-node.new { stroke: var(--accent-muted); }
 
 /* visitado na operação atual: roxo suave */
 .tree-node.visited { fill: var(--accent-soft); stroke: var(--accent-muted); }
 
 /* nó da operação atual: realce principal */
 .tree-node.active { fill: var(--accent-fill); stroke: var(--accent); stroke-width: 1.75; }
+
+/* seta contextual: transição real do ponteiro ativo em uma etapa (discreta,
+ * só durante a operação; some ao avançar/retroceder) */
+.tree-arrow {
+  fill: var(--accent);
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
 
 .tree-val { fill: var(--text-primary); font: 600 13px var(--font-mono); text-anchor: middle; }
 

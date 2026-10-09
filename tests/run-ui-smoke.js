@@ -379,6 +379,61 @@ test('árvore simples: retroceder restaura exatamente o desenho do passo', () =>
   assert($('structure').innerHTML === snaps[idx], 'voltar de novo restaura o mesmo estado');
 });
 
+test('árvore: seta contextual aparece nas transições e some nas etapas neutras', () => {
+  const snaps = snapshotExample('arvore-busca');
+  assert(snaps.some((s) => s.indexOf('tree-arrow') >= 0), 'seta desenhada na descida da busca');
+  assert(snaps.some((s) => s.indexOf('tree-node') >= 0 && s.indexOf('tree-arrow') < 0), 'etapa neutra continua limpa');
+  assert(snaps[0].indexOf('tree-arrow') < 0, 'primeiro passo (sem histórico) sem seta');
+  assert(snaps.some((s) => s.indexOf('tree-edge active') >= 0), 'conexão percorrida destacada em roxo');
+  assert(snaps.some((s) => s.indexOf('tree-node') >= 0 && s.indexOf('tree-edge active') < 0), 'conexões neutras sem destaque ativo');
+  assert(snaps[0].indexOf('tree-edge active') < 0, 'sem execução nenhuma conexão fica ativa');
+});
+
+test('árvore: retroceder restaura a seta exatamente como estava', () => {
+  const snaps = snapshotExample('arvore-simples');
+  const comSeta = snaps.findIndex((s) => s.indexOf('tree-arrow') >= 0);
+  assert(comSeta > 0, 'existe passo com seta na inserção/percurso');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > comSeta) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[comSeta], 'mesma seta e mesmo desenho ao retroceder');
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[comSeta + 1], 'avançar reproduz a próxima etapa (com ou sem seta)');
+});
+
+test('árvore: nova execução não deixa seta da operação anterior', () => {
+  const snaps = snapshotExample('arvore-simples');
+  assert(snaps.some((s) => s.indexOf('tree-arrow') >= 0), 'execução anterior tinha seta');
+  $('exampleSelect').value = 'arvore-busca';
+  fire('exampleSelect', 'change');
+  const snapsBusca = snapshotExample('arvore-busca');
+  assert(snapsBusca[0].indexOf('tree-arrow') < 0, 'primeiro passo da nova execução sem seta antiga');
+  const comSeta = snapsBusca.findIndex((s) => s.indexOf('tree-arrow') >= 0);
+  assert(comSeta > 0, 'a busca desenha a seta na descida');
+  while (parseInt($('slider').value, 10) > comSeta - 1) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snapsBusca[comSeta - 1], 'etapa anterior restaurada exatamente');
+  assert($('structure').innerHTML.indexOf('tree-arrow') < 0, 'sem seta de etapa futura após retroceder');
+});
+
+test('árvore: vaga da inserção fica inteira dentro do palco', () => {
+  const snaps = snapshotExample('arvore-simples');
+  let vistos = 0;
+  snaps.forEach((html, i) => {
+    const slot = html.match(/<circle cx="([\d.\-]+)" cy="([\d.\-]+)" r="([\d.]+)" class="tree-preview-slot"/);
+    if (!slot) return;
+    vistos++;
+    const dim = html.match(/<svg class="tree-svg" width="([\d.]+)" height="([\d.]+)"/);
+    assert(dim, 'svg com dimensões no passo ' + i);
+    const W = parseFloat(dim[1]);
+    const H = parseFloat(dim[2]);
+    const cx = parseFloat(slot[1]);
+    const cy = parseFloat(slot[2]);
+    const r = parseFloat(slot[3]);
+    assert(cx - r >= 0 && cy - r >= 0 && cx + r <= W && cy + r <= H,
+      'vaga inteira no palco no passo ' + i + ' (vaga até ' + (cy + r).toFixed(1) + ', palco ' + W + 'x' + H + ')');
+  });
+  assert(vistos >= 3, 'snapshots com vaga de inserção: ' + vistos);
+});
+
 test('árvore simples: variáveis e console acompanham a remoção', () => {
   $('exampleSelect').value = 'arvore-simples-remocao';
   fire('exampleSelect', 'change');
@@ -543,6 +598,15 @@ test('código com erro de sintaxe também é tratado', () => {
   fire('btnRun', 'click');
   assert($('banner').innerHTML.indexOf('Erro na linha') >= 0, 'banner de sintaxe');
   assert($('structure').innerHTML.length > 0, 'estrutura mostrou mensagem amigável');
+});
+
+test('explicação: sem execução mostra orientação breve (estado vazio)', () => {
+  $('code').value = '';
+  fire('btnRun', 'click');
+  assert(!$('stepExplainer').classList.contains('hidden'), 'faixa permanece visível');
+  assert($('stepOp').textContent === 'Execução', 'operação neutra: ' + $('stepOp').textContent);
+  assert($('stepText').textContent.indexOf('Execute uma operação') >= 0, 'orientação breve: ' + $('stepText').textContent);
+  assert($('stepCount').textContent === '', 'sem contador quando não há etapas');
 });
 
 test('seleção manual de estrutura não quebra', () => {
