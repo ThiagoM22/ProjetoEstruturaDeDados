@@ -85,6 +85,7 @@
     sticky: null,      /* última seleção automática */
     candidates: [],
     opsMap: {},
+    commands: [],      /* operações da execução (eventos + chamadas reconhecidas) */
     visit: { order: [], map: {} },
     errorLine: null,
     tabs: [],          /* exemplos abertos como abas */
@@ -386,6 +387,7 @@
     state.traceCode = els.code.value;
     state.stale = false;
     state.opsMap = DSV.buildOpsMap(state.trace.steps);
+    state.commands = DSV.buildCommands(state.trace.steps, state.traceCode);
     state.visit = DSV.computeVisitOrder(state.trace.steps);
     state.forced = null;
     state.sticky = null;
@@ -403,6 +405,11 @@
 
     renderGutter();
     els.slider.max = Math.max(state.trace.steps.length - 1, 0);
+    /* executar reenquadra o canvas, mesmo depois de pan/zoom do usuário
+     * (o enquadramento é aplicado no primeiro render da execução) */
+    pendingCanvasFit = true;
+    canvasView.moved = false;
+    canvasFitKey = null;
     /* em caso de erro, posiciona no passo em que ele ocorreu */
     goto(state.trace.error && state.trace.steps.length ? state.trace.steps.length - 1 : 0);
   }
@@ -424,12 +431,36 @@
     els.banner.classList.add('hidden');
   }
 
+  /* ordem fixa do seletor — a progressão da disciplina: array, pilha, fila,
+   * lista encadeada, lista duplamente encadeada e árvore binária */
+  function structureOptionRank(c) {
+    if (c.type === 'array') return 0;
+    if (c.type === 'stack') return 1;
+    if (c.type === 'queue') return 2;
+    if (c.type === 'list') return c.doubly ? 4 : 3;
+    if (c.type === 'tree') return 5;
+    return 6;
+  }
+
+  /* rótulo específico do candidato: "Lista" era ambíguo entre a encadeada e a
+   * duplamente encadeada, e a árvore do visualizador é sempre binária */
+  function structureOptionLabel(c) {
+    if (c.type === 'list') return c.doubly ? 'Lista duplamente encadeada' : 'Lista encadeada';
+    if (c.type === 'tree') return 'Árvore binária';
+    return DSV.typeLabel(c.type);
+  }
+
   function buildStructureOptions() {
     var html = '<button><selectedcontent></selectedcontent></button>' +
       '<option value="auto">Automático</option>';
-    state.candidates.forEach(function (c) {
+    /* ordena uma cópia: a lista original continua com o maior score primeiro,
+     * que é quem a seleção automática exibe */
+    var ordered = state.candidates.slice().sort(function (a, b) {
+      return (structureOptionRank(a) - structureOptionRank(b)) || (b.score - a.score);
+    });
+    ordered.forEach(function (c) {
       html += '<option value="' + esc(c.type + '|' + c.id) + '">' +
-        esc(DSV.typeLabel(c.type) + ' — ' + c.label) + '</option>';
+        esc(structureOptionLabel(c) + ' — ' + c.label) + '</option>';
     });
     els.structureSelect.innerHTML = html;
     els.structureSelect.value = 'auto';
@@ -507,6 +538,9 @@
   var canvasView = { x: 0, y: 0, zoom: 1, key: null, moved: false };
   var canvasDrag = null;
   var canvasFitKey = null; /* tamanho do último desenho enquadrado (árvore/lista) */
+  var pendingCanvasFit = false; /* reenquadra no próximo render (execução/breakpoint) */
+  var canvasNarrow = typeof window !== 'undefined' && typeof window.innerWidth === 'number'
+    ? window.innerWidth <= 1100 : false;
 
   function canvasSupported() {
     return !!(els.structure &&
@@ -546,33 +580,88 @@
     return true;
   }
 
-  /* enquadra sem ampliar: 100% quando cabe, reduz quando a estrutura é maior */
-  function canvasHome() {
+  /* razão de enquadramento do desenho atual (null quando ainda não há medidas) */
+  function canvasFitRatio() {
     var e = canvasParts();
-    if (!e.vp || !e.stage) return false;
+    if (!e.vp || !e.stage) return null;
     var vw = e.vp.clientWidth || 0;
     var vh = e.vp.clientHeight || 0;
     var sw = e.stage.offsetWidth || 0;
     var sh = e.stage.offsetHeight || 0;
-    if (!vw || !vh || !sw || !sh) return false;
+    if (!vw || !vh || !sw || !sh) return null;
     var pad = 64;
-    var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
+    return Math.min((vw - pad) / sw, (vh - pad) / sh);
+  }
+
+  /* enquadra sem ampliar: 100% quando cabe, reduz quando a estrutura é maior */
+  function canvasHome() {
+    var fit = canvasFitRatio();
+    if (fit == null) return false;
     return canvasCenter(fit < 1 ? Math.max(ZOOM_MIN, fit) : 1);
   }
 
-  /* ajusta à tela (pode ampliar até ZOOM_FIT_MAX) */
+  /* ajusta à tela pelo botão: marca a câmera como "do usuário" (o auto-fit para) */
   function canvasFit() {
-    var e = canvasParts();
-    if (!e.vp || !e.stage) return;
-    var vw = e.vp.clientWidth || 0;
-    var vh = e.vp.clientHeight || 0;
-    var sw = e.stage.offsetWidth || 0;
-    var sh = e.stage.offsetHeight || 0;
-    if (!vw || !vh || !sw || !sh) return;
-    var pad = 64;
-    var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
+    var fit = canvasFitRatio();
+    if (fit == null) return;
     canvasCenter(Math.max(ZOOM_MIN, Math.min(ZOOM_FIT_MAX, fit)));
     canvasView.moved = true;
+  }
+
+  /* enquadramento da execução (primeiro render depois de executar): pode
+   * ampliar estruturas pequenas até ZOOM_FIT_MAX e NÃO marca moved — assim a
+   * estrutura continua acompanhada nos passos seguintes */
+  function canvasFitNow(allowEnlarge) {
+    var fit = canvasFitRatio();
+    if (fit == null) return false;
+    if (!allowEnlarge && fit > 1) fit = 1;
+    return canvasCenter(Math.max(ZOOM_MIN, Math.min(ZOOM_FIT_MAX, fit)));
+  }
+
+  /* acompanha o desenho: reduz o zoom quando não couber mais; recentraliza
+   * quando pedido (a fila evita o salto de recentralizar a cada item novo) */
+  function canvasKeepFitted(recenter) {
+    var fit = canvasFitRatio();
+    if (fit == null) return false;
+    var z = Math.max(ZOOM_MIN, Math.min(canvasView.zoom, fit));
+    if (z < canvasView.zoom || recenter) {
+      canvasCenter(z);
+      return true;
+    }
+    return false;
+  }
+
+  /* fila: cresce para a direita; se escapou da área visível, recentraliza no
+   * zoom atual (sem reenquadrar a cada passo, o que daria saltos) */
+  function canvasEnsureVisible() {
+    var fit = canvasFitRatio();
+    if (fit == null) return false;
+    if (fit < canvasView.zoom) return canvasCenter(Math.max(ZOOM_MIN, fit));
+    var e = canvasParts();
+    var vw = e.vp.clientWidth || 0;
+    var vh = e.vp.clientHeight || 0;
+    var sw = e.stage.offsetWidth * canvasView.zoom;
+    var sh = e.stage.offsetHeight * canvasView.zoom;
+    var pad = 16;
+    var escaped = canvasView.x + sw > vw + pad || canvasView.x < -pad ||
+      canvasView.y + sh > vh + pad || canvasView.y < -pad;
+    if (escaped) return canvasCenter(canvasView.zoom);
+    return false;
+  }
+
+  /* o desenho atual ficou (quase) fora da área visível? */
+  function canvasStructureOutOfView() {
+    var e = canvasParts();
+    if (!e.vp || !e.stage) return false;
+    if (typeof e.vp.getBoundingClientRect !== 'function' ||
+        typeof e.stage.getBoundingClientRect !== 'function') return false;
+    var vp = e.vp.getBoundingClientRect();
+    var st = e.stage.getBoundingClientRect();
+    if (!st.width || !st.height) return false;
+    var ix = Math.min(vp.right, st.right) - Math.max(vp.left, st.left);
+    var iy = Math.min(vp.bottom, st.bottom) - Math.max(vp.top, st.top);
+    var visible = (Math.max(0, ix) * Math.max(0, iy)) / (st.width * st.height);
+    return visible < 0.5;
   }
 
   function canvasZoomAt(cx, cy, factor) {
@@ -598,16 +687,11 @@
   function canvasAutoFit() {
     var e = canvasParts();
     if (!e.vp || !e.stage) return;
-    var vw = e.vp.clientWidth || 0;
-    var vh = e.vp.clientHeight || 0;
-    var sw = e.stage.offsetWidth || 0;
-    var sh = e.stage.offsetHeight || 0;
-    if (!vw || !vh || !sw || !sh) return;
-    var sig = Math.round(sw) + 'x' + Math.round(sh);
+    var fit = canvasFitRatio();
+    if (fit == null) return;
+    var sig = Math.round(e.stage.offsetWidth) + 'x' + Math.round(e.stage.offsetHeight);
     if (sig !== canvasFitKey) {
       canvasFitKey = sig;
-      var pad = 64;
-      var fit = Math.min((vw - pad) / sw, (vh - pad) / sh);
       canvasCenter(fit < 1 ? Math.max(ZOOM_MIN, fit) : 1);
       return;
     }
@@ -627,16 +711,31 @@
     if (key !== canvasView.key) {
       canvasView.moved = false;
       canvasFitKey = null;
+      if (pendingCanvasFit && sel && sel.id != null) {
+        /* execução: enquadra o desenho real, podendo ampliar estruturas
+         * pequenas (a câmera continua acompanhando os próximos passos) */
+        pendingCanvasFit = false;
+        if (canvasFitNow(true)) canvasView.key = key;
+        return;
+      }
+      /* ainda sem estrutura real: só centraliza e mantém o fit pendente */
       if (canvasHome()) canvasView.key = key;
       return;
     }
-    /* a fila cresce na horizontal: recentralizar a cada passo deslocaria a
-     * linha inteira de uma vez (salto). O enquadramento fica com o usuário. */
-    if (sel && sel.type === 'queue') return;
-    if (!canvasView.moved) {
-      if (sel && (sel.type === 'tree' || sel.type === 'list')) canvasAutoFit();
-      else canvasCenter(canvasView.zoom);
+    if (pendingCanvasFit && sel && sel.id != null) {
+      pendingCanvasFit = false;
+      canvasFitNow(true);
+      return;
     }
+    if (canvasView.moved) return;
+    /* a fila cresce na horizontal: recentralizar a cada passo deslocaria a
+     * linha inteira de uma vez (salto); só reenquadra se escapou da área */
+    if (sel && sel.type === 'queue') {
+      canvasEnsureVisible();
+      return;
+    }
+    if (sel && (sel.type === 'tree' || sel.type === 'list')) canvasAutoFit();
+    else canvasKeepFitted(true);
   }
 
   /* ------------------------------------------------------------------ */
@@ -999,11 +1098,11 @@
     setCurrentLine(stale ? null : step.line, isErrorStep);
     if (!stale) ensureLineVisible(step.line);
 
-    renderStructurePanel(step);
+    var curSel = renderStructurePanel(step);
     renderCallstack(step);
     renderVars(step);
     renderConsole();
-    renderCommands();
+    renderCommands(curSel);
     updateButtons();
     updateDebugBar(step);
   }
@@ -1209,22 +1308,29 @@
     }
   });
 
-  /* lista de operações de estrutura (push/pop/shift/...) da execução */
-  function renderCommands() {
+  /* comandos da execução: eventos nativos (push/pop/...) e operações
+   * reconhecidas das demais estruturas (inserção/busca/percurso no BST,
+   * listas, fila com índices, MeuArray) — filtrados pela estrutura exibida */
+  function commandVisible(cmd, sel) {
+    if (cmd.kind !== 'event') return true;
+    if (!sel || sel.id == null) return false;
+    return cmd.targetId == null || cmd.targetId === sel.id;
+  }
+
+  function renderCommands(sel) {
     if (!state.trace) { els.commands.innerHTML = ''; return; }
     var html = '';
     var count = 0;
-    state.trace.steps.forEach(function (s, si) {
-      (s.events || []).forEach(function (ev) {
-        count++;
-        var cls = 'command';
-        if (si === state.index) cls += ' current';
-        else if (si > state.index) cls += ' future';
-        html += '<button type="button" class="' + cls + '" data-step="' + si + '" title="ir para o passo ' + (si + 1) + '">' +
-          '<span class="command-num">' + count + '</span>' +
-          '<span class="command-text">' + esc(ev.text) + '</span>' +
-          '</button>';
-      });
+    (state.commands || []).forEach(function (cmd) {
+      if (!commandVisible(cmd, sel)) return;
+      count++;
+      var cls = 'command';
+      if (cmd.step === state.index) cls += ' current';
+      else if (cmd.step > state.index) cls += ' future';
+      html += '<button type="button" class="' + cls + '" data-step="' + cmd.step + '" title="ir para o passo ' + (cmd.step + 1) + '">' +
+        '<span class="command-num">' + count + '</span>' +
+        '<span class="command-text">' + esc(cmd.text) + '</span>' +
+        '</button>';
     });
     if (!count) {
       els.commands.innerHTML = '<div class="muted">Nenhuma operação de estrutura neste código.</div>';
@@ -1392,7 +1498,18 @@
       /* ao cruzar o breakpoint responsivo, reaplica as colunas dos painéis
        * recolhidos para não deixar faixas vazias na grade */
       if (collapsed.code || collapsed.side) applyLayout();
-      if (!canvasSupported() || canvasView.moved) return;
+      if (!canvasSupported()) return;
+      var narrow = typeof window.innerWidth === 'number' ? window.innerWidth <= 1100 : false;
+      var crossed = narrow !== canvasNarrow;
+      canvasNarrow = narrow;
+      /* a grade mudou (painéis empilhados) ou o desenho saiu da área visível:
+       * reenquadra mesmo depois de pan/zoom do usuário */
+      if (crossed || canvasStructureOutOfView()) {
+        canvasView.moved = false;
+        canvasFitNow(true);
+        return;
+      }
+      if (canvasView.moved) return;
       canvasHome();
     });
   }
@@ -1442,9 +1559,23 @@
   /* Inicialização                                                       */
   /* ------------------------------------------------------------------ */
 
+  /* exemplos na ordem da disciplina (array → pilhas → filas → listas →
+   * árvores); ids fora da ordem (versões futuras) entram no fim, na ordem
+   * do próprio arquivo */
+  function orderedExamples() {
+    var order = DSV.EXAMPLE_MENU_ORDER || [];
+    var rank = {};
+    order.forEach(function (id, i) { rank[id] = i; });
+    return DSV.EXAMPLES.slice().sort(function (a, b) {
+      var ra = rank[a.id] == null ? order.length : rank[a.id];
+      var rb = rank[b.id] == null ? order.length : rank[b.id];
+      return ra - rb;
+    });
+  }
+
   function init() {
     var options = '<button><selectedcontent></selectedcontent></button>';
-    DSV.EXAMPLES.forEach(function (ex) {
+    orderedExamples().forEach(function (ex) {
       options += '<option value="' + esc(ex.id) + '">' + esc(ex.name) + '</option>';
     });
     els.exampleSelect.innerHTML = options;

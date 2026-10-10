@@ -1022,6 +1022,46 @@ test('seleção manual de estrutura não quebra', () => {
   }
 });
 
+/* ------------------------------------------------------------------ */
+console.log('\n[UI/UX: ordem dos seletores]');
+
+test('seletor de estrutura: ordem da disciplina e rótulos específicos', () => {
+  $('code').value = [
+    'const pilha = [];',
+    'pilha.push(1); pilha.pop();',
+    'const fila = [];',
+    'fila.push(1); fila.shift();',
+    'const arr = { items: [1, 2], tamanho: 2 };',
+    'class No { constructor(v) { this.valor = v; this.proximo = null; } }',
+    'class NoDuplo { constructor(v) { this.valor = v; this.proximo = null; this.anterior = null; } }',
+    'const lista = new No(1); lista.proximo = new No(2);',
+    'const dupla = new NoDuplo(3); dupla.proximo = new NoDuplo(4);',
+    'const raiz = { valor: 5, esquerda: null, direita: null };'
+  ].join('\n');
+  fire('btnRun', 'click');
+  fire('btnPlay', 'click'); /* pausa: o teste só quer o seletor montado */
+  const options = $('structureSelect').innerHTML;
+  const textos = [...options.matchAll(/<option value="[^"]*">([^<]*)<\/option>/g)].map((m) => m[1]);
+  assert(textos.join(' | ') === [
+    'Automático',
+    'Array — arr',
+    'Pilha — pilha',
+    'Fila — fila',
+    'Lista encadeada — lista',
+    'Lista duplamente encadeada — dupla',
+    'Árvore binária — raiz'
+  ].join(' | '), 'ordem do seletor: ' + textos.join(' | '));
+});
+
+test('seletor de exemplos: ordem da disciplina (array → árvores binárias)', () => {
+  const order = DSV.EXAMPLE_MENU_ORDER;
+  assert(Array.isArray(order) && order.length === DSV.EXAMPLES.length, 'ordem definida com todos os exemplos');
+  const values = [...$('exampleSelect').innerHTML.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
+  assert(values.join(',') === order.join(','), 'menu na ordem esperada: ' + values.join(', '));
+  const missing = DSV.EXAMPLES.filter((ex) => order.indexOf(ex.id) < 0).map((ex) => ex.id);
+  assert(missing.length === 0, 'exemplos fora da ordem: ' + missing.join(', '));
+});
+
 test('play/pause alterna o botão', () => {
   const before = $('btnPlay').textContent;
   fire('btnPlay', 'click');
@@ -1294,6 +1334,65 @@ test('hover: campo de objeto mostra o valor do campo, não a variável homônima
   assert(html.indexOf('var-tip-name">value') >= 0, 'nome da variável: ' + html);
   assert(html.indexOf('var-tip-val">99') >= 0, 'valor da variável (99): ' + html);
   fire('code', 'mouseleave', {});
+});
+
+/* ------------------------------------------------------------------ */
+console.log('\n[P2/P3/P5: comandos por operação, reenquadramento e legenda do array]');
+
+test('comandos: BST lista as operações em vez de vazio (P2)', () => {
+  $('exampleSelect').value = 'arvore-bst';
+  fire('exampleSelect', 'change');
+  const total = parseInt($('slider').max, 10);
+  fire('btnLast', 'click');
+  const html = $('commands').innerHTML;
+  assert(html.indexOf('Nenhuma opera') < 0, 'painel não está vazio');
+  assert(html.indexOf('Inser') >= 0, 'tem Inserção: ' + html.slice(0, 160));
+  assert(html.indexOf('Busca') >= 0, 'tem Busca');
+  assert(html.indexOf('Percurso') >= 0, 'tem Percurso');
+  assert(parseInt($('slider').value, 10) === total, 'fim do histórico');
+});
+
+test('comandos: lista simples não mostra push do array auxiliar (P2)', () => {
+  $('exampleSelect').value = 'lista-simples';
+  fire('exampleSelect', 'change');
+  fire('btnLast', 'click');
+  const html = $('commands').innerHTML;
+  assert(html.indexOf('push(') < 0, 'sem push do parts: ' + html.slice(0, 160));
+  assert(html.indexOf('Inser') >= 0, 'tem Inserção');
+  assert(html.indexOf('lista ·') >= 0, 'operação leva o receptor da lista');
+});
+
+test('executar reenquadra o canvas mesmo após pan/zoom (P3)', () => {
+  /* código próprio (não depende do buffer da aba, que outros testes editam) */
+  $('code').value = 'const pilha = [];\npilha.push(1);';
+  fire('btnZoomIn', 'click');
+  fire('btnZoomIn', 'click');
+  const vp = $('structure').querySelector('.canvas-viewport');
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 600;
+  stage.offsetHeight = 300;
+  fire('btnRun', 'click');
+  if ($('btnPlay').textContent === '\u275a\u275a') fire('btnPlay', 'click');
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  const info = 'zoom=' + zoom + ' vp=' + vp.clientWidth + 'x' + vp.clientHeight + ' stage=' + stage.offsetWidth + 'x' + stage.offsetHeight;
+  assert(zoom > 1 && zoom < 1.5, 'estrutura pequena é ampliada no enquadramento da execução: ' + info);
+});
+
+test('resize: cruzar o breakpoint reenquadra mesmo após pan (P3)', () => {
+  $('exampleSelect').value = 'lista-encadeada';
+  fire('exampleSelect', 'change');
+  fire('btnLast', 'click');
+  fire('btnZoomIn', 'click');
+  const stage = $('structure').querySelector('.canvas-stage');
+  stage.offsetWidth = 1205;
+  stage.offsetHeight = 110;
+  window.innerWidth = 500;
+  const resize = handlers.__win && handlers.__win.resize;
+  assert(typeof resize === 'function', 'handler de resize registrado');
+  resize();
+  const zoom = parseFloat($('structure').style['--canvas-zoom']);
+  assert(zoom < 1 && zoom >= 0.25, 'lista extensa reduz para caber (zoom: ' + zoom + ')');
+  window.innerWidth = 1440;
 });
 
 /* devolve o DOM simulado ao estado original para os testes seguintes */

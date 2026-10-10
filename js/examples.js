@@ -1499,17 +1499,6 @@
         '// um tamanho lógico controlado à mão (#tamanho). Não há push/pop/splice:',
         '// as escritas são por índice, os deslocamentos são feitos passo a passo e',
         '// o delete abre buracos no array interno.',
-        '//',
-        '// Correções documentadas em relação ao código de sala:',
-        '//  0) o "export default" da versão de sala não existe neste subconjunto',
-        '//     didático de JS; a classe é declarada direto, como nos exemplos.',
-        '//  1) obterIndice: o laço ia até i <= #tamanho e examinava uma posição fora',
-        '//     do tamanho lógico; agora para em i < #tamanho.',
-        '//  2) editar: não validava o índice (escrevia em posição inexistente e',
-        '//     aumentava o array interno); agora devolve undefined fora dos limites,',
-        '//     como obterElemento e removerPorIndice.',
-        '//  3) toString: console.table não existe no ED Viz; a representação usa',
-        '//     console.log sobre o array interno.',
         '',
         'class MeuArray {',
         '  #items = [];',
@@ -1685,6 +1674,28 @@
         "console.log('tamanho final =', arr.tamanhoArray(), '| remover no vazio =', arr.remover());"
       ].join('\n')
     }
+  ];
+
+  /* ordem do seletor de exemplos: a progressão da disciplina — array,
+   * pilhas, filas, lista encadeada, lista duplamente encadeada e árvores
+   * binárias (mesma ordem do seletor de estrutura exibida) */
+  DSV.EXAMPLE_MENU_ORDER = [
+    'meu-array',
+    'pilha-array',
+    'pilha-classe',
+    'fila-array',
+    'fila-classe',
+    'fila-privada',
+    'fila-indices',
+    'lista-encadeada',
+    'lista-simples',
+    'lista-dupla',
+    'arvore-em-ordem',
+    'arvore-busca',
+    'arvore-bst',
+    'arvore-bst-remocao',
+    'arvore-simples',
+    'arvore-simples-remocao'
   ];
 
   DSV.DEFAULT_EXAMPLE = 'pilha-array';

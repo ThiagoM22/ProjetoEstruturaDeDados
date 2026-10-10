@@ -187,3 +187,60 @@ test('botões têm nome acessível', async ({ page }) => {
     .filter((b) => !(b.textContent.trim() || b.getAttribute('aria-label'))).length);
   expect(semNome).toBe(0);
 });
+
+test('comandos: BST e lista mostram as operações da estrutura (P2)', async ({ page }) => {
+  await page.goto('/');
+  await executarPausado(page, 'arvore-bst');
+  await page.click('#btnLast');
+  await page.click('#tabCommands');
+  const cmds = page.locator('#commands');
+  await expect(cmds).toContainText('Inserção');
+  await expect(cmds).toContainText('Busca');
+  await expect(cmds).toContainText('Percurso');
+  await expect(cmds).not.toContainText('Nenhuma operação');
+
+  await executarPausado(page, 'lista-simples');
+  await page.click('#btnLast');
+  await expect(cmds).toContainText('Inserção no início');
+  await expect(cmds).not.toContainText('push(');
+});
+
+test('janela estreita: reenquadra sozinho após mexer na câmera (P3)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto('/');
+  await executarPausado(page, 'lista-encadeada');
+  await page.click('#btnLast');
+  await page.click('#btnZoomIn'); /* usuário mexeu na câmera: o auto-fit antigo desligava */
+  await page.setViewportSize({ width: 500, height: 820 });
+  await page.waitForFunction(() => {
+    const vp = document.querySelector('#structure .canvas-viewport');
+    const nodes = Array.from(document.querySelectorAll('#structure .list-node'));
+    if (!vp || !nodes.length) return false;
+    const r = vp.getBoundingClientRect();
+    return nodes.every((n) => {
+      const q = n.getBoundingClientRect();
+      return q.left >= r.left - 2 && q.right <= r.right + 2;
+    });
+  }, null, { timeout: 5000 });
+});
+
+test('status-line quebra em vez de truncar a linha em execução (P5)', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    document.getElementById('code').value =
+      'const resultadoFinalDaOperacao = [1, 2, 3, 4, 5, 6].map(function (x) { return x * 123456; }).join(" - ");\n' +
+      'console.log(resultadoFinalDaOperacao);';
+  });
+  await page.click('#btnRun');
+  if ((await page.locator('#btnPlay').textContent()) === '\u275a\u275a') await page.click('#btnPlay');
+  await page.evaluate(() => {
+    const b = document.getElementById('btnFirst');
+    if (!b.disabled) b.click();
+  });
+  const r = await page.evaluate(() => {
+    const el = document.getElementById('statusLine');
+    return { truncado: el.scrollWidth > el.clientWidth + 1, texto: el.textContent };
+  });
+  expect(r.texto).toContain('resultadoFinalDaOperacao');
+  expect(r.truncado).toBe(false);
+});

@@ -21,8 +21,12 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   linha em execução, no elemento afetado pela operação e na timeline.
 - Os **seletores** (estrutura, exemplo e velocidade) abrem a lista no mesmo padrão do tema — superfície
   elevada, borda de 1px, raio de 6px, sombra, itens com hover discreto e o item atual em roxo suave;
+  a lista aparece **inteira, sem barra de rolagem**, e só rola se não couber mesmo na janela;
   em navegadores que ainda não suportam a lista customizável do `<select>`, a lista nativa continua
   funcionando como antes.
+- Os seletores de **estrutura** e de **exemplo** seguem a ordem da disciplina — array, pilhas, filas,
+  lista encadeada, lista duplamente encadeada e árvores binárias — e o seletor de estrutura distingue
+  a lista dupla da simples (`Lista encadeada` × `Lista duplamente encadeada`).
 - O editor tem **abas de arquivo** (os exemplos abertos ficam em abas, com a ativa destacada; feche pelo
   `×` ou com o **clique do meio do mouse**), mantendo o
   **syntax highlighting do VS Code Dark+** (palavras-chave `#569cd6`, controle `#c586c0`,
@@ -31,7 +35,10 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 - A área de visualização é uma **área de trabalho quase preta** com grid pontilhado sutil, muito espaço
   negativo e a estrutura centralizada. A estrutura pode ser **arrastada** (pan) e **ampliada com a roda
   do mouse** (zoom) — os controles no topo do painel mostram o zoom atual, permitem aumentar/diminuir,
-  redefinir para 100% e ajustar à tela. O grid acompanha o pan/zoom.
+  redefinir para 100% e ajustar à tela. O grid acompanha o pan/zoom. Ao **executar**, o enquadramento é
+  reaplicado automaticamente (estruturas pequenas podem entrar um pouco ampliadas; grandes entram ajustadas
+  à área visível); ao **redimensionar** a janela, o enquadramento volta se a grade empilhou ou se o
+  desenho ficou fora da área.
 - Pilha, fila, lista, array e árvore compartilham a mesma linguagem
   visual: superfícies escuras, borda de 1px, tipografia monoespaçada e destaque roxo no elemento ativo
   (topo da pilha, frente da fila, célula alterada, nó visitado/atual).
@@ -88,8 +95,9 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 - **Array com tamanho manual (MeuArray)**: cada posição é uma célula retangular
   adjacente com o **índice** numa faixa própria acima (o índice nunca desliza) e o **valor** dentro
   da célula; o array interno (`#items`) e o tamanho lógico (`#tamanho`) são desenhados como coisas
-  distintas — a legenda mostra `tamanho = N` e, quando o array interno ainda guarda posições
-  apagadas, `#items.length = M` com as posições fora do tamanho em células tracejadas. O `delete`
+  distintas — a legenda mostra `tamanho = N` e, quando o array interno tem mais posições,
+  `#items.length = M`, com as posições fora do tamanho em células tracejadas (**apagadas** pelo
+  `delete` ou **cópias transitórias** dos deslocamentos). O `delete`
   vira uma célula vazia (buraco), nunca confundida com um `undefined` armazenado. Na busca, as
   posições já examinadas ficam em **roxo suave** e a encontrada em **roxo forte**; nos deslocamentos
   do `inserirEm`/`removerPorIndice`, o valor **desliza** de uma célula para a vizinha (FLIP) com uma
@@ -133,7 +141,11 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 4. Na visualização, **arraste** para mover o desenho e use a **roda do mouse** para dar zoom (ou os
    controles no topo do painel: `−`, `100%`, `+` e ajustar à tela). A faixa acima dos controles explica
    a operação do passo atual (nome da operação + o que aconteceu/acontecerá).
-5. No painel **Comandos**, clique em uma operação para pular ao passo em que ela aconteceu; no painel
+5. No painel **Comandos**, cada operação da execução vira uma entrada: os eventos de array
+   (`push`, `pop`, `shift`…) e as operações reconhecidas das demais estruturas (inserção/busca/percurso
+   na árvore, métodos das listas, `enqueue`/`dequeue` da fila com índices, MeuArray…). Clique para pular
+   ao passo em que ela aconteceu — os eventos são filtrados pela estrutura exibida e as operações levam
+   o nome do receptor quando há (`lista · Inserção no início`). No painel
    **Saída**, clique no `#passo` de uma linha para pular até ele.
 6. Precisando de mais espaço, use **Código** e **Painéis** na barra superior para recolher o editor e o
    painel lateral; as abas **Comandos / Variáveis / Chamadas / Saída** mostram cada bloco de depuração
@@ -178,6 +190,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 
 | Exemplo | O que demonstra |
 |---|---|
+| Array com tamanho manual (MeuArray) | `adicionar`/`editar`/`remover`/`obterElemento`/`obterIndice`/`tamanhoArray`/`limpar`/`toString`/`itemsDuplicados`/`inserirEm`/`removerPorIndice`/`removerPorValor`; `#items`/`#tamanho`, deslocamentos manuais de trás para frente, buracos do `delete` e posições fora do tamanho |
 | Pilha com array (push/pop) | LIFO, topo, eventos de push/pop |
 | Pilha com classe | encapsulamento em `this.itens` |
 | Fila com array (push/shift) | FIFO, indicadores FRONT/REAR |
@@ -187,7 +200,6 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
 | Lista duplamente encadeada (classe) | `append`/`prepend`/`removeFirst`/`removeLast`/`insertAt`/`removeAt`/`indexOf`/`transverse`/`transverseReverse`/`size`/`isEmpty`/`toString`; nó PREV/VALUE/NEXT, HEAD/TAIL e setas nos dois sentidos |
-| Array com tamanho manual (MeuArray) | `adicionar`/`editar`/`remover`/`obterElemento`/`obterIndice`/`tamanhoArray`/`limpar`/`toString`/`itemsDuplicados`/`inserirEm`/`removerPorIndice`/`removerPorValor`; `#items`/`#tamanho`, deslocamentos manuais de trás para frente, buracos do `delete` e posições fora do tamanho |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
 | Árvore binária de busca (BST) — inserção, busca e percursos | regra menor→esquerda / maior-ou-igual→direita, busca `true/false`, raiz privada `#root` e percursos em/pré/pós |
@@ -291,7 +303,12 @@ deslocamentos do `inserirEm`/`removerPorIndice`, busca com posições examinadas
 distintos de `undefined`, `itemsDuplicados`, `limpar` sobrevivendo à troca do array interno e
 histórico estável),
 recolhimento de painéis, a dica de variável do editor (hover, inclusive de campos como `node.value`,
-cadeias e `this.#campo`), os 16 exemplos e a renderização de todos os passos na interface.
+cadeias e `this.#campo`), a lista de comandos por operação (`buildCommands`: BST, listas, fila com
+índices e MeuArray; o `push` de array auxiliar não vira comando da lista), a escala de pilha/fila
+curtas, o enquadramento automático ao executar e ao
+cruzar o breakpoint responsivo, a ordem dos seletores de estrutura e de exemplo (progressão da
+disciplina, com a lista dupla e a árvore binária nomeadas no seletor), os 16 exemplos e a
+renderização de todos os passos na interface.
 
 ### Testes no navegador (Playwright)
 

@@ -596,7 +596,12 @@
     removeAt: 'Remoção em posição',
     indexOf: 'Busca',
     transverse: 'Percurso',
-    transverseReverse: 'Percurso reverso'
+    transverseReverse: 'Percurso reverso',
+    /* nomes clássicos de sala (lista com nós) */
+    inserirNoInicio: 'Inserção no início',
+    inserirNoFim: 'Inserção no final',
+    removerNoInicio: 'Remoção no início',
+    removerNoFim: 'Remoção no final'
   };
   Object.keys(LIST_OP_NAMES).forEach(function (k) { OP_NAMES[k] = LIST_OP_NAMES[k]; });
 
@@ -644,6 +649,12 @@
     if (/\.enqueue\s*\(/.test(line)) return 'Enfileiramento';
     if (/\.dequeue\s*\(/.test(line)) return 'Desenfileiramento';
     if (/\.front\s*\(/.test(line)) return 'Consulta à frente';
+    /* lista com nós (nomes clássicos de sala) */
+    if (/\.inserirNoInicio\s*\(/.test(line)) return 'Inserção no início';
+    if (/\.inserirNoFim\s*\(/.test(line)) return 'Inserção no final';
+    if (/\.removerNoInicio\s*\(/.test(line)) return 'Remoção no início';
+    if (/\.removerNoFim\s*\(/.test(line)) return 'Remoção no final';
+    if (/\.percorrer\s*\(/.test(line)) return 'Percurso';
     /* chamadas da lista simplesmente encadeada (o passo da chamada já
      * rodou a operação; a pilha não tem mais o frame do método) */
     if (/\.insertAtBeginning\s*\(/.test(line)) return 'Inserção no início';
@@ -679,6 +690,112 @@
     if (/console\.log/.test(line)) return 'Saída';
     return 'Execução';
   }
+
+  /* variável que recebe a chamada na linha (ex.: "lista" em "lista.append(10)");
+   * só devolve quando o método é da mesma operação reconhecida */
+  function receiverOfLine(lineText, op) {
+    var rx = /([A-Za-z_$][\w$]*)\s*\.\s*([A-Za-z_$][\w$]*)\s*\(/g;
+    var m;
+    while ((m = rx.exec(lineText))) {
+      if (OP_NAMES[m[2]] === op) return m[1];
+    }
+    return null;
+  }
+
+  /**
+   * Comandos (operações) da execução, na ordem real dos passos:
+   *  - eventos nativos de array (push/pop/shift/...), como antes;
+   *  - uma entrada por chamada de operação reconhecida (BST, listas, fila com
+   *    índices, MeuArray…), com o nome da operação e o receptor quando há.
+   * Métodos que já produzem eventos nativos (pilha/fila por array) não geram
+   * entrada duplicada. O app filtra os eventos pela estrutura selecionada.
+   * Devolve [{ step, text, kind, targetId }].
+   */
+  DSV.buildCommands = function (steps, source) {
+    steps = steps || [];
+    var src = String(source || '').split('\n');
+    var out = [];
+    var i, s, e;
+
+    /* 1ª passada: execuções de métodos de operação (runs) e se elas já têm
+     * eventos nativos no mesmo run (aí o evento sozinho representa o comando) */
+    var runAt = Object.create(null);
+    var runs = [];
+    var run = null;
+    for (i = 0; i < steps.length; i++) {
+      s = steps[i];
+      var frame = opFrameName(s.stack);
+      if (!frame) { run = null; continue; }
+      if (!run || run.op !== frame) {
+        run = { start: i, op: frame, hasEvents: false };
+        runs.push(run);
+      }
+      runAt[i] = run;
+      if (s.events && s.events.length) run.hasEvents = true;
+    }
+
+    /* 2ª passada: monta as entradas na ordem dos passos */
+    var covered = false; /* a chamada já gerou uma entrada no passo anterior */
+    for (i = 0; i < steps.length; i++) {
+      s = steps[i];
+      var si = s.i != null ? s.i : i;
+      var evs = s.events || [];
+      for (e = 0; e < evs.length; e++) {
+        out.push({
+          step: si,
+          text: evs[e].text,
+          kind: 'event',
+          targetId: evs[e].targetId == null ? null : evs[e].targetId
+        });
+      }
+      var frame2 = opFrameName(s.stack);
+      if (frame2) {
+        var r = runAt[i];
+        if (r && r.start === i) {
+          if (!r.hasEvents && !covered) {
+            out.push({ step: si, text: OP_NAMES[frame2], kind: 'op', targetId: null, op: OP_NAMES[frame2], frame: true });
+          }
+          covered = false;
+        }
+        continue;
+      }
+      var lineText = src[s.line - 1] ? src[s.line - 1].trim() : '';
+      var op = opNameFrom(s, lineText);
+      if (op !== 'Execução' && op !== 'Saída') {
+        var receiver = receiverOfLine(lineText, op);
+        out.push({
+          step: si,
+          text: receiver ? receiver + ' · ' + op : op,
+          kind: 'op',
+          targetId: null,
+          op: op,
+          frame: false
+        });
+        covered = true;
+      } else {
+        covered = false;
+      }
+    }
+
+    /* o passo da chamada é gravado DEPOIS do corpo do método: a primeira
+     * execução de um método reconhecido cria uma entrada sem receptor e a
+     * chamada cria outra. As duas descrevem a mesma operação — junta na
+     * entrada com receptor (a mais descritiva). */
+    var merged = [];
+    for (var k = 0; k < out.length; k++) {
+      var cur = out[k];
+      if (cur.kind === 'op' && !cur.frame) {
+        for (var j = merged.length - 1; j >= 0; j--) {
+          var prev = merged[j];
+          if (prev.kind !== 'op') continue;
+          if (prev.frame && prev.op === cur.op) merged.splice(j, 1);
+          break;
+        }
+      }
+      merged.push(cur);
+    }
+    return merged;
+  };
 
   function sideName(side) {
     return side === 'L' ? 'esquerdo' : 'direito';
@@ -1084,12 +1201,13 @@
     var n = v.items.length;
     var badge = eventsBadge(sel, ctx);
     var keys = itemKeys(v.items);
+    var scale = smallScale(n);
     var dur = animDur(ctx);
 
     DSV.flipRender(container, function () {
       var html = head('Pilha', structureSub(sel, n, 'item', 'itens'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
-      html += '<div class="stack-wrap">';
+      html += '<div class="stack-wrap" style="--stack-scale:' + scale + '">';
       if (n === 0) {
         html += '<div class="empty-inline">A pilha está vazia neste passo.</div>';
       } else {
@@ -1134,6 +1252,7 @@
     var keys = win
       ? shown.map(function (_, idx) { return 'slot:' + (from + idx); })
       : itemKeys(shown);
+    var scale = smallScale(n);
     var dur = animDur(ctx);
     var enterDir = reverse ? 'left' : 'right';
     var exitDir = reverse ? 'right' : 'left';
@@ -1143,7 +1262,7 @@
     DSV.flipRender(container, function () {
       var html = head('Fila', structureSub(sel, n, 'item', 'itens'), badge);
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
-      html += '<div class="queue-wrap">';
+      html += '<div class="queue-wrap" style="--queue-scale:' + scale + '">';
       if (n === 0) {
         html += '<div class="empty-inline">A fila está vazia neste passo.</div>';
       } else {
@@ -2070,6 +2189,23 @@
     var n = Math.max(1, cellCount || 0);
     for (var i = 0; i < ARRAY_TIERS.length; i++) {
       if (n <= ARRAY_TIERS[i].max) return ARRAY_TIERS[i].scale;
+    }
+    return 1;
+  }
+
+  /* pilha e fila curtas ganham a mesma escala das listas/arrays (para não
+   * ficarem "perdidas" no canvas); longas mantêm o tamanho-base por zoom/pan */
+  var SMALL_TIERS = [
+    { max: 3, scale: 1.35 },
+    { max: 5, scale: 1.2 },
+    { max: 8, scale: 1.08 },
+    { max: Infinity, scale: 1 }
+  ];
+
+  function smallScale(count) {
+    var n = Math.max(1, count || 0);
+    for (var i = 0; i < SMALL_TIERS.length; i++) {
+      if (n <= SMALL_TIERS[i].max) return SMALL_TIERS[i].scale;
     }
     return 1;
   }

@@ -3907,6 +3907,92 @@ test('mensagens específicas: operador "in" e elementos vazios de array', () => 
   assert(t2.error && t2.error.message.indexOf('vazios') >= 0, 'mensagem da elisão: ' + (t2.error && t2.error.message));
 });
 
+/* ------------------------------------------------------------------ */
+console.log('\n[P2: comandos da execução (buildCommands)]');
+
+function commandTexts(exId) {
+  const ex = DSV.EXAMPLES.filter((e) => e.id === exId)[0];
+  const t = run(ex.code);
+  noError(t, exId);
+  return DSV.buildCommands(t.steps, ex.code).map((c) => c.text);
+}
+
+test('comandos: BST lista inserção, busca e percursos (P2)', () => {
+  const texts = commandTexts('arvore-bst');
+  assert(texts.some((t) => t.indexOf('Inserção') >= 0), 'tem Inserção: ' + texts.slice(0, 12).join(' | '));
+  assert(texts.some((t) => t.indexOf('Busca') >= 0), 'tem Busca');
+  assert(texts.some((t) => t.indexOf('Percurso') >= 0), 'tem Percurso');
+  assert(texts.length >= 8, 'lista de comandos preenchida (' + texts.length + ')');
+  const ex = DSV.EXAMPLES.filter((e) => e.id === 'arvore-bst')[0];
+  const t = run(ex.code);
+  DSV.buildCommands(t.steps, ex.code).forEach((c) => {
+    assert(c.step >= 0 && c.step < t.steps.length, 'passo válido no histórico: ' + c.step);
+  });
+});
+
+test('comandos: lista simples usa as operações da lista (P2)', () => {
+  const ex = DSV.EXAMPLES.filter((e) => e.id === 'lista-simples')[0];
+  const t = run(ex.code);
+  const cmds = DSV.buildCommands(t.steps, ex.code);
+  const texts = cmds.map((c) => c.text);
+  assert(texts.some((t2) => t2 === 'lista · Inserção no início'), 'inserção no início atribuída à lista: ' + texts.slice(0, 10).join(' | '));
+  assert(texts.some((t2) => t2 === 'lista · Inserção no final'), 'inserção no final');
+  assert(texts.some((t2) => t2 === 'lista · Remoção'), 'remoção');
+  /* o push( ) do array auxiliar do toString fica como evento (filtrado no
+   * painel pela estrutura exibida) — nunca como operação da lista */
+  eq(cmds.filter((c) => c.kind === 'op' && c.text.indexOf('push(') >= 0).length, 0,
+    'push do array auxiliar não vira operação da lista');
+});
+
+test('comandos: lista clássica (inserirNoInicio/percorrer) também aparece', () => {
+  const texts = commandTexts('lista-encadeada');
+  assert(texts.some((t) => t === 'lista · Inserção no início'), 'Inserção no início: ' + texts.join(' | '));
+  assert(texts.some((t) => t === 'lista · Percurso'), 'Percurso');
+});
+
+test('comandos: fila com índices lista enqueue/dequeue/front', () => {
+  const texts = commandTexts('fila-indices');
+  ['Enfileiramento', 'Desenfileiramento', 'Consulta à frente'].forEach((op) => {
+    assert(texts.some((t) => t.indexOf(op) >= 0), op + ' presente: ' + texts.slice(0, 10).join(' | '));
+  });
+});
+
+test('comandos: MeuArray lista as operações da classe', () => {
+  const texts = commandTexts('meu-array');
+  ['Inserção no final', 'Edição', 'Busca', 'Inserção em posição', 'Remoção em posição'].forEach((op) => {
+    assert(texts.some((t) => t.indexOf(op) >= 0), op + ' presente');
+  });
+});
+
+test('comandos: pilha/fila por array mantêm push/pop como eventos, sem duplicar', () => {
+  const ex = DSV.EXAMPLES.filter((e) => e.id === 'pilha-array')[0];
+  const t = run(ex.code);
+  const cmds = DSV.buildCommands(t.steps, ex.code);
+  assert(cmds.some((c) => c.kind === 'event' && c.text.indexOf('push(') === 0), 'evento push presente');
+  assert(cmds.some((c) => c.kind === 'event' && c.text.indexOf('pop()') === 0), 'evento pop presente');
+  eq(cmds.filter((c) => c.kind === 'op').length, 0, 'sem operação sintetizada duplicando o evento');
+});
+
+test('pilha/fila curtas ganham escala por faixa (P5 espaço negativo)', () => {
+  const ts = run('const pilha = []; pilha.push(1); pilha.push(2); pilha.push(3);');
+  noError(ts);
+  const stepS = lastStep(ts);
+  const selS = DSV.detectStructures(stepS, DSV.buildOpsMap(ts.steps)).filter((c) => c.type === 'stack')[0];
+  assert(selS, 'pilha detectada');
+  const cS = {};
+  DSV.renderStructure(cS, selS, stepS, { opsMap: DSV.buildOpsMap(ts.steps), pointers: stepS.pointers || {}, events: stepS.events || [] });
+  assert(cS.innerHTML.indexOf('--stack-scale:1.35') >= 0, 'pilha com 3 itens usa a escala 1.35');
+
+  const tq = run('const fila = []; fila.push(1); fila.push(2); fila.push(3);');
+  noError(tq);
+  const stepQ = lastStep(tq);
+  const selQ = DSV.detectStructures(stepQ, DSV.buildOpsMap(tq.steps)).filter((c) => c.type === 'queue')[0];
+  assert(selQ, 'fila detectada');
+  const cQ = {};
+  DSV.renderStructure(cQ, selQ, stepQ, { opsMap: DSV.buildOpsMap(tq.steps), pointers: stepQ.pointers || {}, events: stepQ.events || [] });
+  assert(cQ.innerHTML.indexOf('--queue-scale:1.35') >= 0, 'fila com 3 itens usa a escala 1.35');
+});
+
 /* ---------------------------------------------------------------- */
 console.log('\n========================================');
 console.log('Testes: ' + passed + ' passaram, ' + failed + ' falharam.');
