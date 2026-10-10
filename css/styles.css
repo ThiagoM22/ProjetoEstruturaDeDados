@@ -139,6 +139,7 @@ body {
 .brand-mark svg { width: 18px; height: 18px; }
 
 .brand-name {
+  margin: 0;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--text-primary);

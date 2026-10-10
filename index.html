@@ -23,7 +23,7 @@
         </g>
       </svg>
     </span>
-    <span class="brand-name">ED Viz</span>
+    <h1 class="brand-name">ED Viz</h1>
     <span class="brand-sep" aria-hidden="true"></span>
     <span class="brand-sub">Visualizador de Estruturas de Dados</span>
   </div>
@@ -36,7 +36,7 @@
       <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
       <span class="btn-label">Depurar</span>
     </button>
-    <select id="structureSelect" class="select" title="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
+    <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
     <button id="btnToggleCode" class="btn ghost small toggle" title="Recolher/expandir o editor de código" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="btn-label">Código</span>
@@ -60,7 +60,7 @@
     <div class="panel-head code-head">
       <div id="tabs" class="tabs" role="toolbar" aria-label="Arquivos abertos"></div>
       <div class="row code-actions">
-        <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"><button><selectedcontent></selectedcontent></button></select>
+        <select id="exampleSelect" class="select select-compact" title="Abrir exemplo" aria-label="Abrir exemplo"><button><selectedcontent></selectedcontent></button></select>
       </div>
     </div>
     <div class="editor" id="editor">
