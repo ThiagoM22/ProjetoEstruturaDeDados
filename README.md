@@ -3,7 +3,7 @@
 Portal para **aprender estrutura de dados vendo o código executar**: você escreve (ou escolhe) um
 código JavaScript e o portal mostra, passo a passo:
 
-- **a estrutura gráfica** — pilha, fila, lista encadeada ou árvore binária;
+- **a estrutura gráfica** — pilha, fila, lista encadeada, árvore binária ou array com tamanho manual;
 - **a linha do código que está sendo executada** (destacada no editor);
 - os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
   árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
@@ -32,7 +32,7 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   negativo e a estrutura centralizada. A estrutura pode ser **arrastada** (pan) e **ampliada com a roda
   do mouse** (zoom) — os controles no topo do painel mostram o zoom atual, permitem aumentar/diminuir,
   redefinir para 100% e ajustar à tela. O grid acompanha o pan/zoom.
-- Pilha, fila, lista e árvore compartilham a mesma linguagem
+- Pilha, fila, lista, array e árvore compartilham a mesma linguagem
   visual: superfícies escuras, borda de 1px, tipografia monoespaçada e destaque roxo no elemento ativo
   (topo da pilha, frente da fila, célula alterada, nó visitado/atual).
 - A **fila** é desenhada na horizontal, com os nós lado a lado e índices discretos; os indicadores
@@ -85,6 +85,16 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   acende a seta de volta conforme o cursor `current` desce pelo `prev`. Continua valendo tudo da
   lista simples: nó recém-criado tracejado fora da lista, tamanho/espaçamento adaptativos e
   navegação por zoom/pan.
+- **Array com tamanho manual (MeuArray)**: cada posição é uma célula retangular
+  adjacente com o **índice** numa faixa própria acima (o índice nunca desliza) e o **valor** dentro
+  da célula; o array interno (`#items`) e o tamanho lógico (`#tamanho`) são desenhados como coisas
+  distintas — a legenda mostra `tamanho = N` e, quando o array interno ainda guarda posições
+  apagadas, `#items.length = M` com as posições fora do tamanho em células tracejadas. O `delete`
+  vira uma célula vazia (buraco), nunca confundida com um `undefined` armazenado. Na busca, as
+  posições já examinadas ficam em **roxo suave** e a encontrada em **roxo forte**; nos deslocamentos
+  do `inserirEm`/`removerPorIndice`, o valor **desliza** de uma célula para a vizinha (FLIP) com uma
+  etiqueta discreta `← valor de [i]` (ou `valor de [i] →`) na célula que recebe, e as operações de
+  escrita/leitura destacam exatamente a posição citada na linha que está executando.
 - Uma **faixa de explicação** logo acima dos controles de execução mostra a operação atual
   (**Inserção**, **Busca**, **Percurso em ordem**…), uma frase curta sobre o que aconteceu ou vai
   acontecer (ex.: *"A busca por níveis encontrou a primeira posição disponível: o filho direito do nó
@@ -177,6 +187,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | Lista encadeada | nós com `proximo`, ponteiro `atual` percorrendo |
 | Lista simplesmente encadeada (classe) | `insertAtBeginning`/`insertAtEnd`/`removeByValue`/`find`/`size`/`isEmpty`/`toString`; nó VALUE/NEXT, HEAD e terminador |
 | Lista duplamente encadeada (classe) | `append`/`prepend`/`removeFirst`/`removeLast`/`insertAt`/`removeAt`/`indexOf`/`transverse`/`transverseReverse`/`size`/`isEmpty`/`toString`; nó PREV/VALUE/NEXT, HEAD/TAIL e setas nos dois sentidos |
+| Array com tamanho manual (MeuArray) | `adicionar`/`editar`/`remover`/`obterElemento`/`obterIndice`/`tamanhoArray`/`limpar`/`toString`/`itemsDuplicados`/`inserirEm`/`removerPorIndice`/`removerPorValor`; `#items`/`#tamanho`, deslocamentos manuais de trás para frente, buracos do `delete` e posições fora do tamanho |
 | Árvore binária — percurso em-ordem | recursão + pilha de chamadas + ordem de visita |
 | Árvore binária — busca iterativa | ponteiro `atual` descendo pela árvore |
 | Árvore binária de busca (BST) — inserção, busca e percursos | regra menor→esquerda / maior-ou-igual→direita, busca `true/false`, raiz privada `#root` e percursos em/pré/pós |
@@ -198,6 +209,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | **Fila** | nome `fila`/`queue`, array com `push/shift` (ou `unshift/pop`) ou classe com array interno e índices `#inicio`/`#fim` |
 | **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`). Com campo `prev`/`anterior` nos nós (ou `#tail` no wrapper), a lista é desenhada como dupla |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (inclusive `#root`/`#raiz`, ou classe `Arvore*`/`Tree*`) |
+| **Array com tamanho manual** | objeto com array interno (`#items`, `items`, `itens`…) e tamanho numérico (`#tamanho`, `tamanho`, `size`, `length`), como a classe `MeuArray`; o wrapper é a identidade da estrutura (sobrevive ao `limpar()`, que troca o array interno) |
 
 Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
 realce principal; as visitas somem ao trocar de operação). O trace é gravado na ordem real de conclusão
@@ -269,9 +281,13 @@ e explicações), a árvore binária simples (inserção por nível, busca, remo
 percursos, snapshots e explicação contextual), a lista simplesmente encadeada (operações, tamanho
 após cada operação, terminador, remoção de duplicados, render VALUE/NEXT/HEAD, destaques e
 explicação), a lista duplamente encadeada (operações com prev/next, invariantes de `head`/`tail`/
-`length`, setas nos dois sentidos, TAIL, percurso reverso e serialização sem truncamento),
+`length`, setas nos dois sentidos, TAIL, percurso reverso e serialização sem truncamento), o array
+com tamanho manual (detecção do wrapper, `#items` × `#tamanho`, escrita fora do tamanho,
+deslocamentos do `inserirEm`/`removerPorIndice`, busca com posições examinadas, buracos do `delete`
+distintos de `undefined`, `itemsDuplicados`, `limpar` sobrevivendo à troca do array interno e
+histórico estável),
 recolhimento de painéis, a dica de variável do editor (hover, inclusive de campos como `node.value`,
-cadeias e `this.#campo`), os 15 exemplos e a renderização de todos os passos na interface.
+cadeias e `this.#campo`), os 16 exemplos e a renderização de todos os passos na interface.
 
 ## Ideias de evolução
 

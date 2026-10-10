@@ -582,6 +582,51 @@ test('lista dupla: lista longa mantém a escala-base e o ajuste à tela', () => 
   assert(zoom < 1 && zoom >= 0.25, 'ajuste à tela reduz para caber (zoom: ' + zoom + ')');
 });
 
+test('array manual: percorre os passos com células, índices, tamanho e deslocamentos', () => {
+  const all = percorrerExemplo('meu-array');
+  assert(all.indexOf('array-cell') >= 0, 'células desenhadas');
+  assert(all.indexOf('array-idx') >= 0, 'índices das posições');
+  assert(all.indexOf('array-size-tag') >= 0, 'marca do tamanho lógico');
+  assert(all.indexOf('tamanho = 4') >= 0, 'tamanho lógico em algum passo');
+  assert(all.indexOf('array-shift-flag') >= 0, 'deslocamentos etiquetados');
+  assert(/array-cell[^"]*hole/.test(all), 'buracos do delete desenhados');
+  assert(all.indexOf('#items.length =') >= 0, 'array interno mostrado discretamente');
+  const options = $('structureSelect').innerHTML;
+  assert(options.indexOf('Array') >= 0, 'seletor lista a estrutura: ' + options.slice(0, 200));
+  assert(options.indexOf('arr') >= 0, 'seletor lista o wrapper principal');
+});
+
+test('array manual: busca destaca examinadas, encontrada e o foco', () => {
+  const snaps = snapshotExample('meu-array');
+  assert(snaps.some((s) => /array-cell[^"]*visited/.test(s)), 'posições examinadas em roxo suave');
+  assert(snaps.some((s) => /array-cell[^"]*match/.test(s)), 'posição encontrada destacada');
+  assert(snaps.some((s) => /array-cell[^"]*active/.test(s)), 'posição da operação com realce principal');
+  assert(snaps.some((s) => /array-cell[^"]*beyond/.test(s)), 'posições fora do tamanho lógico');
+  assert(snaps.some((s) => /array-cell[^"]*shift-dst/.test(s)), 'célula que recebe o deslocamento');
+  assert(snaps.some((s) => /array-cell[^"]*shift-src/.test(s)), 'célula de origem do deslocamento');
+});
+
+test('array manual: retroceder restaura exatamente o desenho do passo', () => {
+  const snaps = snapshotExample('meu-array');
+  const idx = snaps.findIndex((s) => s.indexOf('array-shift-flag') >= 0);
+  assert(idx > 0, 'existe passo de deslocamento');
+  fire('btnLast', 'click');
+  while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
+  assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
+  fire('btnNext', 'click');
+  assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz a próxima etapa idêntica');
+});
+
+test('array manual: limpar não derruba a estrutura selecionada', () => {
+  $('exampleSelect').value = 'meu-array';
+  fire('exampleSelect', 'change');
+  fire('btnLast', 'click');
+  const h = $('structure').innerHTML;
+  assert(h.indexOf('ainda não existe') < 0, 'render sobrevive à troca do array interno');
+  assert(h.indexOf('Array') >= 0, 'título do array');
+  assert(h.indexOf('tamanho = 0') >= 0, 'estado final com tamanho 0');
+});
+
 test('árvore em-ordem: svg, destaque roxo e sem etiquetas', () => {
   const all = percorrerExemplo('arvore-em-ordem');
   assert(all.indexOf('tree-svg') >= 0, 'svg da árvore');

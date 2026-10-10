@@ -1019,6 +1019,7 @@
   function renderStructurePanel(step) {
     var sel = chooseSelection(step);
     var st = steps();
+    var srcLines = els.code.value.split('\n');
     DSV.renderStructure(els.structure, sel, step, {
       opsMap: state.opsMap,
       pointers: step.pointers || {},
@@ -1026,6 +1027,8 @@
       visit: state.visit,
       prevStep: state.index > 0 ? st[state.index - 1] : null,
       nextStep: state.index < st.length - 1 ? st[state.index + 1] : null,
+      /* a faixa de explicação e o foco do array leem a linha que executa */
+      lineText: srcLines[step.line - 1] ? srcLines[step.line - 1].trim() : '',
       /* trace + passo atual: a seta contextual da árvore é derivada dos
        * ponteiros reais do passo, sem estado paralelo ao histórico */
       steps: st,

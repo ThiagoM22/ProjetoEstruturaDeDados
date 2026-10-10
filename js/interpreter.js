@@ -214,7 +214,11 @@
       var items = [];
       var max = Math.min(value.length, 200);
       for (var i = 0; i < max; i++) {
-        items.push(this.serialize(value[i], ctx, depth + 1));
+        /* posição apagada com "delete" fica como buraco (como no JS real:
+         * length não diminui e o índice nem existe) — marcado para o
+         * visualizador não confundir "vazio" com um undefined armazenado */
+        if (!(i in value)) items.push({ t: 'p', v: undefined, hole: true });
+        else items.push(this.serialize(value[i], ctx, depth + 1));
       }
       if (value.length > max) items.push({ t: 'trunc', n: value.length - max });
       result = { t: 'a', id: value.__id, items: items };

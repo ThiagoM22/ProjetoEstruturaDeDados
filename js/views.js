@@ -19,16 +19,19 @@
   /* campos privados aparecem serializados com "#" na frente (#head) */
   var HEAD_KEYS = ['inicio', 'início', 'head', '#head', '#inicio', '#início', 'primeiro', 'cabeca', 'cabeça'];
   var TAIL_KEYS = ['tail', '#tail', 'cauda', '#cauda', 'ultimo', 'último', '#ultimo', '#último', 'fim', '#fim'];
+  /* wrapper de array (MeuArray): array interno + tamanho lógico controlado à mão */
+  var ARRAY_SIZE_KEYS = ['#tamanho', 'tamanho', '#size', 'size', '#qtd', 'qtd', 'quantidade', '#length', 'length'];
 
   var STACK_RX = /pilha|stack/i;
   var QUEUE_RX = /fila|queue/i;
   var LIST_RX = /lista|linked|encadeada/i;
   var DOUBLY_RX = /doubly|duplamente|dupla|bidirecional/i;
   var TREE_RX = /arvore|árvore|tree|bst/i;
+  var ARRAY_RX = /array|vetor/i;
   var ROOT_RX = /^(raiz|root)$/i;
   var NODE_RX = /^(no|nó|node|atual|current)$/i;
 
-  var TYPE_RANK = { tree: 0, list: 1, stack: 2, queue: 3 };
+  var TYPE_RANK = { tree: 0, list: 1, array: 1.5, stack: 2, queue: 3 };
 
   /* ------------------------------------------------------------------ */
   /* Utilidades sobre valores serializados                               */
@@ -396,6 +399,31 @@
         }
       }
 
+      /* wrapper de array (MeuArray): array interno + tamanho lógico numérico
+       * controlado manualmente. O candidato aponta para o WRAPPER (id estável,
+       * mesmo quando limpar() troca o array interno); o render lê o array
+       * interno e o tamanho direto das propriedades atuais do passo. */
+      var arrItems = arrayProp(v);
+      var sizeP = propOf(v, ARRAY_SIZE_KEYS);
+      var sizeVal = sizeP && sizeP.value && sizeP.value.t === 'p' && typeof sizeP.value.v === 'number'
+        ? sizeP.value.v : null;
+      var strongArray = !!(arrItems &&
+        /^#?(items|itens|elementos|dados|valores)$/i.test(arrItems.name) &&
+        /^#?(tamanho|size|length|qtd|quantidade)$/i.test(sizeP ? sizeP.name : ''));
+      if (arrItems && sizeVal != null && (ARRAY_RX.test(nameLike) || strongArray)) {
+        push({
+          type: 'array',
+          id: v.id,
+          label: shownLabel,
+          itemsProp: arrItems.name,
+          sizeProp: sizeP.name,
+          /* sem bônus por quantidade de itens: instâncias do mesmo tipo
+           * empatam e a primeira declarada (a principal) prevalece */
+          score: 9 + (ARRAY_RX.test(String(ctor || '')) ? 1.5 : 0)
+        });
+        return;
+      }
+
       /* objeto genérico: arrays e nós em propriedades viram candidatos */
       var ap = arrayProp(v);
       if (ap) considerArray(ap.value, shownLabel + '.' + ap.name);
@@ -589,6 +617,24 @@
   };
   Object.keys(LIST_OP_NAMES).forEach(function (k) { OP_NAMES[k] = LIST_OP_NAMES[k]; });
 
+  /* operações do array com tamanho manual (MeuArray da aula): alimentam o
+   * nome da operação na faixa de explicação, sempre com a nomenclatura do
+   * código de referência */
+  var ARRAY_OP_NAMES = {
+    adicionar: 'Inserção no final',
+    editar: 'Edição',
+    obterElemento: 'Acesso por índice',
+    obterIndice: 'Busca',
+    tamanhoArray: 'Tamanho',
+    limpar: 'Limpeza',
+    toString: 'Representação',
+    itemsDuplicados: 'Busca de ocorrências',
+    inserirEm: 'Inserção em posição',
+    removerPorIndice: 'Remoção em posição',
+    removerPorValor: 'Remoção por valor'
+  };
+  Object.keys(ARRAY_OP_NAMES).forEach(function (k) { OP_NAMES[k] = ARRAY_OP_NAMES[k]; });
+
   /* nome da operação: pela chamada em execução (pilha de chamadas, do
    * escopo mais externo para o mais interno) e, sem chamada, pela linha */
   function opNameFrom(step, lineText) {
@@ -634,6 +680,19 @@
     if (/\.indexOf\s*\(/.test(line)) return 'Busca';
     if (/\.transverseReverse\s*\(/.test(line)) return 'Percurso reverso';
     if (/\.transverse\s*\(/.test(line)) return 'Percurso';
+    /* chamadas do array (MeuArray) quando o frame já retornou */
+    if (/\.adicionar\s*\(/.test(line)) return 'Inserção no final';
+    if (/\.inserirEm\s*\(/.test(line)) return 'Inserção em posição';
+    if (/\.editar\s*\(/.test(line)) return 'Edição';
+    if (/\.obterElemento\s*\(/.test(line)) return 'Acesso por índice';
+    if (/\.obterIndice\s*\(/.test(line)) return 'Busca';
+    if (/\.removerPorIndice\s*\(/.test(line)) return 'Remoção em posição';
+    if (/\.removerPorValor\s*\(/.test(line)) return 'Remoção por valor';
+    if (/\.itemsDuplicados\s*\(/.test(line)) return 'Busca de ocorrências';
+    if (/\.remover\s*\(/.test(line)) return 'Remoção';
+    if (/\.tamanhoArray\s*\(/.test(line)) return 'Tamanho';
+    if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
+    if (/\.toString\s*\(/.test(line)) return 'Representação';
     if (/console\.log/.test(line)) return 'Saída';
     return 'Execução';
   }
@@ -997,6 +1056,8 @@
       text = 'A árvore está vazia neste passo.';
     } else if (sel && sel.type === 'list') {
       text = listExplanation(step, sel, opts, op);
+    } else if (sel && sel.type === 'array') {
+      text = arrayExplanation(step, sel, opts, op);
     } else {
       text = genericExplanation(step);
     }
@@ -1088,7 +1149,13 @@
     var shown = items.slice(from, to);
     var n = shown.length;
     var badge = eventsBadge(sel, ctx);
-    var keys = itemKeys(shown);
+    /* fila com índices: a identidade da célula é o slot real [i] do array — de onde
+     * o elemento entrou. A contagem por valor do itemKeys não serve aqui: com
+     * valores duplicados, a janela avançando reindexaria as ocorrências e a
+     * animação removeria a ÚLTIMA célula em vez da FRONT. */
+    var keys = win
+      ? shown.map(function (_, idx) { return 'slot:' + (from + idx); })
+      : itemKeys(shown);
     var dur = animDur(ctx);
     var enterDir = reverse ? 'left' : 'right';
     var exitDir = reverse ? 'right' : 'left';
@@ -1584,6 +1651,531 @@
       html += '</div></div>';
       container.innerHTML = html;
     }, animDur(ctx));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Array com tamanho manual (MeuArray): leitura fiel de #items/#tamanho */
+  /* ------------------------------------------------------------------ */
+
+  /* o array interno e o tamanho lógico atuais do wrapper (sel.id aponta
+   * para o wrapper, cuja identidade sobrevive ao limpar()) */
+  function arrayItemsOf(wrapper, sel) {
+    if (!isObj(wrapper)) return null;
+    var p = sel && sel.itemsProp ? propOf(wrapper, [sel.itemsProp]) : null;
+    if (!p || !isArr(p.value)) p = arrayProp(wrapper);
+    return p && isArr(p.value) ? p.value : null;
+  }
+
+  function arraySizeOf(wrapper, sel, items) {
+    var p = sel && sel.sizeProp ? propOf(wrapper, [sel.sizeProp]) : null;
+    if (!p) p = propOf(wrapper, ARRAY_SIZE_KEYS);
+    if (p && p.value && p.value.t === 'p' && typeof p.value.v === 'number') return p.value.v;
+    return items ? items.items.length : 0;
+  }
+
+  /* wrapper + array interno + tamanho de um passo (null quando não existe) */
+  function arrayStateOf(step, sel) {
+    if (!step || !sel || sel.type !== 'array' || sel.id == null) return null;
+    var wrapper = DSV.findValueById(step, sel.id);
+    if (!isObj(wrapper)) return null;
+    var items = arrayItemsOf(wrapper, sel);
+    return { wrapper: wrapper, items: items, size: arraySizeOf(wrapper, sel, items) };
+  }
+
+  /* identidade serializada de um item/posição: buraco ≠ undefined ≠ null,
+   * e valores repetidos continuam iguais (só a posição muda) */
+  function serKey(sv) {
+    if (!sv) return 'x';
+    if (sv.hole) return 'hole';
+    if (sv.t === 'p') {
+      if (sv.v === undefined) return 'p:u';
+      if (sv.v === null) return 'p:n';
+      return 'p:' + typeof sv.v + ':' + String(sv.v);
+    }
+    if (sv.t === 'a' || sv.t === 'o') return sv.t + ':' + sv.id;
+    if (sv.t === 'fn') return 'fn:' + sv.name;
+    if (sv.t === 'ref') return 'ref:' + sv.id;
+    return sv.t;
+  }
+
+  function arrayItemAt(items, i) {
+    if (!items || i < 0 || i >= items.items.length) return null;
+    return items.items[i];
+  }
+
+  /* expressão de índice simples: i, i - 1, i + 1, this.#tamanho, 0... */
+  function evalIndexExpr(expr, step) {
+    var s = String(expr == null ? '' : expr).trim();
+    if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+    var m = /^([A-Za-z_$#][\w$]*(?:\.[A-Za-z_$#][\w$]*)*)\s*([+-])\s*(\d+)$/.exec(s);
+    if (m) {
+      var base = evalIndexExpr(m[1], step);
+      if (base == null) return null;
+      return m[2] === '+' ? base + parseInt(m[3], 10) : base - parseInt(m[3], 10);
+    }
+    if (s.indexOf('this.#') === 0) {
+      if (!step.thisVal || !step.thisVal.props) return null;
+      var p = step.thisVal.props[s.slice(5)];
+      if (p && p.t === 'p' && typeof p.v === 'number') return p.v;
+      return null;
+    }
+    var info = DSV.resolveVariable(step, s);
+    if (info && info.sv && info.sv.t === 'p' && typeof info.sv.v === 'number') return info.sv.v;
+    return null;
+  }
+
+  var KEYWORD_RX = /^(return|delete|const|let|var|typeof|new|in|of|instanceof|void|case|do|else|yield|throw)$/;
+
+  /* o colchete é acesso a índice (algo[...]) e não um literal (a = [1, 2]) */
+  function bracketIsIndex(s, pos) {
+    var j = pos - 1;
+    while (j >= 0 && /\s/.test(s.charAt(j))) j--;
+    if (j < 0 || !/[\w$#.\]\)]/.test(s.charAt(j))) return false;
+    var st = j;
+    while (st >= 0 && /[\w$#.\]\)]/.test(s.charAt(st))) st--;
+    var base = s.slice(st + 1, j + 1).replace(/[)\]].*$/, '');
+    var last = base.split(/[.\s(]/).pop();
+    return !!last && !KEYWORD_RX.test(last);
+  }
+
+  /* índices entre colchetes da linha executada: separa escritas (lado
+   * esquerdo de uma atribuição ou alvo de delete) de leituras */
+  function arrayLineIndices(lineText, step) {
+    var out = { writes: [], reads: [] };
+    var s = String(lineText || '');
+    if (!s) return out;
+    var isDelete = /\bdelete\s+/.test(s);
+    var eq = -1;
+    for (var i = 0; i < s.length; i++) {
+      if (s.charAt(i) !== '=') continue;
+      var next = s.charAt(i + 1);
+      var prev = s.charAt(i - 1);
+      if (next === '=' || next === '>') continue;             /* ==, ===, => */
+      if (prev === '=' || prev === '!' || prev === '<' || prev === '>' ||
+          prev === '+' || prev === '-' || prev === '*' || prev === '/' || prev === '%') continue;
+      eq = i;
+      break;
+    }
+    var rx = /\[([^\[\]]*)\]/g;
+    var m;
+    while ((m = rx.exec(s))) {
+      if (!bracketIsIndex(s, m.index)) continue;
+      var val = evalIndexExpr(m[1], step);
+      if (val == null || !isFinite(val)) continue;
+      var isWrite = isDelete || (eq >= 0 && m.index < eq);
+      (isWrite ? out.writes : out.reads).push({ expr: String(m[1]).trim(), index: val });
+    }
+    return out;
+  }
+
+  /* método do MeuArray que está executando agora (frame mais interno),
+   * pela nomenclatura da classe de referência */
+  function arrayFrameName(step) {
+    var stack = (step && step.stack) || [];
+    for (var i = stack.length - 1; i >= 0; i--) {
+      var n = String(stack[i].name || '').replace(/^#/, '');
+      if (ARRAY_OP_NAMES[n]) return n;
+    }
+    return null;
+  }
+
+  var ARRAY_SEARCH_FRAMES = { obterIndice: true, itemsDuplicados: true };
+
+  function arraySearchFrame(step) {
+    var stack = (step && step.stack) || [];
+    for (var i = stack.length - 1; i >= 0; i--) {
+      var n = String(stack[i].name || '').replace(/^#/, '');
+      if (ARRAY_SEARCH_FRAMES[n]) return n;
+    }
+    return null;
+  }
+
+  var ARRAY_LOOP_NAMES = ['i', 'j', 'k', 'idx', 'indice', 'índice', 'pos', 'posicao', 'posição', 'index'];
+
+  function arrayNumericLocal(step, names) {
+    var scopes = [step.locals, step.globals];
+    for (var s = 0; s < scopes.length; s++) {
+      var map = scopes[s] || {};
+      for (var i = 0; i < names.length; i++) {
+        var sv = map[names[i]];
+        if (sv && sv.t === 'p' && typeof sv.v === 'number' && isFinite(sv.v)) return Math.trunc(sv.v);
+      }
+    }
+    return null;
+  }
+
+  /* valor procurado pelos métodos de busca (elemento/valor/procurado) */
+  function arrayTargetValue(step) {
+    var names = ['elemento', 'valor', 'alvo', 'target', 'procurado'];
+    var scopes = [step.locals, step.globals];
+    for (var s = 0; s < scopes.length; s++) {
+      var map = scopes[s] || {};
+      for (var i = 0; i < names.length; i++) {
+        var sv = map[names[i]];
+        if (sv && sv.t !== 'fn' && sv.t !== 'c') return sv;
+      }
+    }
+    return null;
+  }
+
+  /* foco do passo: posições citadas na linha executada (leitura/escrita),
+   * deslocamento de cópia e o índice corrente do laço como reserva */
+  function arrayFocus(step, sel, ctx) {
+    var focus = {
+      here: false,
+      writes: [],
+      reads: [],
+      shift: null,
+      line: (ctx && ctx.lineText) || '',
+      method: null
+    };
+    if (!step || !sel) return focus;
+    focus.method = arrayFrameName(step);
+    focus.here = !!(step.thisVal && step.thisVal.id === sel.id);
+    if (!focus.here) return focus;
+    if (focus.line) {
+      var idx = arrayLineIndices(focus.line, step);
+      focus.writes = idx.writes;
+      focus.reads = idx.reads;
+    }
+    /* deslocamento manual: a linha copia de um vizinho (i - 1 ou i + 1)
+     * para a posição i — direção definida pelo algoritmo real */
+    if ((focus.method === 'inserirEm' || focus.method === 'removerPorIndice') &&
+        focus.writes.length && focus.reads.length) {
+      var dest = focus.writes[0].index;
+      var src = focus.reads[0].index;
+      var sameDir = focus.method === 'inserirEm' ? src === dest - 1 : src === dest + 1;
+      if (sameDir && dest >= 0 && src >= 0) {
+        focus.shift = { dest: dest, src: src, dir: focus.method === 'inserirEm' ? 'right' : 'left' };
+      }
+    }
+    return focus;
+  }
+
+  function arrayActiveIndex(step, sel, focus, state) {
+    if (!focus.here) return null;
+    var idx = focus.writes.length ? focus.writes[0].index
+      : focus.reads.length ? focus.reads[0].index : null;
+    if (idx == null) {
+      var loop = arrayNumericLocal(step, ARRAY_LOOP_NAMES);
+      if (loop != null) idx = loop;
+    }
+    if (idx == null || idx < 0 || !state.items || idx >= state.items.items.length) return null;
+    return idx;
+  }
+
+  /* índices já examinados pela busca em andamento: percorre o trace para
+   * trás dentro do mesmo frame e coleta o `i` real de cada passo (nada é
+   * inferido além do que o algoritmo já examinou) */
+  function arraySearchVisited(ctx, step, sel, size) {
+    var out = Object.create(null);
+    var frame = arraySearchFrame(step);
+    if (!frame || !ctx || !ctx.steps || ctx.stepIndex == null) return out;
+    if (!(step.thisVal && step.thisVal.id === sel.id)) return out;
+    /* começa no passo anterior: o índice do passo atual é o "ativo", não
+     * uma visita concluída */
+    for (var j = ctx.stepIndex - 1; j >= 0; j--) {
+      var s = ctx.steps[j];
+      if (!s) break;
+      var has = false;
+      var stack = s.stack || [];
+      for (var k = stack.length - 1; k >= 0; k--) {
+        if (String(stack[k].name || '').replace(/^#/, '') === frame) { has = true; break; }
+      }
+      if (!has) break;
+      var iv = s.locals && s.locals.i;
+      if (iv && iv.t === 'p' && typeof iv.v === 'number' && iv.v >= 0 && iv.v < size) out[iv.v] = true;
+    }
+    return out;
+  }
+
+  /* tudo que o render e a explicação precisam do passo: estados, foco,
+   * posições alteradas, visitadas e ocorrências do valor procurado */
+  function arrayStepInfo(step, sel, ctx) {
+    var state = arrayStateOf(step, sel);
+    if (!state) return null;
+    var prevState = ctx && ctx.prevStep ? arrayStateOf(ctx.prevStep, sel) : null;
+    var focus = arrayFocus(step, sel, ctx);
+    var active = arrayActiveIndex(step, sel, focus, state);
+
+    var changed = [];
+    if (prevState && prevState.items && state.items) {
+      var cur = state.items.items;
+      var old = prevState.items.items;
+      var max = Math.max(cur.length, old.length);
+      for (var i = 0; i < max; i++) {
+        var ck = i < cur.length ? serKey(cur[i]) : null;
+        var ok = i < old.length ? serKey(old[i]) : null;
+        if (ck !== ok) changed.push(i);
+      }
+    }
+
+    var searchFrame = arraySearchFrame(step);
+    var visited = searchFrame ? arraySearchVisited(ctx, step, sel, state.size) : Object.create(null);
+    if (active != null) delete visited[active];
+    var matches = Object.create(null);
+    /* as ocorrências só valem quando a busca roda na instância visualizada:
+     * chamadas internas em outra instância (ex.: posicoesDuplicados.adicionar)
+     * não têm o mesmo `elemento` do método externo */
+    if (searchFrame && focus.here) {
+      var target = arrayTargetValue(step);
+      var targetKey = target ? serKey(target) : null;
+      if (targetKey != null) {
+        Object.keys(visited).forEach(function (k) {
+          var it = arrayItemAt(state.items, Number(k));
+          if (it && serKey(it) === targetKey) matches[k] = true;
+        });
+        if (active != null) {
+          var act = arrayItemAt(state.items, active);
+          if (act && serKey(act) === targetKey) matches[active] = true;
+        }
+      }
+    }
+
+    return {
+      state: state,
+      prevState: prevState,
+      focus: focus,
+      active: active,
+      changed: changed,
+      visited: visited,
+      matches: matches,
+      searchFrame: searchFrame,
+      sizeDelta: prevState ? state.size - prevState.size : 0
+    };
+  }
+
+  /* frase para o array: acompanha o algoritmo real (escrita, deslocamento,
+   * busca e remoção) comparando o passo com o anterior */
+  function arrayExplanation(step, sel, opts, op) {
+    var lineText = (opts && opts.lineText) || '';
+    var info = arrayStepInfo(step, sel, opts);
+    if (!info) return 'A estrutura ainda não existe neste passo.';
+    var st = info.state;
+    var prev = info.prevState;
+    var size = st.size;
+    var method = info.focus.method;
+    var target = arrayTargetValue(step);
+    var targetTxt = target ? DSV.fmtSerializedShort(target) : null;
+    var itemTxt = function (i) {
+      var it = arrayItemAt(st.items, i);
+      return it ? DSV.fmtSerializedShort(it) : '?';
+    };
+
+    /* validação do índice no início dos métodos */
+    if (method && /^if\s*\(/.test(lineText) && /indice/.test(lineText) &&
+        !/this\.#items/.test(lineText)) {
+      var indice = arrayNumericLocal(step, ['indice', 'índice', 'idx', 'index']);
+      if (indice != null) {
+        var valid = method === 'inserirEm'
+          ? (indice >= 0 && indice <= size)
+          : (indice >= 0 && indice < size);
+        return valid
+          ? 'O índice ' + indice + ' é válido — a operação pode continuar.'
+          : 'O índice ' + indice + ' está fora dos limites — a operação devolve undefined sem alterar a estrutura.';
+      }
+    }
+
+    /* guarda de obterElemento/remover quando a estrutura está vazia */
+    if (method && /tamanho\s*===\s*0|#tamanho\s*===\s*0/.test(lineText)) {
+      if (method === 'remover') return 'A estrutura está vazia: não há elemento para remover (devolve undefined).';
+      return 'A estrutura está vazia (tamanho = 0).';
+    }
+
+    /* deslocamento manual de cópia */
+    if (info.focus.shift) {
+      var sh = info.focus.shift;
+      if (sh.dir === 'right') {
+        return 'Deslocamento para a direita: a posição ' + sh.dest + ' recebeu o valor da posição ' + sh.src + ', abrindo espaço para a inserção.';
+      }
+      return 'Deslocamento para a esquerda: a posição ' + sh.dest + ' recebeu o valor da posição ' + sh.src + ', cobrindo a posição removida.';
+    }
+
+    /* posição alterada (edição, escrita da inserção, buraco do delete) */
+    if (info.changed.length) {
+      var ci = info.changed[0];
+      var curIt = arrayItemAt(st.items, ci);
+      var oldIt = prev ? arrayItemAt(prev.items, ci) : null;
+      if (curIt && curIt.hole) {
+        return 'A posição ' + ci + ' ficou vazia: o valor ' + (oldIt ? DSV.fmtSerializedShort(oldIt) : '?') +
+          ' foi apagado do array interno (o tamanho ainda é ' + size + ').';
+      }
+      if (curIt) {
+        var suffix = ci >= size ? ' (ainda fora do tamanho — o tamanho será ajustado em seguida)' : '';
+        return 'A posição ' + ci + ' passou a armazenar ' + DSV.fmtSerializedShort(curIt) + suffix + '.';
+      }
+    }
+
+    /* tamanho lógico */
+    if (info.sizeDelta > 0) {
+      return 'O tamanho passou de ' + (size - info.sizeDelta) + ' para ' + size +
+        ' — a posição ' + (size - 1) + ' agora faz parte da estrutura.';
+    }
+    if (info.sizeDelta < 0) {
+      if (size === 0 && (!st.items || !st.items.items.length)) {
+        return 'A estrutura foi esvaziada: tamanho = 0 e o array interno voltou a ficar vazio.';
+      }
+      return 'O tamanho passou de ' + (size - info.sizeDelta) + ' para ' + size + '.';
+    }
+
+    /* busca: comparação, achado e não achado */
+    if (info.searchFrame) {
+      if (/indice_encontrado\s*=\s*i/.test(lineText)) {
+        return 'O valor ' + targetTxt + ' foi encontrado na posição ' + info.active + '.';
+      }
+      if (/return\s+indice_encontrado/.test(lineText)) {
+        var found = arrayNumericLocal(step, ['indice_encontrado']);
+        return found != null && found >= 0
+          ? 'Fim da busca: o valor ' + targetTxt + ' está na posição ' + found + '.'
+          : 'Fim da busca: o valor ' + targetTxt + ' não está no array (-1).';
+      }
+      if (/return\s+-1/.test(lineText)) {
+        return 'O valor ' + targetTxt + ' não está no array — a busca terminou com -1.';
+      }
+      if (/\.adicionar\s*\(/.test(lineText) && op === 'Busca de ocorrências') {
+        var posAdded = arrayNumericLocal(step, ['elemento', 'i']);
+        return 'A posição ' + posAdded + ' do array corresponde ao valor procurado e foi anotada no MeuArray de posições.';
+      }
+      if (info.active != null) {
+        var equal = targetTxt != null && serKey(arrayItemAt(st.items, info.active)) === serKey(target);
+        if (/===|==/.test(lineText)) {
+          return 'Comparando a posição ' + info.active + ' (valor ' + itemTxt(info.active) + ') com o valor procurado ' +
+            targetTxt + (equal ? ' — iguais.' : ' — diferentes.');
+        }
+        return 'Percorrendo o array em busca de ' + targetTxt + ': posição ' + info.active + '.';
+      }
+      return 'A busca percorre o array do índice 0 ao tamanho - 1.';
+    }
+
+    /* acesso por índice */
+    if (method === 'obterElemento') {
+      if (info.active != null) {
+        var it = arrayItemAt(st.items, info.active);
+        if (it && !it.hole) return 'A posição ' + info.active + ' armazena ' + DSV.fmtSerializedShort(it) + '.';
+        return 'A posição ' + info.active + ' está vazia (buraco do delete).';
+      }
+      return 'O acesso consulta a posição indicada.';
+    }
+
+    /* operações de resultado simples */
+    if (method === 'tamanhoArray' || op === 'Tamanho') {
+      return 'O tamanho lógico é ' + size + '.';
+    }
+    if (method === 'toString' || op === 'Representação') {
+      return 'A representação imprime o array interno na saída.';
+    }
+    if (/return\s+undefined/.test(lineText)) {
+      if (op === 'Remoção por valor' || /removerPorValor/.test(lineText)) {
+        return 'O valor ' + targetTxt + ' não está no array; nada foi removido.';
+      }
+      return 'A operação termina sem alterar a estrutura.';
+    }
+    if (method === 'limpar' || op === 'Limpeza') {
+      if (size === 0 && (!st.items || !st.items.items.length)) {
+        return 'A estrutura está vazia: tamanho = 0 e o array interno sem posições.';
+      }
+      return 'Limpando: o array interno é substituído por um novo e o tamanho volta a 0.';
+    }
+    return null;
+  }
+
+  /* escala do desenho por faixa de tamanho: arrays curtos ganham células
+   * maiores; longos mantêm o tamanho-base, navegados por zoom/pan */
+  var ARRAY_TIERS = [
+    { max: 3, scale: 1.35 },
+    { max: 5, scale: 1.2 },
+    { max: 8, scale: 1.08 },
+    { max: Infinity, scale: 1 }
+  ];
+
+  function arrayScale(cellCount) {
+    var n = Math.max(1, cellCount || 0);
+    for (var i = 0; i < ARRAY_TIERS.length; i++) {
+      if (n <= ARRAY_TIERS[i].max) return ARRAY_TIERS[i].scale;
+    }
+    return 1;
+  }
+
+  function renderArray(container, v, sel, ctx) {
+    ctx = ctx || {};
+    var state = arrayStateOf(ctx.step, sel);
+    if (!state) {
+      var fallbackItems = arrayItemsOf(v, sel);
+      state = { wrapper: v, items: fallbackItems, size: arraySizeOf(v, sel, fallbackItems) };
+    }
+    var items = state.items;
+    var size = state.size;
+    var total = items ? items.items.length : 0;
+    var info = arrayStepInfo(ctx.step, sel, ctx);
+    var dur = animDur(ctx);
+    var scale = arrayScale(total);
+    var valKeys = items ? itemKeys(items.items) : [];
+
+    container.__treeScene = null;
+    DSV.flipRender(container, function () {
+      var html = head('Array (tamanho manual)',
+        structureSub(sel, size, 'item', 'itens', 'Tamanho manual'), eventsBadge(sel, ctx));
+      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      html += '<div class="array-wrap" style="--array-scale:' + scale + '">';
+      if (!total) {
+        html += '<div class="empty-inline">A estrutura está vazia (tamanho = 0).</div>';
+      } else {
+        html += '<div class="array-board">';
+        var i, j;
+        html += '<div class="array-idx-row">';
+        for (i = 0; i < total; i++) {
+          var idxCls = 'array-idx' + (i >= size ? ' beyond' : '') + (i === size && size < total ? ' at-boundary' : '');
+          html += '<div class="' + idxCls + '" data-k="aix-' + i + '">' + i + '</div>';
+        }
+        html += '</div>';
+        html += '<div class="array-cells-row">';
+        for (j = 0; j < total; j++) {
+          var item = items.items[j];
+          var cls = 'array-cell';
+          if (j >= size) cls += ' beyond';
+          if (j === size && size < total) cls += ' at-boundary';
+          if (!item || item.hole) cls += ' hole';
+          if (info) {
+            if (j === info.active) cls += ' active';
+            if (info.matches[j]) cls += ' match';
+            else if (info.visited[j]) cls += ' visited';
+            if (info.changed.indexOf(j) >= 0) cls += ' changed';
+            if (info.focus.shift && info.focus.shift.src === j) cls += ' shift-src';
+            if (info.focus.shift && info.focus.shift.dest === j) cls += ' shift-dst';
+          }
+          var title = 'índice ' + j;
+          if (j >= size) title += ' — fora do tamanho lógico (' + size + ')';
+          if (!item || item.hole) title += ' — posição vazia: o delete apagou o índice';
+          html += '<div class="' + cls + '" data-k="acell-' + j + '" data-enter="right" data-exit="right" title="' + esc(title) + '">';
+          if (info && info.focus.shift && info.focus.shift.dest === j) {
+            var sh = info.focus.shift;
+            var flag = sh.dir === 'right'
+              ? '← valor de [' + sh.src + ']'
+              : 'valor de [' + sh.src + '] →';
+            var flagTitle = sh.dir === 'right'
+              ? 'deslocamento para a direita: copiado de [' + sh.src + ']'
+              : 'deslocamento para a esquerda: copiado de [' + sh.src + ']';
+            html += '<span class="array-shift-flag" title="' + esc(flagTitle) + '">' + esc(flag) + '</span>';
+          }
+          if (item && !item.hole) {
+            html += '<span class="array-val" data-k="' + esc('aval-' + valKeys[j]) + '">' +
+              esc(DSV.fmtSerializedShort(item)) + '</span>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="array-size-row">';
+        html += '<span class="array-size-tag" title="quantidade lógica de elementos (this.#tamanho)">tamanho = ' + size + '</span>';
+        if (total !== size) {
+          html += '<span class="array-internal" title="o array interno (#items) tem ' + total + ' posições; as que estão fora do tamanho lógico aparecem tracejadas">' +
+            '#items.length = ' + total + '</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+      }
+      html += '</div></div></div>';
+      container.innerHTML = html;
+    }, dur);
   }
 
   /* ------------------------------------------------------------------ */
@@ -2755,6 +3347,7 @@
       if (sel.type === 'stack' && isArr(v)) renderStack(container, v, sel, ctx);
       else if (sel.type === 'queue' && isArr(v)) renderQueue(container, v, sel, ctx);
       else if (sel.type === 'list' && isObj(v)) renderList(container, v, sel, ctx);
+      else if (sel.type === 'array' && isObj(v)) renderArray(container, v, sel, ctx);
       else if (sel.type === 'tree' && isObj(v)) { usedTree = true; renderTree(container, v, sel, ctx); }
       else renderMessage(container, 'Tipo de estrutura não suportado para este valor.');
     } catch (e) {
@@ -2766,10 +3359,12 @@
 
   DSV.itemKeys = itemKeys;
   DSV.typeLabel = function (t) {
-    return { stack: 'Pilha', queue: 'Fila', list: 'Lista', tree: 'Árvore' }[t] || t;
+    return { stack: 'Pilha', queue: 'Fila', list: 'Lista', tree: 'Árvore', array: 'Array' }[t] || t;
   };
 
   DSV.shortName = shortName;
+  /* exposto para os testes conferirem foco/posições sem depender do HTML */
+  DSV.arrayStepInfo = arrayStepInfo;
   DSV.treeMetrics = treeMetrics;
   DSV.treeEdgeSegment = treeEdgeSegment;
 })(typeof window !== 'undefined' ? window : globalThis);

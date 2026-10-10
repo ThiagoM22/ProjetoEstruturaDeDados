@@ -458,6 +458,65 @@ test('render da fila: FRONT no início, REAR no fim e índices visíveis', () =>
   assert(html.indexOf('A fila está vazia') < 0, 'fila com itens não mostra mensagem de vazia');
 });
 
+test('render da fila com índices: duplicatas mantêm o slot real — sai a célula da FRONT', () => {
+  const t = run([
+    'class Fila {',
+    '  #items = [];',
+    '  #inicio = 0;',
+    '  #fim = 0;',
+    '  enqueue(e) { this.#items[this.#fim] = e; this.#fim++; }',
+    '  dequeue() {',
+    '    if (this.estaVazia()) return undefined;',
+    '    const item = this.#items[this.#inicio];',
+    '    delete this.#items[this.#inicio];',
+    '    this.#inicio++;',
+    '    if (this.#inicio === this.#fim) { this.#inicio = 0; this.#fim = 0; }',
+    '    return item;',
+    '  }',
+    '  estaVazia = () => this.#fim === this.#inicio;',
+    '}',
+    "const fila = new Fila();",
+    "['A', 'B', 'C', 'C', 'C', 'C'].forEach((v) => fila.enqueue(v));",
+    'fila.dequeue();',
+    'fila.dequeue();',
+    'fila.dequeue();'
+  ].join('\n'));
+  noError(t, 'fila com índices e duplicatas');
+
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const estados = t.steps.map((step) => {
+    const sel = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'queue')[0];
+    if (!sel || !sel.win) return null;
+    const container = {};
+    DSV.renderStructure(container, sel, step, { opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [] });
+    const unidades = container.innerHTML.split('queue-unit').slice(1).map((parte) => ({
+      k: (parte.match(/data-k="([^"]+)"/) || [])[1],
+      idx: parseInt((parte.match(/queue-idx">\[(\d+)\]/) || [])[1], 10)
+    }));
+    return { win: sel.win, unidades: unidades };
+  }).filter(Boolean);
+
+  let saidas = 0;
+  for (let i = 1; i < estados.length; i++) {
+    const antes = estados[i - 1];
+    const agora = estados[i];
+    const indiceAntes = {};
+    antes.unidades.forEach((u) => { indiceAntes[u.k] = u.idx; });
+    /* a identidade da célula é o slot real: chave e índice não mudam entre passos */
+    agora.unidades.forEach((u) => {
+      if (indiceAntes[u.k] !== undefined) eq(u.idx, indiceAntes[u.k], 'célula ' + u.k + ' mantém o índice real');
+    });
+    const saiu = antes.unidades.filter((u) => !agora.unidades.some((n) => n.k === u.k));
+    if (saiu.length === 0) continue;
+    eq(saiu.length, 1, 'uma célula sai por passo de dequeue');
+    const menor = Math.min.apply(null, antes.unidades.map((u) => u.idx));
+    eq(saiu[0].idx, menor, 'sai a célula da frente (menor índice real)');
+    assert(antes.unidades[0].k === saiu[0].k, 'a célula removida é a FRONT');
+    saidas++;
+  }
+  eq(saidas, 3, 'três transições de dequeue verificadas');
+});
+
 test('render da fila: unshift/pop inverte as extremidades (FRONT à direita)', () => {
   const t = run(["const fila = [];", "fila.unshift('A');", "fila.unshift('B');", "fila.unshift('C');", 'fila.pop();'].join('\n'));
   noError(t);
@@ -3331,6 +3390,448 @@ test('recursão infinita: mensagem explica a proteção', () => {
   assert(t.error, 'deve dar erro');
   assert(/Profundidade de chamadas excedida \(500\)/.test(t.error.message), 'limite padrão 500: ' + (t.error && t.error.message));
   assert(/recursão infinita/.test(t.error.message), 'explica o caso');
+});
+
+/* ---------------------------------------------------------------- */
+console.log('\n[array com tamanho manual (MeuArray): operações, integridade e render]');
+
+const meuArrayExample = () => DSV.EXAMPLES.find((e) => e.id === 'meu-array');
+
+/* fonte completa usada pelo trace (classe do exemplo + corpo do teste) */
+function arraySource(corpo) {
+  const ex = meuArrayExample();
+  assert(ex, 'exemplo meu-array existe');
+  const classes = ex.code.split('\nconst arr = new MeuArray();')[0];
+  return classes + '\nconst arr = new MeuArray();\n' + corpo;
+}
+
+/* executa o corpo de teste com a classe MeuArray do exemplo real */
+function runArray(corpo) {
+  return run(arraySource(corpo));
+}
+
+/* linhas da fonte completa (para casar o `line` do passo com o texto) */
+function arrayLines(corpo) {
+  return arraySource(corpo).split('\n');
+}
+
+function arrayWrapper(step, name) {
+  const a = step.globals && step.globals[name || 'arr'];
+  return a && a.t === 'o' ? a : null;
+}
+
+function arrayItems(step, name) {
+  const w = arrayWrapper(step, name);
+  return w && w.props['#items'] ? w.props['#items'].items : [];
+}
+
+function arrayValues(step, name) {
+  /* só as posições lógicas (< #tamanho): buracos fora do tamanho não contam */
+  return arrayItems(step, name).slice(0, arraySize(step, name)).map((it) => {
+    if (it && it.hole) return '∅';
+    if (it && it.t === 'p' && it.v === undefined) return 'undefined';
+    return it && it.t === 'p' ? it.v : '?';
+  });
+}
+
+function arraySize(step, name) {
+  const w = arrayWrapper(step, name);
+  return w && w.props['#tamanho'] ? w.props['#tamanho'].v : null;
+}
+
+function arraySelFor(trace, step) {
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const cands = DSV.detectStructures(step, opsMap).filter((c) => c.type === 'array');
+  return cands.filter((c) => c.label === 'arr')[0] || cands[0] || null;
+}
+
+function arrayStepByLine(trace, corpo, rx, startFrom) {
+  const lines = arraySource(corpo).split('\n');
+  for (let i = startFrom || 0; i < trace.steps.length; i++) {
+    if (rx.test((lines[trace.steps[i].line - 1] || '').trim())) return i;
+  }
+  return -1;
+}
+
+function renderArrayStep(trace, i, extra) {
+  const step = trace.steps[i];
+  const opsMap = DSV.buildOpsMap(trace.steps);
+  const sel = arraySelFor(trace, step);
+  assert(sel, 'array detectado para o render no passo ' + i);
+  const container = {};
+  DSV.renderStructure(container, sel, step, Object.assign({
+    opsMap: opsMap,
+    pointers: step.pointers || {},
+    events: step.events || [],
+    prevStep: i > 0 ? trace.steps[i - 1] : null,
+    nextStep: i < trace.steps.length - 1 ? trace.steps[i + 1] : null,
+    steps: trace.steps,
+    stepIndex: i
+  }, extra || {}));
+  return { html: container.innerHTML, sel: sel };
+}
+
+test('meu-array: exemplo executa sem erro e termina vazio', () => {
+  const t = run(meuArrayExample().code);
+  noError(t, 'exemplo meu-array');
+  assert(t.steps.length > 50, 'gera um trace substancial');
+  eq(arraySize(lastStep(t)), 0, 'termina com tamanho 0');
+  eq(arrayItems(lastStep(t)).length, 0, 'array interno também fica vazio');
+});
+
+test('meu-array: detecção usa o wrapper (não o array interno) e mantém #items/#tamanho', () => {
+  const t = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);');
+  noError(t);
+  const step = lastStep(t);
+  const cands = DSV.detectStructures(step, DSV.buildOpsMap(t.steps));
+  const c = cands.filter((x) => x.type === 'array')[0];
+  assert(c, 'candidato de array');
+  eq(c.label, 'arr', 'rótulo é a variável');
+  eq(c.itemsProp, '#items', 'propriedade do array interno');
+  eq(c.sizeProp, '#tamanho', 'propriedade do tamanho lógico');
+  eq(c.id, step.globals.arr.id, 'id aponta para o wrapper (estável no limpar)');
+  assert(!cands.some((x) => x.type === 'stack' && x.label === 'arr'), 'não vira pilha');
+  eq(arraySize(step), 3, 'tamanho lógico');
+  eq(arrayValues(step).join(','), '10,20,30');
+});
+
+test('meu-array: adicionar escreve fora do tamanho e só depois incrementa', () => {
+  const code = 'arr.adicionar(10);';
+  const t = runArray(code);
+  noError(t);
+  const write = arrayStepByLine(t, code, /this\.#items\[this\.#tamanho\] = elemento/);
+  assert(write >= 0, 'passo da escrita');
+  const lines = arrayLines(code);
+  const info = DSV.arrayStepInfo(t.steps[write], arraySelFor(t, t.steps[write]), {
+    prevStep: t.steps[write - 1] || null,
+    lineText: lines[t.steps[write].line - 1].trim()
+  });
+  eq(info.active, 0, 'posição escrita em destaque');
+  assert(info.changed.indexOf(0) >= 0, 'posição 0 detectada como alterada');
+  eq(arraySize(t.steps[write]), 0, 'tamanho ainda é 0 no passo da escrita');
+  eq(arrayItems(t.steps[write])[0].v, 10, 'valor já está no array interno');
+  const inc = arrayStepByLine(t, code, /this\.#tamanho\+\+/);
+  eq(arraySize(t.steps[inc]), 1, 'tamanho vira 1 no passo seguinte');
+  const r = renderArrayStep(t, write, { lineText: lines[t.steps[write].line - 1].trim() });
+  assert(/array-cell[^"]*active/.test(r.html), 'célula ativa na escrita');
+  assert(r.html.indexOf('fora do tamanho') >= 0, 'posição marcada como fora do tamanho');
+});
+
+test('meu-array: editar altera a posição e índice inválido não muda nada', () => {
+  let t = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.editar(1, 99);');
+  noError(t);
+  eq(arrayValues(lastStep(t)).join(','), '10,99');
+  eq(arraySize(lastStep(t)), 2);
+
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.editar(5, 99);\narr.editar(-1, 77);';
+  t = runArray(code);
+  noError(t, 'editar inválido não pode quebrar');
+  eq(arrayValues(lastStep(t)).join(','), '10,20', 'estrutura intacta');
+  eq(arrayItems(lastStep(t)).length, 2, 'array interno não ganha buracos');
+  eq(arraySize(lastStep(t)), 2);
+
+  const guard = arrayStepByLine(t, code, /indice < 0 \|\| indice >= this\.#tamanho/);
+  const lines = arrayLines(code);
+  const info = DSV.arrayStepInfo(t.steps[guard], arraySelFor(t, t.steps[guard]), {
+    prevStep: t.steps[guard - 1] || null,
+    lineText: lines[t.steps[guard].line - 1].trim()
+  });
+  eq(info.focus.method, 'editar', 'guarda roda dentro de editar');
+});
+
+test('meu-array: obterElemento e obterIndice (existente, inexistente e repetido)', () => {
+  const t = runArray([
+    'arr.adicionar(7);',
+    'arr.adicionar(8);',
+    'arr.adicionar(7);',
+    'arr.adicionar(9);',
+    'arr.adicionar(7);',
+    "console.log('elem', arr.obterElemento(2), arr.obterElemento(9));",
+    "console.log('idx', arr.obterIndice(9), arr.obterIndice(99), arr.obterIndice(7));"
+  ].join('\n'));
+  noError(t);
+  const out = outputs(t).join(' | ');
+  assert(out.indexOf('elem 7 undefined') >= 0, 'obterElemento válido e inválido: ' + out);
+  assert(out.indexOf('idx 3 -1 0') >= 0, 'primeira ocorrência do repetido: ' + out);
+});
+
+test('meu-array: busca visualiza o percurso real até achar', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.obterIndice(30);';
+  const t = runArray(code);
+  noError(t);
+  const lines = arrayLines(code);
+  const stepInfoAt = (i) => DSV.arrayStepInfo(t.steps[i], arraySelFor(t, t.steps[i]), {
+    prevStep: t.steps[i - 1] || null,
+    steps: t.steps,
+    stepIndex: i,
+    lineText: lines[t.steps[i].line - 1].trim()
+  });
+  const first = arrayStepByLine(t, code, /if \(this\.#items\[i\] === elemento\)/);
+  assert(first >= 0, 'passo de comparação');
+  let info = stepInfoAt(first);
+  eq(info.active, 0, 'primeira comparação na posição 0');
+  eq(Object.keys(info.visited).length, 0, 'nada visitado antes da primeira comparação');
+  const found = arrayStepByLine(t, code, /indice_encontrado = i/);
+  assert(found > first, 'passo em que encontrou');
+  info = stepInfoAt(found);
+  eq(info.active, 2, 'encontrou na posição 2');
+  eq(Object.keys(info.visited).sort().join(','), '0,1', 'posições examinadas antes');
+  assert(info.matches[2], 'posição do valor procurado marcada');
+  const r = renderArrayStep(t, found, { steps: t.steps, stepIndex: found, lineText: lines[t.steps[found].line - 1].trim() });
+  assert(/array-cell[^"]*match/.test(r.html), 'célula encontrada destacada');
+  assert(/array-cell[^"]*visited/.test(r.html), 'células examinadas destacadas');
+});
+
+test('meu-array: itemsDuplicados com zero, uma e várias ocorrências', () => {
+  let t = runArray('arr.adicionar(5);\nconst p = arr.itemsDuplicados(5);\nconsole.log(p.tamanhoArray(), p.obterElemento(0));');
+  noError(t);
+  assert(outputs(t).join('|').indexOf('1 0') >= 0, 'uma ocorrência: ' + outputs(t).join('|'));
+
+  t = runArray('arr.adicionar(5);\nconst p = arr.itemsDuplicados(99);\nconsole.log(p.tamanhoArray());');
+  noError(t);
+  eq(outputs(t)[0], '0', 'nenhuma ocorrência');
+
+  t = runArray([
+    'arr.adicionar(7);',
+    'arr.adicionar(8);',
+    'arr.adicionar(7);',
+    'arr.adicionar(9);',
+    'arr.adicionar(7);',
+    'const p = arr.itemsDuplicados(7);',
+    "console.log(p.tamanhoArray(), p.obterElemento(0), p.obterElemento(1), p.obterElemento(2));"
+  ].join('\n'));
+  noError(t);
+  assert(outputs(t).join('|').indexOf('3 0 2 4') >= 0, 'três ocorrências: ' + outputs(t).join('|'));
+  const cands = DSV.detectStructures(lastStep(t), DSV.buildOpsMap(t.steps));
+  assert(cands.some((c) => c.type === 'array' && c.label === 'p'), 'MeuArray resultante também é detectado');
+  /* o resultante é desenhável como qualquer instância (seletor de estruturas) */
+  const pSel = cands.filter((c) => c.type === 'array' && c.label === 'p')[0];
+  const container = {};
+  DSV.renderStructure(container, pSel, lastStep(t), {
+    opsMap: DSV.buildOpsMap(t.steps),
+    pointers: lastStep(t).pointers || {},
+    events: []
+  });
+  assert(container.innerHTML.indexOf('array-cell') >= 0, 'resultante renderiza células');
+  assert(container.innerHTML.indexOf('tamanho = 3') >= 0, 'resultante mostra o próprio tamanho');
+});
+
+test('meu-array: remover devolve o último e deixa buraco no array interno', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\nconsole.log("r", arr.remover());';
+  const t = runArray(code);
+  noError(t);
+  assert(outputs(t).join('|').indexOf('r 20') >= 0, 'devolve o removido: ' + outputs(t).join('|'));
+  const lines = arrayLines(code);
+  const del = arrayStepByLine(t, code, /delete this\.#items\[this\.#tamanho - 1\]/);
+  assert(del >= 0, 'passo do delete');
+  const items = arrayItems(t.steps[del]);
+  eq(items.length, 2, 'length do array interno não diminui');
+  assert(items[1].hole === true, 'posição apagada marcada como buraco');
+  eq(arraySize(t.steps[del]), 2, 'tamanho ainda é 2 no delete');
+  const delInfo = DSV.arrayStepInfo(t.steps[del], arraySelFor(t, t.steps[del]), {
+    prevStep: t.steps[del - 1] || null,
+    lineText: lines[t.steps[del].line - 1].trim()
+  });
+  eq(delInfo.active, 1, 'posição apagada em destaque');
+  const r = renderArrayStep(t, del, { lineText: lines[t.steps[del].line - 1].trim() });
+  assert(/array-cell[^"]*hole/.test(r.html), 'célula vazia desenhada');
+  const inc = arrayStepByLine(t, code, /this\.#tamanho--/);
+  eq(arraySize(t.steps[inc]), 1, 'tamanho cai para 1');
+  const rInc = renderArrayStep(t, inc, { lineText: lines[t.steps[inc].line - 1].trim() });
+  assert(rInc.html.indexOf('#items.length = 2') >= 0, 'array interno discreto na legenda');
+  const empty = runArray("console.log('v', arr.remover());");
+  noError(empty);
+  assert(outputs(empty).join('|').indexOf('v undefined') >= 0, 'remover no vazio devolve undefined');
+});
+
+test('meu-array: inserirEm no início, no meio e no fim (com deslocamento visível)', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.inserirEm(1, 15);';
+  const t = runArray(code);
+  noError(t);
+  eq(arrayValues(lastStep(t)).join(','), '10,15,20,30');
+  eq(arraySize(lastStep(t)), 4);
+
+  const lines = arrayLines(code);
+  const shift = arrayStepByLine(t, code, /this\.#items\[i\] = this\.#items\[i - 1\]/);
+  assert(shift >= 0, 'passo de deslocamento');
+  const info = DSV.arrayStepInfo(t.steps[shift], arraySelFor(t, t.steps[shift]), {
+    prevStep: t.steps[shift - 1] || null,
+    lineText: lines[t.steps[shift].line - 1].trim()
+  });
+  eq(info.focus.shift.dir, 'right', 'deslocamento para a direita');
+  eq(info.focus.shift.dest, 3, 'destino do primeiro deslocamento');
+  eq(info.focus.shift.src, 2, 'origem do primeiro deslocamento');
+  eq(info.active, 3, 'destino em destaque');
+  const r = renderArrayStep(t, shift, { lineText: lines[t.steps[shift].line - 1].trim() });
+  assert(/array-cell[^"]*shift-dst/.test(r.html), 'célula de destino');
+  assert(/array-cell[^"]*shift-src/.test(r.html), 'célula de origem');
+  assert(r.html.indexOf('array-shift-flag') >= 0, 'etiqueta do deslocamento');
+  const exInfo = DSV.explainStep(t.steps[shift], arraySelFor(t, t.steps[shift]), {
+    prevStep: t.steps[shift - 1] || null,
+    lineText: lines[t.steps[shift].line - 1].trim()
+  });
+  assert(/Deslocamento para a direita/.test(exInfo.text), 'explicação do deslocamento: ' + exInfo.text);
+
+  let t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.inserirEm(0, 5);');
+  noError(t2);
+  eq(arrayValues(lastStep(t2)).join(','), '5,10,20,30');
+
+  t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.inserirEm(arr.tamanhoArray(), 99);');
+  noError(t2);
+  eq(arrayValues(lastStep(t2)).join(','), '10,20,30,99');
+
+  t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.inserirEm(9, 99);\narr.inserirEm(-1, 77);');
+  noError(t2);
+  eq(arrayValues(lastStep(t2)).join(','), '10,20,30', 'índice inválido não insere');
+  eq(arraySize(lastStep(t2)), 3);
+});
+
+test('meu-array: removerPorIndice no início, no meio e no fim (deslocamento para a esquerda)', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.adicionar(40);\nconsole.log("m", arr.removerPorIndice(1));';
+  const t = runArray(code);
+  noError(t);
+  assert(outputs(t).join('|').indexOf('m 20') >= 0, 'devolve o removido');
+  eq(arrayValues(lastStep(t)).join(','), '10,30,40');
+  eq(arraySize(lastStep(t)), 3);
+
+  const lines = arrayLines(code);
+  const shift = arrayStepByLine(t, code, /this\.#items\[i\] = this\.#items\[i \+ 1\]/);
+  assert(shift >= 0, 'passo de deslocamento para a esquerda');
+  const info = DSV.arrayStepInfo(t.steps[shift], arraySelFor(t, t.steps[shift]), {
+    prevStep: t.steps[shift - 1] || null,
+    lineText: lines[t.steps[shift].line - 1].trim()
+  });
+  eq(info.focus.shift.dir, 'left', 'deslocamento para a esquerda');
+  eq(info.focus.shift.dest, 1, 'posição que recebe');
+  eq(info.focus.shift.src, 2, 'posição que cede');
+  const r = renderArrayStep(t, shift, { lineText: lines[t.steps[shift].line - 1].trim() });
+  assert(r.html.indexOf('array-shift-flag') >= 0, 'etiqueta do deslocamento');
+  assert(/valor de \[2\] →/.test(r.html), 'direção da etiqueta: ' + r.html);
+  const exInfo = DSV.explainStep(t.steps[shift], arraySelFor(t, t.steps[shift]), {
+    prevStep: t.steps[shift - 1] || null,
+    lineText: lines[t.steps[shift].line - 1].trim()
+  });
+  assert(/Deslocamento para a esquerda/.test(exInfo.text), 'explicação: ' + exInfo.text);
+
+  let t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\nconsole.log("b", arr.removerPorIndice(0));');
+  noError(t2);
+  assert(outputs(t2).join('|').indexOf('b 10') >= 0);
+  eq(arrayValues(lastStep(t2)).join(','), '20,30');
+
+  t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\nconsole.log("f", arr.removerPorIndice(arr.tamanhoArray() - 1));');
+  noError(t2);
+  assert(outputs(t2).join('|').indexOf('f 30') >= 0);
+  eq(arrayValues(lastStep(t2)).join(','), '10,20');
+
+  t2 = runArray('arr.adicionar(10);\narr.adicionar(20);\narr.removerPorIndice(7);');
+  noError(t2);
+  eq(arrayValues(lastStep(t2)).join(','), '10,20', 'índice inválido não remove');
+});
+
+test('meu-array: removerPorValor usa obterIndice e removerPorIndice', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\nconsole.log("v", arr.removerPorValor(20));';
+  const t = runArray(code);
+  noError(t);
+  assert(outputs(t).join('|').indexOf('v 20') >= 0, 'devolve o valor removido');
+  eq(arrayValues(lastStep(t)).join(','), '10,30');
+  const frames = t.steps.map((s) => s.stack.map((f) => f.name).join('>'));
+  assert(frames.some((f) => f.indexOf('removerPorValor>obterIndice') >= 0), 'busca dentro de removerPorValor');
+  assert(frames.some((f) => f.indexOf('removerPorValor>removerPorIndice') >= 0), 'remoção dentro de removerPorValor');
+
+  const notFound = runArray('arr.adicionar(10);\nconsole.log("n", arr.removerPorValor(99));');
+  noError(notFound);
+  assert(outputs(notFound).join('|').indexOf('n undefined') >= 0, 'valor inexistente devolve undefined');
+  eq(arrayValues(lastStep(notFound)).join(','), '10', 'estrutura não muda');
+});
+
+test('meu-array: limpar zera o tamanho e troca o array interno (render continua)', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.limpar();';
+  const t = runArray(code);
+  noError(t);
+  const after = lastStep(t);
+  eq(arraySize(after), 0);
+  eq(arrayItems(after).length, 0, 'o array interno novo nasce vazio');
+  const add1 = arrayStepByLine(t, code, /this\.#items\[this\.#tamanho\] = elemento/);
+  const beforeItems = t.steps[add1].globals.arr.props['#items'].id;
+  const afterItems = after.globals.arr.props['#items'].id;
+  assert(afterItems !== beforeItems, 'array interno foi substituído');
+  const call = arrayStepByLine(t, code, /arr\.limpar\(\)/);
+  const r = renderArrayStep(t, call, { lineText: 'arr.limpar();' });
+  assert(r.html.indexOf('ainda não existe') < 0, 'render sobrevive à troca do array interno');
+  assert(r.html.indexOf('tamanho = 0') >= 0 || r.html.indexOf('está vazia') >= 0, 'estado vazio desenhado');
+  const sel = r.sel;
+  eq(sel.id, after.globals.arr.id, 'identidade continua no wrapper');
+});
+
+test('meu-array: 0, false, null e undefined são elementos; buraco ≠ undefined', () => {
+  const code = [
+    'arr.adicionar(0);',
+    'arr.adicionar(false);',
+    'arr.adicionar(null);',
+    'arr.adicionar(undefined);',
+    "console.log('idx', arr.obterIndice(0), arr.obterIndice(false), arr.obterIndice(null), arr.obterIndice(undefined));"
+  ].join('\n');
+  const t = runArray(code);
+  noError(t);
+  assert(outputs(t).join('|').indexOf('idx 0 1 2 3') >= 0, 'busca encontra os especiais: ' + outputs(t).join('|'));
+  const items = arrayItems(lastStep(t));
+  eq(items[3].v, undefined, 'undefined armazenado');
+  assert(items[3].hole !== true, 'undefined armazenado não é buraco');
+  assert(items[1].v === false && items[2].v === null, 'false e null preservados');
+
+  const r = renderArrayStep(t, t.steps.length - 1, { lineText: '' });
+  assert(r.html.indexOf('>undefined</span>') >= 0, 'undefined aparece como valor');
+  assert(r.html.indexOf('array-cell') >= 0, 'células desenhadas');
+
+  const t2 = runArray('arr.adicionar(0);\narr.adicionar(false);\narr.remover();');
+  noError(t2);
+  const items2 = arrayItems(lastStep(t2));
+  assert(items2[1].hole === true, 'delete deixa buraco');
+  const holeStep = arrayStepByLine(t2, 'arr.adicionar(0);\narr.adicionar(false);\narr.remover();', /delete this\.#items/);
+  const r2 = renderArrayStep(t2, holeStep, { lineText: 'delete this.#items[this.#tamanho - 1];' });
+  assert(/array-cell[^"]*hole/.test(r2.html), 'buraco desenhado como célula vazia');
+});
+
+test('meu-array: histórico reconstrói o mesmo desenho (avançar e retroceder)', () => {
+  const code = 'arr.adicionar(10);\narr.adicionar(20);\narr.adicionar(30);\narr.inserirEm(1, 15);';
+  const t = runArray(code);
+  noError(t);
+  const lines = arrayLines(code);
+  const shift = arrayStepByLine(t, code, /this\.#items\[i\] = this\.#items\[i - 1\]/);
+  const ctxFor = (i) => ({
+    steps: t.steps,
+    stepIndex: i,
+    lineText: lines[t.steps[i].line - 1].trim()
+  });
+  const first = renderArrayStep(t, shift, ctxFor(shift));
+  renderArrayStep(t, shift + 1, ctxFor(shift + 1));
+  const again = renderArrayStep(t, shift, ctxFor(shift));
+  eq(again.html, first.html, 'mesmo passo (com prev) rende o mesmo desenho');
+  eq(again.html.indexOf('array-shift-flag') >= 0, true, 'estados do passo preservados');
+});
+
+test('meu-array: operações aparecem com o nome da classe de referência', () => {
+  const code = 'arr.adicionar(10);\narr.inserirEm(0, 5);\narr.obterIndice(5);\narr.removerPorValor(5);';
+  const t = runArray(code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const lines = arrayLines(code);
+  const opAt = (i) => {
+    const step = t.steps[i];
+    const sel = arraySelFor(t, step);
+    return DSV.explainStep(step, sel, {
+      prevStep: t.steps[i - 1] || null,
+      lineText: lines[step.line - 1].trim()
+    }).op;
+  };
+  const add = arrayStepByLine(t, code, /this\.#items\[this\.#tamanho\] = elemento/);
+  eq(opAt(add), 'Inserção no final');
+  const ins = arrayStepByLine(t, code, /this\.#items\[indice\] = valor/);
+  eq(opAt(ins), 'Inserção em posição');
+  const search = arrayStepByLine(t, code, /if \(this\.#items\[i\] === elemento\)/);
+  eq(opAt(search), 'Busca');
+  const rm = arrayStepByLine(t, code, /this\.#items\[i\] = this\.#items\[i \+ 1\]/);
+  eq(opAt(rm), 'Remoção por valor');
 });
 
 /* ---------------------------------------------------------------- */

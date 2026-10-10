@@ -1,7 +1,7 @@
 {
   "name": "ed-viz",
   "version": "1.0.0",
-  "description": "Portal para visualizar passo a passo estruturas de dados (pilha, fila, lista encadeada, árvore binária) a partir de código JavaScript",
+  "description": "Portal para visualizar passo a passo estruturas de dados (pilha, fila, lista encadeada, árvore binária e array com tamanho manual) a partir de código JavaScript",
   "private": true,
   "scripts": {
     "start": "node servidor.js",
