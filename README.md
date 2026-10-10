@@ -343,6 +343,10 @@ backend, variáveis de ambiente nem banco. O `servidor.js` é só uma conveniên
 - Exportar o trace (JSON) e compartilhar um link com exemplo + passo.
 - Modo "exercício": portal propõe um objetivo e verifica a estrutura final.
 
+## Licença
+
+Distribuído sob a licença **MIT** — veja [`LICENSE`](LICENSE).
+
 ## Recado
 
 O portal existe para **entender**, não para substituir a implementação. Escreva o código, errôneo
