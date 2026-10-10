@@ -448,8 +448,8 @@
     state.tabs.forEach(function (id) {
       var ex = exampleById(id);
       var active = id === state.activeTab;
-      html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" role="tab" aria-selected="' + (active ? 'true' : 'false') + '" tabindex="0" title="' + esc(ex ? ex.name : id) + '">' +
-        '<span class="tab-name">' + esc(id + '.js') + '</span>' +
+      html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" title="' + esc(ex ? ex.name : id) + '">' +
+        '<button type="button" class="tab-name"' + (active ? ' aria-current="true"' : '') + '>' + esc(id + '.js') + '</button>' +
         '<button type="button" class="tab-close" data-close="' + esc(id) + '" title="Fechar aba" aria-label="Fechar ' + esc(id + '.js') + '">×</button>' +
         '</div>';
     });
@@ -712,6 +712,9 @@
       (collapsed.side ? splitState.side + splitState.split : 0);
     var total = code + viz + side;
     if (total <= 0) return;
+    /* separadores focáveis precisam do valor atual (aria-valuenow) */
+    if (els.splitLeft) els.splitLeft.setAttribute('aria-valuenow', String(Math.round(code / total * 100)));
+    if (els.splitRight) els.splitRight.setAttribute('aria-valuenow', String(Math.round((code + splitState.split + viz) / total * 100)));
     var toFr = function (w) { return (Math.round(w / total * 10000) / 100) + 'fr'; };
     var cols = [
       collapsed.code ? '0px' : 'minmax(' + SPLIT_MIN_CODE + 'px,' + toFr(code) + ')',
@@ -1312,30 +1315,22 @@
     closeTab(tab.getAttribute('data-tab'));
   });
 
-  /* teclado nas abas (padrão tablist): Enter/Espaço ativa, setas navegam */
+  /* teclado nas abas: as setas movem o foco; Enter/Espaço ativam a aba
+   * focada (clique nativo do botão) */
   els.tabs.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
     var t = ev.target;
     if (!t || typeof t.closest !== 'function') return;
     var tab = t.closest('.tab');
     if (!tab || typeof tab.getAttribute !== 'function') return;
-    if (t.classList && typeof t.classList.contains === 'function' && t.classList.contains('tab-close')) return;
+    if (typeof ev.preventDefault === 'function') ev.preventDefault();
     var id = tab.getAttribute('data-tab');
-    if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
-      if (typeof ev.preventDefault === 'function') ev.preventDefault();
-      openTab(id);
-      return;
-    }
-    if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
-      if (typeof ev.preventDefault === 'function') ev.preventDefault();
-      var i = state.tabs.indexOf(id);
-      if (i < 0) return;
-      var j = ev.key === 'ArrowLeft' ? (i - 1 + state.tabs.length) % state.tabs.length : (i + 1) % state.tabs.length;
-      var nextId = state.tabs[j];
-      openTab(nextId);
-      if (typeof els.tabs.querySelector === 'function') {
-        var nt = els.tabs.querySelector('.tab[data-tab="' + nextId + '"]');
-        if (nt && typeof nt.focus === 'function') nt.focus();
-      }
+    var i = state.tabs.indexOf(id);
+    if (i < 0) return;
+    var j = ev.key === 'ArrowLeft' ? (i - 1 + state.tabs.length) % state.tabs.length : (i + 1) % state.tabs.length;
+    if (typeof els.tabs.querySelector === 'function') {
+      var nt = els.tabs.querySelector('.tab[data-tab="' + state.tabs[j] + '"] .tab-name');
+      if (nt && typeof nt.focus === 'function') nt.focus();
     }
   });
 
@@ -1393,6 +1388,7 @@
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('resize', function () {
       canvasFitKey = null;
+      codeCharW = 0; /* remede a largura do caractere (zoom/fonte podem mudar) */
       /* ao cruzar o breakpoint responsivo, reaplica as colunas dos painéis
        * recolhidos para não deixar faixas vazias na grade */
       if (collapsed.code || collapsed.side) applyLayout();

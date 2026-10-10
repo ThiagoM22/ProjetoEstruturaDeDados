@@ -82,23 +82,6 @@
     return String(sv);
   };
 
-  /* Palavra (identificador) que contém a coluna `col` da linha `line` do
-   * texto — usada pela dica de variável do editor. Devolve null quando a
-   * posição não está sobre um identificador (espaço, pontuação, número...). */
-  DSV.identifierAt = function (text, line, col) {
-    var lines = String(text == null ? '' : text).split('\n');
-    if (line < 0 || line >= lines.length) return null;
-    var s = lines[line];
-    if (col < 0 || col >= s.length) return null;
-    if (!/[A-Za-z0-9_$]/.test(s.charAt(col))) return null;
-    var start = col;
-    while (start > 0 && /[A-Za-z0-9_$]/.test(s.charAt(start - 1))) start--;
-    var end = col + 1;
-    while (end < s.length && /[A-Za-z0-9_$]/.test(s.charAt(end))) end++;
-    var word = s.slice(start, end);
-    return /^[A-Za-z_$]/.test(word) ? word : null;
-  };
-
   /* Segmento imediatamente antes do ponto (aceita espaços entre o nome e o
    * ponto); inclui o "#" dos nomes privados. Devolve {seg, start} ou null
    * quando o que vem antes do ponto não é um identificador (ex.: arr[0]). */

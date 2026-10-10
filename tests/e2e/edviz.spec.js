@@ -101,17 +101,33 @@ test('persistência: código por aba sobrevive à troca e ao reload (EU-09)', as
   await expect(page.locator('#code')).toHaveValue('const pilha = [1];\npilha.push(2);');
 });
 
+test('migração: edviz.code antigo vira o buffer da aba ativa', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('edviz.code', 'let antigo = 1;\n');
+    localStorage.setItem('edviz.example', 'pilha-array');
+  });
+  await page.goto('/');
+  await expect(page.locator('#code')).toHaveValue('let antigo = 1;\n');
+  await page.reload();
+  await expect(page.locator('#code')).toHaveValue('let antigo = 1;\n');
+});
+
 test('abas do editor: navegação por teclado (EU-08)', async ({ page }) => {
   await page.goto('/');
   await trocarExemplo(page, 'fila-array');
-  const tabs = page.locator('#tabs .tab');
-  await expect(tabs).toHaveCount(2);
-  await tabs.first().focus();
+  const nomes = page.locator('#tabs .tab .tab-name');
+  await expect(nomes).toHaveCount(2);
+  /* as setas movem o foco sem ativar a aba */
+  await nomes.first().focus();
   await page.keyboard.press('ArrowRight');
+  await expect(nomes.nth(1)).toBeFocused();
   await expect(page.locator('#tabs .tab.active')).toHaveAttribute('data-tab', 'fila-array');
-  await page.locator('#tabs .tab').first().focus();
+  /* Enter ativa a aba focada */
+  await page.keyboard.press('ArrowLeft');
+  await expect(nomes.first()).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('#tabs .tab.active')).toHaveAttribute('data-tab', 'pilha-array');
+  await expect(page.locator('#tabs .tab.active .tab-name')).toHaveAttribute('aria-current', 'true');
 });
 
 test('funciona aberto direto do disco (file://)', async ({ page }) => {

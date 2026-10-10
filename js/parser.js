@@ -378,6 +378,9 @@
         var right = parseAdditive();
         left = { type: 'Binary', op: t.value, left: left, right: right, line: t.line };
       }
+      if (cur().type === 'ident' && cur().value === 'in') {
+        fail('O operador "in" não é suportado neste visualizador.');
+      }
       return left;
     }
 
@@ -535,6 +538,7 @@
         var elements = [];
         while (!isPunct(']')) {
           if (cur().type === 'eof') fail('Array "[" sem fechamento (aberto na linha ' + t.line + ')');
+          if (isPunct(',')) fail('Elementos vazios em array (ex.: [1,,3]) não são suportados neste visualizador.');
           elements.push(parseExpression());
           if (!eatPunct(',')) break;
         }

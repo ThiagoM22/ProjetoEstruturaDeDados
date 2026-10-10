@@ -106,19 +106,6 @@
     return { start: start, end: end };
   }
 
-  function childNodeProp(sv, keys) {
-    for (var i = 0; i < keys.length; i++) {
-      var p = propOf(sv, [keys[i]]);
-      if (p && (isTreeNode(p.value) || isListNode(p.value))) {
-        return { name: p.name, value: p.value };
-      }
-      if (p && isObj(p.value) && Object.keys(p.value.props || {}).length === 0) {
-        return { name: p.name, value: null };
-      }
-    }
-    return null;
-  }
-
   function countTree(sv) {
     var seen = {};
     function walk(n) {
@@ -127,10 +114,6 @@
       return 1 + walk(nodeChild(n, 'L')) + walk(nodeChild(n, 'R'));
     }
     return walk(sv);
-  }
-
-  function countList(sv) {
-    return listInfo(sv).count;
   }
 
   /* percorre a cadeia via next uma vez: tamanho, se algum nó tem referência
@@ -1095,11 +1078,6 @@
   function eventsBadge(sel, ctx) {
     var evs = (ctx.events || []).filter(function (e) { return e.targetId === sel.id; });
     return evs.map(function (e) { return e.text; }).join(' · ');
-  }
-
-  function cell(label, cls, title) {
-    return '<div class="cell ' + (cls || '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' +
-      esc(label) + '</div>';
   }
 
   function renderStack(container, v, sel, ctx) {
@@ -3304,6 +3282,8 @@
     updateTreeScene(scene, container, v, sel, ctx);
   }
 
+  /* Contrato: `msg` entra como HTML na página — os chamadores devem escapar
+   * qualquer dado vindo do código do usuário (ver `esc` nos usos abaixo). */
   function renderMessage(container, msg, kind) {
     /* a mensagem substitui a cena da árvore: descarta a referência para
      * que o próximo passo recrie a cena em vez de atualizar um DOM antigo */

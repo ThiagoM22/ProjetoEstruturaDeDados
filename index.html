@@ -51,7 +51,7 @@
 
   <section id="codePanel" class="panel code-panel">
     <div class="panel-head code-head">
-      <div id="tabs" class="tabs" role="tablist"></div>
+      <div id="tabs" class="tabs" role="toolbar" aria-label="Arquivos abertos"></div>
       <div class="row code-actions">
         <select id="exampleSelect" class="select select-compact" title="Abrir exemplo"><button><selectedcontent></selectedcontent></button></select>
       </div>
@@ -71,7 +71,7 @@
     </div>
   </section>
 
-  <div id="splitLeft" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor e visualização" tabindex="0"></div>
+  <div id="splitLeft" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor e visualização" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25" tabindex="0"></div>
 
   <section id="vizPanel" class="panel viz-panel">
     <div class="panel-head">
@@ -97,7 +97,7 @@
     <div id="structure" class="structure"></div>
   </section>
 
-  <div id="splitRight" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar visualização e painel lateral" tabindex="0"></div>
+  <div id="splitRight" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar visualização e painel lateral" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75" tabindex="0"></div>
 
   <section id="sidePanel" class="panel side-panel">
     <div id="sideTabs" class="side-tabs" role="tablist" aria-label="Painéis de depuração">

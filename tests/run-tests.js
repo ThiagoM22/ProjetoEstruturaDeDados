@@ -3101,25 +3101,6 @@ test('BST: render da busca destaca um único nó e não vaza o campo privado', (
 /* ---------------------------------------------------------------- */
 console.log('\n[hover: identificador sob o mouse e variável do passo]');
 
-test('identifierAt: palavra completa na coluna e null fora de identificador', () => {
-  const code = 'let contador = 10;\ncontador = contador + 5;';
-  eq(DSV.identifierAt(code, 0, 4), 'contador', 'início da palavra');
-  eq(DSV.identifierAt(code, 0, 9), 'contador', 'meio da palavra');
-  eq(DSV.identifierAt(code, 0, 11), 'contador', 'fim da palavra');
-  eq(DSV.identifierAt(code, 1, 0), 'contador', 'linha 2');
-  eq(DSV.identifierAt(code, 0, 3), null, 'espaço não é identificador');
-  eq(DSV.identifierAt(code, 0, 13), null, 'operador =');
-  eq(DSV.identifierAt(code, 0, 16), null, 'número não é identificador');
-  eq(DSV.identifierAt(code, 5, 0), null, 'linha fora do texto');
-  eq(DSV.identifierAt(code, 0, 99), null, 'coluna fora da linha');
-});
-
-test('identifierAt: nomes com _ e $ e dígitos internos', () => {
-  const code = 'var _tmp$1 = outro_nome;';
-  eq(DSV.identifierAt(code, 0, 5), '_tmp$1');
-  eq(DSV.identifierAt(code, 0, 14), 'outro_nome');
-});
-
 test('resolveVariable: local, global, this e desconhecida', () => {
   const t = run([
     'let x = 1;',
@@ -3891,6 +3872,12 @@ test('escrita por índice além do fim deixa buracos', () => {
   eq(JSON.stringify(outputs(t)), JSON.stringify(['4 0,3']));
 });
 
+test('índices de array/string seguem o JS (sem zeros à esquerda)', () => {
+  const t = run('const a=[]; a["01"]=5; console.log(a.length, a["01"], Object.keys(a).join(",")); console.log("abc"["01"], "abc"["1"]); const b=[]; b["1e2"]=9; console.log(b.length, b["1e2"], Object.keys(b).join(",")); const c=[7]; c["0"]=8; console.log(c[0]);');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['0 5 01', 'undefined b', '0 9 1e2', '8']));
+});
+
 test('new avalia os argumentos antes dos inicializadores de campo', () => {
   const t = run('const log=[]; function f(){log.push("campo"); return 1;} function g(){log.push("arg"); return 2;} class C { x = f(); constructor(v){this.v=v;} } new C(g()); console.log(log.join(">"));');
   noError(t);
@@ -3911,6 +3898,13 @@ test('return/break fora de contexto dão mensagem clara (não "[object Object]")
   const t2 = run('break;');
   assert(t2.error, 'erro esperado para break no topo');
   assert(t2.error.message.indexOf('break') >= 0, 'mensagem cita break: ' + (t2.error && t2.error.message));
+});
+
+test('mensagens específicas: operador "in" e elementos vazios de array', () => {
+  const t1 = run('const a=[1]; console.log(0 in a);');
+  assert(t1.error && t1.error.message.indexOf('"in"') >= 0, 'mensagem do in: ' + (t1.error && t1.error.message));
+  const t2 = run('const a=[1,,3];');
+  assert(t2.error && t2.error.message.indexOf('vazios') >= 0, 'mensagem da elisão: ' + (t2.error && t2.error.message));
 });
 
 /* ---------------------------------------------------------------- */

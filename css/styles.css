@@ -22,7 +22,7 @@
   /* ---- texto ---- */
   --text-primary:   #d4d4d4;
   --text-secondary: #858585;
-  --text-muted:     #6b6b6b;
+  --text-muted:     #8b8b8b;
 
   /* ---- destaque (accent, uso contido) ---- */
   --accent:       #8957e5;
@@ -331,6 +331,7 @@ body {
 .tbtn:focus-visible,
 .zbtn:focus-visible,
 .zoom-label:focus-visible,
+.tab-name:focus-visible,
 .tab-close:focus-visible,
 .command:focus-visible {
   outline: 1px solid var(--accent);
@@ -483,6 +484,13 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 12px var(--font-ui);
+  line-height: inherit;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .tab-close {
@@ -1446,11 +1454,6 @@ kbd {
   stroke-width: 1.25;
   stroke-dasharray: 3 4;
 }
-
-/* chips estáticos (fallback SVG) */
-.ptr-chip-bg { fill: rgba(255, 255, 255, 0.04); stroke: var(--border); stroke-width: 1; }
-
-.ptr-chip-text { fill: var(--text-secondary); font: 600 10.5px var(--font-mono); text-anchor: middle; }
 
 /* ------------------------------------------------------------------ */
 /* Explicação contextual do passo (entre o canvas e os controles)      */

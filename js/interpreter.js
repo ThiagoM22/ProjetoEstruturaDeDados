@@ -718,11 +718,7 @@
       case 'Index': {
         var baseI = this.evalExpr(node.obj, env);
         var key = this.evalExpr(node.prop, env);
-        if (Array.isArray(baseI) || typeof baseI === 'string') {
-          var n = typeof key === 'number' ? key : this.toNum(key);
-          if (!isNaN(n)) return this.getMember(baseI, String(n), node.line);
-        }
-        return this.getMember(baseI, this.toStr(key), node.line);
+        return this.getMember(baseI, this.propName(key), node.line);
       }
       case 'Call': return this.evalCall(node, env);
       case 'New': return this.evalNew(node, env);
@@ -806,7 +802,7 @@
       if (baseI.__class === true) {
         this.rtError('Não é possível alterar a classe "' + baseI.name + '" diretamente', node.line);
       }
-      delete baseI[this.toStr(key)];
+      delete baseI[this.propName(key)];
       return true;
     }
     this.rtError('"delete" só funciona em propriedades (obj.campo ou obj[índice])', node.line);
@@ -861,12 +857,7 @@
     if (target.type === 'Index') {
       var baseI = this.evalExpr(target.obj, env);
       var key = this.evalExpr(target.prop, env);
-      var name;
-      if (Array.isArray(baseI) || typeof baseI === 'string') {
-        var n = typeof key === 'number' ? key : this.toNum(key);
-        if (!isNaN(n)) name = String(n);
-      }
-      if (name === undefined) name = this.toStr(key);
+      var name = this.propName(key);
       return {
         get: function () { return self.getMember(baseI, name, target.line); },
         set: function (v) { self.setMember(baseI, name, v, target.line); }
@@ -905,7 +896,7 @@
 
     if (callee.type === 'Member' || callee.type === 'Index') {
       var obj = this.evalExpr(callee.obj, env);
-      var prop = callee.type === 'Member' ? callee.prop : this.toStr(this.evalExpr(callee.prop, env));
+      var prop = callee.type === 'Member' ? callee.prop : this.propName(this.evalExpr(callee.prop, env));
       var isPriv = callee.type === 'Member' && !!callee.priv;
       thisVal = obj;
       errName = prop;
@@ -946,13 +937,27 @@
     return args;
   };
 
+  /* Índice canônico de array/string (como no JS): "0", "1", "10"… sem zeros à
+   * esquerda e abaixo de 2^32-1; "01" e "1e2" são propriedades comuns. */
+  Runtime.prototype.isIndexName = function (name) {
+    if (typeof name !== 'string' || !/^(0|[1-9][0-9]*)$/.test(name)) return false;
+    return Number(name) < 4294967295;
+  };
+
+  /* Nome de propriedade de uma chave computada (ToPropertyKey do JS). */
+  Runtime.prototype.propName = function (key) {
+    if (typeof key === 'string') return key;
+    if (typeof key === 'number') return String(key);
+    return this.toStr(key);
+  };
+
   Runtime.prototype.getMember = function (obj, name, line) {
     if (obj === null || obj === undefined) {
       this.rtError('Não é possível ler a propriedade "' + name + '" de ' + (obj === null ? 'null' : 'undefined') + '. Verifique se o valor já foi criado.', line);
     }
     if (typeof obj === 'string') {
       if (name === 'length') return obj.length;
-      if (/^[0-9]+$/.test(name)) {
+      if (this.isIndexName(name)) {
         var si = Number(name);
         return si < obj.length ? obj[si] : undefined;
       }
@@ -961,7 +966,7 @@
     }
     if (Array.isArray(obj)) {
       if (name === 'length') return obj.length;
-      if (/^[0-9]+$/.test(name)) {
+      if (this.isIndexName(name)) {
         var ix = Number(name);
         return ix < obj.length ? obj[ix] : undefined;
       }
@@ -1024,7 +1029,7 @@
         obj.length = n;
         return;
       }
-      if (/^[0-9]+$/.test(name)) {
+      if (this.isIndexName(name)) {
         /* escrita por índice: o array real cresce sozinho e deixa buracos nas
          * posições puladas — buraco ≠ um undefined armazenado */
         obj[Number(name)] = value;
