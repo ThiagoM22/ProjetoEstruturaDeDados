@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ED Viz — Visualizador de Estruturas de Dados</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -11,9 +13,14 @@
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
-        <path d="M12 2.6 20 7.1v9.8L12 21.4 4 16.9V7.1Z"/>
-        <path d="M12 8.2 15.7 10.3v4.2L12 16.6 8.3 14.5v-4.2Z" fill="currentColor" stroke="none" opacity=".35"/>
+      <svg viewBox="0 0 84 84" width="18" height="18">
+        <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+          <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+          <circle cx="21" cy="29" r="8.1"/>
+          <circle cx="62" cy="29" r="8.1"/>
+          <circle cx="43" cy="15" r="8.1"/>
+          <circle cx="43" cy="65" r="8.1"/>
+        </g>
       </svg>
     </span>
     <span class="brand-name">ED Viz</span>
@@ -203,7 +210,7 @@
   </ul>
 
   <h3>Ponteiros e visita</h3>
-  <p>Na <b>árvore</b>, o indicador é a cor: o nó da operação em andamento fica com o <b>realce principal</b> (roxo forte) e os já visitados na mesma operação em roxo suave — sem texto sobre os nós. Na <b>lista encadeada</b>, ponteiros como <code>atual</code> e <code>current</code> continuam aparecendo como etiquetas; a referência alterada e o HEAD que mudou de nó também ficam em destaque na etapa correspondente.</p>
+  <p>Na <b>árvore</b>, o indicador é a cor: o nó da operação em andamento fica com o <b>realce principal</b> (âmbar forte) e os já visitados na mesma operação em âmbar suave — sem texto sobre os nós. Na <b>lista encadeada</b>, ponteiros como <code>atual</code> e <code>current</code> continuam aparecendo como etiquetas; a referência alterada e o HEAD que mudou de nó também ficam em destaque na etapa correspondente.</p>
 
   <h3>Limites (subconjunto didático de JS)</h3>
   <p>Sem herança de classes, regex, async/await, try/catch e parâmetros com valor padrão (<code>function f(x = 1)</code>). Proteções: 20.000 passos e 500 chamadas aninhadas — se estourar, provavelmente há laço ou recursão sem fim.</p>

@@ -1,4 +1,4 @@
-# ED Viz — o site publicado é estático: só index.html, css/ e js/ são necessários.
+# ED Viz — o site publicado é estático: só index.html, css/, js/, favicon.svg e favicon.png são necessários.
 # Fora do deploy ficam os testes, o servidor de desenvolvimento e arquivos locais.
 tests/
 playwright.config.js

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 84" role="img" aria-label="ED Viz">
+  <!-- ED Viz — grafo de 4 nós ligados em corrente: topo → esquerda → direita → base -->
+  <g fill="#e5a66a" stroke="#e5a66a" stroke-width="7.6" stroke-linecap="round">
+    <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+    <circle cx="21" cy="29" r="8.1"/>
+    <circle cx="62" cy="29" r="8.1"/>
+    <circle cx="43" cy="15" r="8.1"/>
+    <circle cx="43" cy="65" r="8.1"/>
+  </g>
+</svg>

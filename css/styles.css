@@ -1,36 +1,37 @@
 /* ==========================================================================
    ED Viz — Visualizador de Estruturas de Dados
-   Tema escuro neutro · tokens centralizados · accent roxo (uso contido)
+   Tema escuro neutro · tokens centralizados · accent âmbar (uso contido)
    Espaçamento em múltiplos de 4 · raio máximo 6px
    ========================================================================== */
 
 :root {
-  /* ---- superfícies (neutras, sem tom azulado) ---- */
-  --bg-primary:    #1e1e1e;   /* editor */
-  --bg-secondary:  #181818;   /* cabeçalho, status e barra de execução */
-  --bg-surface:    #1e1e1e;   /* painéis */
-  --bg-elevated:   #252526;   /* células, aba ativa e superfícies discretas */
-  --bg-hover:      #2a2d2e;
-  --bg-input:      #2a2a2a;
-  --bg-track:      #414141;   /* trilha da barra de progresso */
-  --bg-canvas:     #191919;   /* área de visualização (um tom abaixo) */
+  /* ---- superfícies (escuras, leve tom azulado) ---- */
+  --bg-primary:    #17191d;   /* editor */
+  --bg-secondary:  #121418;   /* cabeçalho, status e barra de execução */
+  --bg-surface:    #17191d;   /* painéis */
+  --bg-elevated:   #1e2127;   /* células, aba ativa e superfícies discretas */
+  --bg-hover:      #24272e;
+  --bg-input:      #21242a;
+  --bg-track:      #3a4048;   /* trilha da barra de progresso */
+  --bg-canvas:     #131519;   /* área de visualização (um tom abaixo) */
 
   /* ---- bordas ---- */
-  --border:        #333333;
-  --border-strong: #3c3c3c;
+  --border:        #2e3238;
+  --border-strong: #383d44;
 
   /* ---- texto ---- */
-  --text-primary:   #d4d4d4;
-  --text-secondary: #858585;
-  --text-muted:     #8b8b8b;
+  --text-primary:   #d6d8dc;
+  --text-secondary: #8a8e96;
+  --text-muted:     #9196a0;
 
   /* ---- destaque (accent, uso contido) ---- */
-  --accent:       #8957e5;
-  --accent-hover: #9a6cf0;
-  --accent-soft:  rgba(137, 87, 229, 0.12);
-  --accent-muted: rgba(137, 87, 229, 0.38);
-  --accent-text:  #b794f6;
-  --accent-fill:  rgba(137, 87, 229, 0.22);
+  --accent:           #e5a66a;
+  --accent-hover:     #eeb781;
+  --accent-soft:      rgba(229, 166, 106, 0.12);
+  --accent-muted:     rgba(229, 166, 106, 0.38);
+  --accent-text:      #f0c494;
+  --accent-fill:      rgba(229, 166, 106, 0.22);
+  --accent-contrast:  #17191d;   /* texto sobre o accent (fundo escuro) */
 
   /* ---- estados ---- */
   --danger:         #e5766d;
@@ -39,7 +40,7 @@
   --success:        #74b98f;
   --success-soft:   rgba(116, 185, 143, 0.10);
   --success-border: rgba(116, 185, 143, 0.28);
-  --warn:           #c9a15f;
+  --warn:           #ecd24c;
 
   /* ---- código (VS Code Dark+) ---- */
   --tk-comment: #6a9955;
@@ -91,15 +92,15 @@ body {
 }
 
 /* scrollbars finas */
-* { scrollbar-width: thin; scrollbar-color: #3c3c3c transparent; }
+* { scrollbar-width: thin; scrollbar-color: #343941 transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
-  background: #3c3c3c;
+  background: #343941;
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 6px;
 }
-::-webkit-scrollbar-thumb:hover { background-color: #4d4d4d; }
+::-webkit-scrollbar-thumb:hover { background-color: #454b54; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -286,7 +287,7 @@ body {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
 }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
@@ -311,7 +312,7 @@ body {
 .select {
   appearance: none;
   background-color: transparent;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23858585' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238a8e96' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 10px;
@@ -593,7 +594,7 @@ kbd {
   overflow: auto;
 }
 
-.code-input::selection { background: rgba(137, 87, 229, 0.30); }
+.code-input::selection { background: rgba(229, 166, 106, 0.30); }
 
 .code-input.readonly { cursor: default; }
 
@@ -603,7 +604,7 @@ kbd {
   position: absolute;
   left: 0; right: 0;
   height: var(--line-h);
-  background: rgba(137, 87, 229, 0.08);
+  background: rgba(229, 166, 106, 0.08);
   border-left: 2px solid var(--accent);
   pointer-events: none;
   will-change: transform;
@@ -1102,7 +1103,7 @@ kbd {
 /* nó recém-inserido (destaque discreto na etapa em que entra) */
 .list-node.new { border-color: var(--accent-muted); }
 
-/* visitado na operação atual: roxo suave */
+/* visitado na operação atual: âmbar suave */
 .list-node.visited { background: var(--accent-soft); border-color: var(--accent-muted); }
 
 /* nó da operação atual: realce principal */
@@ -1130,7 +1131,7 @@ kbd {
 }
 
 /* HEAD/TAIL: etiquetas discretas sobre o primeiro/último nó; quando mudam
- * de nó, a etiqueta fica em roxo naquela etapa */
+ * de nó, a etiqueta fica em âmbar naquela etapa */
 .list-head-tag,
 .list-tail-tag {
   position: relative;
@@ -1180,7 +1181,7 @@ kbd {
 .list-head-tag.changed::after,
 .list-tail-tag.changed::after { border-top-color: var(--accent); }
 
-/* o indicador mudou de nó: a linha-guia acompanha o destaque roxo */
+/* o indicador mudou de nó: a linha-guia acompanha o destaque âmbar */
 .list-ptrs .list-head-tag.changed::after,
 .list-ptrs .list-tail-tag.changed::after { background: var(--accent); }
 
@@ -1253,8 +1254,8 @@ kbd {
 
 .list-null.cycle {
   color: var(--warn);
-  border-color: rgba(201, 161, 95, 0.4);
-  background: rgba(201, 161, 95, 0.08);
+  border-color: rgba(236, 210, 76, 0.4);
+  background: rgba(236, 210, 76, 0.08);
 }
 
 .ptr-chip {
@@ -1421,7 +1422,7 @@ kbd {
 /* nó recém-inserido: destaque discreto na etapa em que aparece */
 .tree-node.new { stroke: var(--accent-muted); }
 
-/* visitado na operação atual: roxo suave */
+/* visitado na operação atual: âmbar suave */
 .tree-node.visited { fill: var(--accent-soft); stroke: var(--accent-muted); }
 
 /* nó da operação atual: realce principal */
@@ -1554,7 +1555,7 @@ kbd {
   background: var(--accent);
   border-color: var(--accent);
   border-radius: var(--radius-md);
-  color: #ffffff;
+  color: var(--accent-contrast);
   font-size: 0; /* o glifo ▶/❚❚ é apenas estado; o ícone é desenhado abaixo */
   line-height: 0;
 }
