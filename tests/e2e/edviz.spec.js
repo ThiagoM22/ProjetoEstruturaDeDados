@@ -161,6 +161,32 @@ test('sem erros de página durante uma execução', async ({ page }) => {
   expect(erros).toEqual([]);
 });
 
+test('BST remoção: a duplicada aparece na fase com nós e no seletor (regressão)', async ({ page }) => {
+  await page.goto('/');
+  await executarPausado(page, 'arvore-bst-remocao');
+  /* passa pelo fim (a seleção gruda na árvore principal vazia) e volta para a
+   * fase da duplicada — o mesmo caminho do defeito relatado */
+  await page.click('#btnLast');
+  await page.evaluate(() => {
+    const s = document.getElementById('slider');
+    s.value = '799'; /* passo 800 de 873: a duplicada tem 3 nós */
+    s.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(page.locator('#structure .canvas-title')).toHaveText('Árvore binária');
+  await expect(page.locator('#structure .canvas-sub')).toContainText('duplicada · 3 nós');
+  await expect(page.locator('#structure .tree-node')).toHaveCount(3);
+
+  /* o seletor lista a duplicada; escolhê-la mantém a exibição nela */
+  await expect(page.locator('#structureSelect option', { hasText: 'Árvore binária — duplicada' })).toHaveCount(1);
+  await page.selectOption('#structureSelect', { label: 'Árvore binária — duplicada' });
+  await page.click('#btnNext');
+  await expect(page.locator('#structure .canvas-sub')).toContainText('duplicada');
+
+  /* a árvore principal continua selecionável à mão (vazia neste passo) */
+  await page.selectOption('#structureSelect', { label: 'Árvore binária — arvore' });
+  await expect(page.locator('#structure')).toContainText('A árvore está vazia neste passo.');
+});
+
 test('trace longo executa e reporta memória (Chromium)', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'performance.memory só no Chromium');
   await page.goto('/');

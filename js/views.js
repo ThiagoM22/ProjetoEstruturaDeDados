@@ -261,7 +261,9 @@
 
     function push(cand) {
       if (cand.id == null && cand.type !== 'list' && cand.type !== 'tree') return;
-      var key = cand.type + '|' + cand.id;
+      /* wrappers vazios de estruturas diferentes não podem colidir na mesma
+       * chave (arvore e duplicada com raiz null são estruturas distintas) */
+      var key = cand.type + '|' + cand.id + (cand.id == null && cand.holderId != null ? '#' + cand.holderId : '');
       var prev = found[key];
       if (!prev || cand.score > prev.score) found[key] = cand;
     }
@@ -323,7 +325,7 @@
         var rootP = propOf(v, ROOT_KEYS);
         if (rootP) {
           if (isTreeNode(rootP.value)) {
-            push({ type: 'tree', id: rootP.value.id, label: shownLabel, score: 9 + Math.min(countTree(rootP.value), 12) * 0.15 });
+            push({ type: 'tree', id: rootP.value.id, holderId: v.id, label: shownLabel, score: 9 + Math.min(countTree(rootP.value), 12) * 0.15 });
           } else if (isNullSer(rootP.value)) {
             push({ type: 'tree', id: null, holderId: v.id, label: shownLabel, score: 6 });
           }
@@ -345,6 +347,7 @@
             push({
               type: 'list',
               id: headP.value.id,
+              holderId: v.id,
               label: shownLabel,
               doubly: winfo.doubly || DOUBLY_RX.test(nameLike) || !!tailP,
               tailId: tailId,
@@ -465,6 +468,117 @@
     });
     if (step.thisVal) visit(step.thisVal);
     return found;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Seleção da estrutura exibida                                        */
+  /* ------------------------------------------------------------------ */
+
+  /* conteúdo real do candidato no passo: a raiz/início existe? Usado pela
+   * seleção automática para não ficar presa numa estrutura vazia enquanto
+   * outra tem elementos (ex.: árvore vazia + duplicada com nós). */
+  DSV.candidateHasContent = function (step, cand) {
+    if (!cand || !step || cand.id == null) return false;
+    var v = DSV.findValueById(step, cand.id);
+    if (!v) return false;
+    if (cand.type === 'tree') return countTree(v) > 0;
+    if (cand.type === 'stack' || cand.type === 'queue' || cand.type === 'array') {
+      return v.t === 'a' && v.items && v.items.length > 0;
+    }
+    return true; /* lista e demais: o valor existir já é conteúdo */
+  };
+
+  /* chave estável do candidato para o seletor: wrappers (árvore/lista) são
+   * agrupados pelo objeto dono (holderId) e trocam de raiz/cabeça sem virar
+   * outra opção no seletor */
+  DSV.candidateKey = function (cand) {
+    if (!cand) return '';
+    return cand.type + '|' + (cand.holderId != null ? 'h' + cand.holderId : cand.id);
+  };
+
+  /**
+   * Escolhe a estrutura exibida no passo. Função pura (o sticky é do
+   * chamador) para os testes de núcleo exercitarem a regra real.
+   * opts: { opsMap, candidates?, forced?, sticky? }
+   * Devolve { selection, sticky, candidates }.
+   *
+   * Prioridades: a escolha manual manda; a seleção "gruda" no candidato
+   * atual para não piscar entre estruturas; se o candidato atual ficou sem
+   * conteúdo e o melhor do passo tem conteúdo, cede para ele.
+   */
+  DSV.chooseStructure = function (step, opts) {
+    opts = opts || {};
+    var candidates = opts.candidates || DSV.detectStructures(step, opts.opsMap);
+    var sticky = opts.sticky || null;
+
+    if (opts.forced) {
+      /* guarda type/id; o holderId permite seguir a mesma estrutura quando
+       * a raiz/cabeça muda (remoções sucessivas), em vez de "não existe" */
+      var exact = null;
+      var byHolder = null;
+      for (var f = 0; f < candidates.length; f++) {
+        var fc = candidates[f];
+        if (fc.type === opts.forced.type && fc.id === opts.forced.id) { exact = fc; break; }
+        if (!byHolder && opts.forced.holderId != null &&
+            fc.type === opts.forced.type && fc.holderId === opts.forced.holderId) byHolder = fc;
+      }
+      return { selection: exact || byHolder || opts.forced, sticky: sticky, candidates: candidates };
+    }
+
+    var found = null;
+    if (sticky) {
+      for (var i = 0; i < candidates.length; i++) {
+        if (candidates[i].type === sticky.type && candidates[i].id === sticky.id) { found = candidates[i]; break; }
+      }
+    }
+    if (found && DSV.candidateHasContent(step, found)) {
+      return { selection: found, sticky: found, candidates: candidates };
+    }
+    var best = candidates.length ? candidates[0] : null;
+    if (best && (!found || DSV.candidateHasContent(step, best))) {
+      return { selection: best, sticky: best, candidates: candidates };
+    }
+    var keep = found || sticky;
+    return { selection: keep, sticky: keep, candidates: candidates };
+  };
+
+  /* Estruturas oferecidas pelo seletor: o que a seleção automática exibiu
+   * ao longo do trace (simulada com a MESMA regra) mais os candidatos do
+   * passo final — preserva as opções existentes e acrescenta estruturas
+   * que só existem em parte do trace (ex.: a árvore duplicada). */
+  DSV.traceCandidates = function (steps, opsMap) {
+    var collected = [];
+    function collect(cand) { if (cand) collected.push(cand); }
+
+    var sticky = null;
+    for (var i = 0; i < steps.length; i++) {
+      var res = DSV.chooseStructure(steps[i], { opsMap: opsMap, sticky: sticky });
+      sticky = res.sticky;
+      collect(res.selection);
+    }
+    if (steps.length) DSV.detectStructures(steps[steps.length - 1], opsMap).forEach(collect);
+
+    /* o mesmo nó pode aparecer como wrapper (árvore/lista) num passo e como
+     * nó solto noutro (ex.: "arvore" x "arvore.raiz"): o alias junta os dois
+     * na opção do wrapper em vez de duplicar o seletor */
+    var byNode = Object.create(null);
+    collected.forEach(function (c) {
+      if (c.id != null && c.holderId != null) byNode[c.type + '|' + c.id] = c.type + '|h' + c.holderId;
+    });
+
+    var map = Object.create(null);
+    var order = [];
+    collected.forEach(function (c) {
+      var key;
+      if (c.holderId != null) key = c.type + '|h' + c.holderId;
+      else if (c.id != null && byNode[c.type + '|' + c.id]) key = byNode[c.type + '|' + c.id];
+      else key = c.type + '|' + c.id;
+      var prev = map[key];
+      if (!prev) { map[key] = c; order.push(key); }
+      /* empate: fica o mais recente (o rótulo acompanha o estado final) */
+      else if (c.score >= prev.score) map[key] = c;
+    });
+    return order.map(function (k) { return map[k]; });
   };
 
   /* ordem de visita dos nós (primeira vez que um ponteiro "atual/no/..." aponta para o nó) */

@@ -393,8 +393,7 @@
     state.sticky = null;
     state.errorLine = state.trace.error && state.trace.error.line ? state.trace.error.line : null;
 
-    var last = state.trace.steps[state.trace.steps.length - 1];
-    state.candidates = last ? DSV.detectStructures(last, state.opsMap) : [];
+    state.candidates = DSV.traceCandidates(state.trace.steps, state.opsMap);
     buildStructureOptions();
 
     if (state.trace.error) {
@@ -459,7 +458,7 @@
       return (structureOptionRank(a) - structureOptionRank(b)) || (b.score - a.score);
     });
     ordered.forEach(function (c) {
-      html += '<option value="' + esc(c.type + '|' + c.id) + '">' +
+      html += '<option value="' + esc(DSV.candidateKey(c)) + '">' +
         esc(structureOptionLabel(c) + ' — ' + c.label) + '</option>';
     });
     els.structureSelect.innerHTML = html;
@@ -1124,32 +1123,13 @@
   /* ------------------------------------------------------------------ */
 
   function chooseSelection(step) {
-    var candidates = DSV.detectStructures(step, state.opsMap);
-    if (state.forced) {
-      /* a escolha manual guarda type/id; os metadados do passo (ex.: a janela
-       * #inicio/#fim da fila) vêm sempre do candidato recalculado agora */
-      for (var f = 0; f < candidates.length; f++) {
-        if (candidates[f].type === state.forced.type && candidates[f].id === state.forced.id) return candidates[f];
-      }
-      return state.forced;
-    }
-
-    if (state.sticky) {
-      var found = null;
-      for (var i = 0; i < candidates.length; i++) {
-        if (candidates[i].type === state.sticky.type && candidates[i].id === state.sticky.id) {
-          found = candidates[i];
-          break;
-        }
-      }
-      if (found) {
-        state.sticky = found;
-        return found;
-      }
-    }
-    var best = candidates.length ? candidates[0] : null;
-    if (best) state.sticky = best;
-    return state.sticky;
+    var res = DSV.chooseStructure(step, {
+      opsMap: state.opsMap,
+      forced: state.forced,
+      sticky: state.sticky
+    });
+    state.sticky = res.sticky;
+    return res.selection;
   }
 
   function renderStructurePanel(step) {
@@ -1384,7 +1364,7 @@
     } else {
       var cand = null;
       for (var i = 0; i < state.candidates.length; i++) {
-        if ((state.candidates[i].type + '|' + state.candidates[i].id) === this.value) {
+        if (DSV.candidateKey(state.candidates[i]) === this.value) {
           cand = state.candidates[i];
           break;
         }

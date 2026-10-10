@@ -3031,6 +3031,131 @@ test('BST: duplicado à direita e remoção da primeira ocorrência do caminho',
   eq(outs.slice(i3 + 1, i3 + 2).join(','), '50', 'em-ordem após remover 30');
 });
 
+test('BST remoção: seleção automática cede da árvore vazia para a duplicada com nós', () => {
+  const t = run(treeExample('arvore-bst-remocao').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  let sticky = null;
+  let primeiroComNo = null;
+  let ultimoVazio = null;
+  const comNos = [];
+  t.steps.forEach((step, i) => {
+    const res = DSV.chooseStructure(step, { opsMap, sticky });
+    sticky = res.sticky;
+    const dup = DSV.detectStructures(step, opsMap)
+      .filter((c) => c.type === 'tree' && c.label === 'duplicada' && DSV.candidateHasContent(step, c))[0];
+    if (dup) {
+      comNos.push(i);
+      if (primeiroComNo == null) primeiroComNo = i;
+      assert(DSV.candidateHasContent(step, res.selection),
+        'passo ' + (i + 1) + ': exibiu estrutura vazia com a duplicada preenchida');
+      eq(res.selection.label, 'duplicada', 'passo ' + (i + 1) + ': exibe a duplicada');
+    }
+    if (res.selection && res.selection.id == null) ultimoVazio = i;
+  });
+  eq(comNos.length, 119, 'janela da duplicada com nós (do briefing)');
+  eq(primeiroComNo + 1, 749, 'a duplicada assume na primeira renderização com nó');
+  eq(ultimoVazio + 1, t.steps.length, 'o último vazio é o passo final legítimo');
+
+  /* passos 1–5: ainda não existe nó, então a árvore vazia é a exibição certa */
+  for (let i = 0; i < 5; i++) {
+    const res = DSV.chooseStructure(t.steps[i], { opsMap, sticky: null });
+    assert(!res.selection || res.selection.id == null, 'passo ' + (i + 1) + ': legítimo sem nós');
+  }
+
+  /* seek para frente e para trás mantém a mesma estrutura */
+  function seek(indices) {
+    let s = null;
+    let last = null;
+    indices.forEach((i) => {
+      const res = DSV.chooseStructure(t.steps[i], { opsMap, sticky: s });
+      s = res.sticky;
+      last = res.selection;
+    });
+    return last;
+  }
+  eq(seek([799]).label, 'duplicada', 'passo 800: duplicada');
+  eq(seek([699]).label, 'arvore', 'passo 700: árvore principal');
+  eq(seek([699, 799, 699, 799]).label, 'duplicada', 'ida e volta não emperra a seleção');
+  eq(seek([799, 872]).id, null, 'fim legítimo vazio');
+  eq(seek([872, 799]).label, 'duplicada', 'volta do fim reencontra a duplicada');
+
+  /* render real em TODA a fase: cabeçalho e nós desenhados batem com o
+   * modelo (contagem local no teste, independente do código de produção) */
+  function modelCount(step, cand) {
+    if (!cand || cand.id == null) return 0;
+    const v = DSV.findValueById(step, cand.id);
+    const seen = {};
+    function down(node) {
+      if (!node || node.t !== 'o' || seen[node.id]) return 0;
+      seen[node.id] = true;
+      const props = node.props || {};
+      return 1 + down(props.esquerda || props.left || props.esq) + down(props.direita || props.right || props.dir);
+    }
+    return down(v);
+  }
+  let stickyRender = null;
+  comNos.forEach((i) => {
+    const step = t.steps[i];
+    const res = DSV.chooseStructure(step, { opsMap, sticky: stickyRender });
+    stickyRender = res.sticky;
+    const cand = res.selection;
+    const n = modelCount(step, cand);
+    assert(n > 0, 'passo ' + (i + 1) + ': modelo com nós');
+    const container = {};
+    DSV.renderStructure(container, cand, step, { opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [] });
+    assert(container.innerHTML.indexOf('duplicada · ' + n + (n === 1 ? ' nó' : ' nós')) >= 0, 'passo ' + (i + 1) + ': cabeçalho com a contagem');
+    eq((container.innerHTML.match(/class="tree-node/g) || []).length, n, 'passo ' + (i + 1) + ': nós desenhados = modelo');
+  });
+});
+
+test('BST remoção: seletor lista a duplicada (estruturas de todo o trace)', () => {
+  const t = run(treeExample('arvore-bst-remocao').code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const arvores = DSV.traceCandidates(t.steps, opsMap).filter((c) => c.type === 'tree');
+  eq(arvores.length, 2, 'uma opção por árvore, sem duplicar raízes antigas');
+  const dup = arvores.filter((c) => c.label === 'duplicada')[0];
+  const arvore = arvores.filter((c) => c.label === 'arvore')[0];
+  assert(dup && dup.id != null, 'duplicada listada com raiz');
+  assert(arvore, 'árvore principal listada');
+
+  /* escolha manual: a duplicada tem prioridade e segue a estrutura quando a
+   * raiz some (o holderId resolve a instância vazia no fim) */
+  eq(DSV.chooseStructure(t.steps[799], { opsMap, forced: dup }).selection.label, 'duplicada', 'manual mantém a duplicada');
+  const fim = DSV.chooseStructure(t.steps[872], { opsMap, forced: dup }).selection;
+  eq(fim.label, 'duplicada', 'manual segue para a duplicada vazia');
+  eq(fim.id, null, 'sem nós no fim');
+  /* a escolha manual vence o sticky automático */
+  eq(DSV.chooseStructure(t.steps[699], { opsMap, forced: dup, sticky: arvore }).selection.label, 'duplicada', 'manual vence o sticky');
+});
+
+test('seleção: estrutura vazia cede para a preenchida, mas não pisca entre preenchidas', () => {
+  const arvoreVazia = { type: 'tree', id: null, holderId: 1, label: 'arvore', score: 6 };
+  const duplicada = { type: 'tree', id: 20, holderId: 2, label: 'duplicada', score: 9.45 };
+  const arvoreCheia = { type: 'tree', id: 21, holderId: 1, label: 'arvore', score: 5 };
+  const step = {
+    globals: {
+      arvore: { t: 'o', id: 1, ctor: 'BinarySearchTree', props: { '#root': { t: 'p', v: null } } },
+      duplicada: {
+        t: 'o', id: 2, ctor: 'BinarySearchTree', props: {
+          '#root': { t: 'o', id: 20, ctor: 'Node', props: { value: { t: 'p', v: 50 }, left: { t: 'p', v: null }, right: { t: 'p', v: null } } }
+        }
+      }
+    },
+    locals: {}
+  };
+  let res = DSV.chooseStructure(step, { candidates: [duplicada, arvoreVazia], sticky: arvoreVazia });
+  eq(res.selection.label, 'duplicada', 'vazio com concorrente preenchido cede');
+  eq(res.sticky.label, 'duplicada', 'o sticky acompanha a cessão');
+
+  step.globals.arvore.props['#root'] = { t: 'o', id: 21, ctor: 'Node', props: { value: { t: 'p', v: 10 }, left: { t: 'p', v: null }, right: { t: 'p', v: null } } };
+  res = DSV.chooseStructure(step, { candidates: [duplicada, arvoreCheia], sticky: arvoreCheia });
+  eq(res.selection.id, 21, 'preenchidas não piscam entre si');
+  res = DSV.chooseStructure(step, { candidates: [duplicada, arvoreCheia], sticky: arvoreCheia, forced: arvoreVazia });
+  eq(res.selection, arvoreCheia, 'manual resolve a mesma estrutura pelo holderId');
+});
+
 test('BST: detecção usa o wrapper e não vaza o campo privado', () => {
   const t = run(treeExample('arvore-bst').code);
   noError(t);
