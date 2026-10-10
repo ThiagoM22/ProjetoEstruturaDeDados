@@ -268,7 +268,7 @@
       if (!prev || cand.score > prev.score) found[key] = cand;
     }
 
-    function considerArray(v, label) {
+    function considerArray(v, label, plainOK) {
       var ops = opsMap[v.id] || {};
       var stackScore = 0;
       var queueScore = 0;
@@ -283,6 +283,10 @@
         push({ type: 'stack', id: v.id, label: label, score: stackScore + 2 });
       } else if (queueScore > 2 && queueScore > stackScore) {
         push({ type: 'queue', id: v.id, label: label, score: queueScore + 2 });
+      } else if (plainOK) {
+        /* array puro visualizado por índice: score baixo para nunca roubar
+         * a seleção de pilhas/filas/listas/árvores já reconhecidas */
+        push({ type: 'array', id: v.id, label: label, plain: true, score: 5.5 });
       }
     }
 
@@ -415,10 +419,12 @@
       if (ap) considerArray(ap.value, shownLabel + '.' + ap.name);
     }
 
-    function walk(v, label, depth) {
+    function walk(v, label, depth, scope) {
       if (!v || typeof v !== 'object' || depth > 3) return;
       if (isArr(v)) {
-        considerArray(v, label);
+        /* só arrays globais de nível superior viram candidatos "puros":
+         * arrays auxiliares (de métodos ou dentro de objetos) não poluem */
+        considerArray(v, label, scope === 'globals' && depth === 0);
         return;
       }
       if (v.t === 'fn' || v.t === 'c') return;
@@ -427,14 +433,14 @@
         if (isTreeNode(v) || isListNode(v)) return; /* não desce nos filhos da estrutura */
         var keys = Object.keys(v.props || {});
         for (var i = 0; i < Math.min(keys.length, 20); i++) {
-          walk(v.props[keys[i]], label + '.' + keys[i], depth + 1);
+          walk(v.props[keys[i]], label + '.' + keys[i], depth + 1, scope);
         }
       }
     }
 
     ['globals', 'locals'].forEach(function (scope) {
       var map = step[scope] || {};
-      Object.keys(map).forEach(function (name) { walk(map[name], name, 0); });
+      Object.keys(map).forEach(function (name) { walk(map[name], name, 0, scope); });
     });
     if (step.thisVal) walk(step.thisVal, 'this', 0);
 
@@ -801,6 +807,8 @@
     if (/\.tamanhoArray\s*\(/.test(line)) return 'Tamanho';
     if (/\.limpar\s*\(/.test(line)) return 'Limpeza';
     if (/\.toString\s*\(/.test(line)) return 'Representação';
+    /* escrita por índice em array puro (v[0] = 9, v[i] += 1) */
+    if (/\]\s*(?:\+|-|\*|\/|%)?=(?!=)/.test(line)) return 'Edição';
     if (/console\.log/.test(line)) return 'Saída';
     return 'Execução';
   }
@@ -1887,10 +1895,14 @@
   /* wrapper + array interno + tamanho de um passo (null quando não existe) */
   function arrayStateOf(step, sel) {
     if (!step || !sel || sel.type !== 'array' || sel.id == null) return null;
-    var wrapper = DSV.findValueById(step, sel.id);
-    if (!isObj(wrapper)) return null;
-    var items = arrayItemsOf(wrapper, sel);
-    return { wrapper: wrapper, items: items, size: arraySizeOf(wrapper, sel, items) };
+    var v = DSV.findValueById(step, sel.id);
+    if (isArr(v)) {
+      /* array puro: a própria array é a estrutura e o comprimento é o tamanho */
+      return { wrapper: v, items: v, size: v.items.length, plain: true };
+    }
+    if (!isObj(v)) return null;
+    var items = arrayItemsOf(v, sel);
+    return { wrapper: v, items: items, size: arraySizeOf(v, sel, items) };
   }
 
   /* identidade serializada de um item/posição: buraco ≠ undefined ≠ null,
@@ -2043,6 +2055,11 @@
     if (!step || !sel) return focus;
     focus.method = arrayFrameName(step);
     focus.here = !!(step.thisVal && step.thisVal.id === sel.id);
+    if (!focus.here && sel.plain && sel.label && focus.line) {
+      /* array puro global: o foco vale quando a linha cita a própria variável */
+      var rxLabel = String(sel.label).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      focus.here = new RegExp('(^|[^\\w$#.])' + rxLabel + '\\s*\\[').test(focus.line);
+    }
     if (!focus.here) return focus;
     if (focus.line) {
       var idx = arrayLineIndices(focus.line, step);
@@ -2334,6 +2351,7 @@
     var items = state.items;
     var size = state.size;
     var total = items ? items.items.length : 0;
+    var plain = !!state.plain;
     var info = arrayStepInfo(ctx.step, sel, ctx);
     var dur = animDur(ctx);
     var scale = arrayScale(total);
@@ -2341,12 +2359,12 @@
 
     container.__treeScene = null;
     DSV.flipRender(container, function () {
-      var html = head('Array (tamanho manual)',
-        structureSub(sel, size, 'item', 'itens', 'Tamanho manual'), eventsBadge(sel, ctx));
+      var html = head(plain ? 'Array' : 'Array (tamanho manual)',
+        structureSub(sel, size, 'item', 'itens', plain ? 'Array' : 'Tamanho manual'), eventsBadge(sel, ctx));
       html += '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="array-wrap" style="--array-scale:' + scale + '">';
       if (!total) {
-        html += '<div class="empty-inline">A estrutura está vazia (tamanho = 0).</div>';
+        html += '<div class="empty-inline">' + (plain ? 'A estrutura está vazia (comprimento = 0).' : 'A estrutura está vazia (tamanho = 0).') + '</div>';
       } else {
         html += '<div class="array-board">';
         var i, j;
@@ -2393,10 +2411,14 @@
         }
         html += '</div>';
         html += '<div class="array-size-row">';
-        html += '<span class="array-size-tag" title="quantidade lógica de elementos (this.#tamanho)">tamanho = ' + size + '</span>';
-        if (total !== size) {
-          html += '<span class="array-internal" title="o array interno (#items) tem ' + total + ' posições; as que estão fora do tamanho lógico aparecem tracejadas">' +
-            '#items.length = ' + total + '</span>';
+        if (plain) {
+          html += '<span class="array-size-tag" title="comprimento do array (length)">comprimento = ' + size + '</span>';
+        } else {
+          html += '<span class="array-size-tag" title="quantidade lógica de elementos (this.#tamanho)">tamanho = ' + size + '</span>';
+          if (total !== size) {
+            html += '<span class="array-internal" title="o array interno (#items) tem ' + total + ' posições; as que estão fora do tamanho lógico aparecem tracejadas">' +
+              '#items.length = ' + total + '</span>';
+          }
         }
         html += '</div>';
         html += '</div>';
@@ -3577,7 +3599,7 @@
       if (sel.type === 'stack' && isArr(v)) renderStack(container, v, sel, ctx);
       else if (sel.type === 'queue' && isArr(v)) renderQueue(container, v, sel, ctx);
       else if (sel.type === 'list' && isObj(v)) renderList(container, v, sel, ctx);
-      else if (sel.type === 'array' && isObj(v)) renderArray(container, v, sel, ctx);
+      else if (sel.type === 'array' && (isObj(v) || isArr(v))) renderArray(container, v, sel, ctx);
       else if (sel.type === 'tree' && isObj(v)) { usedTree = true; renderTree(container, v, sel, ctx); }
       else renderMessage(container, 'Tipo de estrutura não suportado para este valor.');
     } catch (e) {

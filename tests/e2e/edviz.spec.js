@@ -187,6 +187,26 @@ test('BST remoção: a duplicada aparece na fase com nós e no seletor (regress�
   await expect(page.locator('#structure')).toContainText('A árvore está vazia neste passo.');
 });
 
+test('array puro: células por índice e edição destacada', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    document.getElementById('code').value = 'const v = [1, 2, 3];\nv[0] = 9;\nconsole.log(v);';
+  });
+  await page.click('#btnRun');
+  const play = page.locator('#btnPlay');
+  if ((await play.textContent()) === '❚❚') await play.click();
+  await page.click('#btnLast');
+  await expect(page.locator('#structure .canvas-title')).toHaveText('Array');
+  await expect(page.locator('#structure .array-cell')).toHaveCount(3);
+  await expect(page.locator('#structure .array-cell').first()).toContainText('9');
+  await expect(page.locator('#structure')).toContainText('comprimento = 3');
+
+  /* o seletor lista o array e o painel de comandos mostra a edição */
+  await expect(page.locator('#structureSelect option', { hasText: 'Array — v' })).toHaveCount(1);
+  await page.click('#tabCommands');
+  await expect(page.locator('#commands')).toContainText('Edição');
+});
+
 test('trace longo executa e reporta memória (Chromium)', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'performance.memory só no Chromium');
   await page.goto('/');

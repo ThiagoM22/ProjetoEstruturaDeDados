@@ -3,7 +3,7 @@
 Portal para **aprender estrutura de dados vendo o código executar**: você escreve (ou escolhe) um
 código JavaScript e o portal mostra, passo a passo:
 
-- **a estrutura gráfica** — pilha, fila, lista encadeada, árvore binária ou array com tamanho manual;
+- **a estrutura gráfica** — pilha, fila, lista encadeada, árvore binária ou array (por índice ou com tamanho manual);
 - **a linha do código que está sendo executada** (destacada no editor);
 - os **ponteiros** (`atual`, `no`, `raiz`, `inicio`…) etiquetados sobre os nós das estruturas (na
   árvore, o ponteiro é indicado pela **cor do nó**, sem texto);
@@ -222,6 +222,7 @@ A representação gráfica é animada para que a execução seja fácil de acomp
 | **Lista encadeada** | nós com `proximo`/`next`; início em `inicio`/`head` (inclusive `#head`, ou classe `Lista*`/`LinkedList`). Com campo `prev`/`anterior` nos nós (ou `#tail` no wrapper), a lista é desenhada como dupla |
 | **Árvore binária** | nós com `esquerda`/`direita` (ou `left/right`); raiz em `raiz`/`root` (inclusive `#root`/`#raiz`, ou classe `Arvore*`/`Tree*`) |
 | **Array com tamanho manual** | objeto com array interno (`#items`, `items`, `itens`…) e tamanho numérico (`#tamanho`, `tamanho`, `size`, `length`), como a classe `MeuArray`; o wrapper é a identidade da estrutura (sobrevive ao `limpar()`, que troca o array interno) |
+| **Array por índice** | array global comum (sem cara de pilha/fila) usado por posição, como `const v = [1, 2, 3]; v[0] = 9`; células com índices, comprimento e a posição escrita em destaque |
 
 Nós visitados por um ponteiro `atual`/`no`/`current` ficam destacados em **roxo** (o nó em foco usa o
 realce principal; as visitas somem ao trocar de operação). O trace é gravado na ordem real de conclusão

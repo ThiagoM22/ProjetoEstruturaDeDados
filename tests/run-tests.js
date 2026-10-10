@@ -3941,6 +3941,66 @@ test('meu-array: operações aparecem com o nome da classe de referência', () =
 });
 
 /* ---------------------------------------------------------------- */
+console.log('\n[array puro por índice]');
+
+test('array puro: escrita por índice vira estrutura visualizável (v[0] = 9)', () => {
+  const code = 'const v = [1, 2, 3];\nv[0] = 9;\nconsole.log(v);';
+  const t = run(code);
+  noError(t);
+  const opsMap = DSV.buildOpsMap(t.steps);
+  const last = lastStep(t);
+  const cands = DSV.detectStructures(last, opsMap);
+  eq(cands[0].type, 'array', 'array puro é o melhor candidato');
+  eq(cands[0].label, 'v', 'rótulo é o nome da variável');
+  assert(cands[0].plain === true, 'marcado como array puro');
+  eq(cands[0].id, last.globals.v.id, 'aponta para a própria array');
+
+  /* render no passo da escrita: 3 células, posição em destaque e comprimento */
+  const write = t.steps.filter((s) => s.globals.v && s.globals.v.items[0] && s.globals.v.items[0].v === 9)[0];
+  assert(write, 'passo da escrita');
+  const wi = t.steps.indexOf(write);
+  const wSel = DSV.detectStructures(write, opsMap)[0];
+  const container = {};
+  DSV.renderStructure(container, wSel, write, {
+    opsMap: opsMap,
+    pointers: write.pointers || {},
+    events: write.events || [],
+    prevStep: t.steps[wi - 1] || null,
+    lineText: 'v[0] = 9;'
+  });
+  eq((container.innerHTML.match(/class="array-cell(?=[ "])/g) || []).length, 3, '3 células desenhadas');
+  assert(/class="array-cell[^"]*active/.test(container.innerHTML), 'posição escrita em destaque');
+  assert(/class="array-cell[^"]*changed/.test(container.innerHTML), 'posição alterada marcada');
+  assert(container.innerHTML.indexOf('comprimento = 3') >= 0, 'legenda de comprimento (não tamanho manual)');
+  assert(container.innerHTML.indexOf('#items.length') < 0, 'sem legenda de array interno');
+
+  /* explicação e comando */
+  const info = DSV.explainStep(write, wSel, { lineText: 'v[0] = 9;', prevStep: t.steps[wi - 1] || null });
+  eq(info.op, 'Edição', 'operação reconhecida');
+  assert(info.text.indexOf('posição 0 passou a armazenar 9') >= 0, 'explicação da escrita: ' + info.text);
+  const cmds = DSV.buildCommands(t.steps, code);
+  assert(cmds.some((c) => c.kind === 'op' && c.op === 'Edição'), 'comando de edição');
+});
+
+test('array puro: auxiliares locais e arrays dentro de objetos não viram candidatos', () => {
+  /* parts (local do toString da lista) não pode aparecer no seletor */
+  const ls = DSV.interpret(DSV.EXAMPLES.filter((e) => e.id === 'lista-simples')[0].code);
+  noError(ls);
+  const om = DSV.buildOpsMap(ls.steps);
+  ls.steps.forEach((s) => {
+    DSV.detectStructures(s, om).forEach((c) => {
+      assert(c.label !== 'parts', 'array auxiliar local (parts) não vira candidato');
+    });
+  });
+  /* array dentro de um objeto global continua só como a estrutura do objeto */
+  const t = run('const caixa = { items: [1, 2], tamanho: 2 };');
+  noError(t);
+  const cands = DSV.detectStructures(lastStep(t), DSV.buildOpsMap(t.steps));
+  assert(cands.some((c) => c.type === 'array' && c.label === 'caixa'), 'wrapper (caixa) detectado');
+  assert(!cands.some((c) => c.plain), 'o array interno não vira candidato puro');
+});
+
+/* ---------------------------------------------------------------- */
 console.log('\n[todos os exemplos executam sem erro]');
 DSV.EXAMPLES.forEach((ex) => {
   test('exemplo: ' + ex.name, () => {
