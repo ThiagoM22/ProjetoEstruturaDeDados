@@ -74,11 +74,22 @@
         this.execStmt(ast.body[i], genv);
       }
     } catch (err) {
-      this.error = {
-        message: err && err.message ? err.message : String(err),
-        line: err && err.line ? err.line : null,
-        name: err && err.name ? err.name : 'Error'
-      };
+      if (err && err.__signal) {
+        /* return/break/continue fora de contexto: mensagem clara em vez de "[object Object]" */
+        this.error = {
+          message: err.__signal === 'return'
+            ? '"return" só pode ser usado dentro de uma função.'
+            : '"' + err.__signal + '" só pode ser usado dentro de um laço.',
+          line: this.currentLine || null,
+          name: 'RuntimeError'
+        };
+      } else {
+        this.error = {
+          message: err && err.message ? err.message : String(err),
+          line: err && err.line ? err.line : null,
+          name: err && err.name ? err.name : 'Error'
+        };
+      }
       /* preenche o estado dos passos gravados antes do erro */
       for (var f = 0; f < this.steps.length; f++) {
         if (!this.steps[f].__filled) {
@@ -352,13 +363,6 @@
     target.vars[name] = value;
     if (kind === 'const') target.consts[name] = true;
     else delete target.consts[name];
-  };
-
-  Runtime.prototype.assignVar = function (env, name, value, line) {
-    var owner = env.find(name);
-    if (!owner) this.rtError('"' + name + '" não foi definido. Crie a variável com let/const antes de usá-la.', line);
-    if (owner.consts[name]) this.rtError('"' + name + '" é uma constante e não pode ser reatribuída.', line);
-    owner.vars[name] = value;
   };
 
   Runtime.prototype.execVarDecl = function (stmt, env) {
@@ -762,9 +766,12 @@
     if (op === '-') return -this.toNum(this.evalExpr(node.arg, env));
     if (op === '+') return this.toNum(this.evalExpr(node.arg, env));
     if (op === '++' || op === '--') {
-      var old = this.readTarget(node.arg, env);
+      /* a referência do alvo é resolvida UMA vez (como no JS real): efeitos
+       * colaterais na base/índice não podem acontecer duas vezes */
+      var ref = this.evalTargetRef(node.arg, env);
+      var old = ref.get();
       var nv = this.binaryOp(op === '++' ? '+' : '-', old, 1, node.line);
-      this.writeTarget(node.arg, nv, env, node.line);
+      ref.set(nv);
       return node.prefix ? nv : old;
     }
     this.rtError('Operador não suportado: ' + op, node.line);
@@ -806,63 +813,66 @@
   };
 
   Runtime.prototype.evalAssign = function (node, env) {
+    /* a referência do alvo é resolvida uma única vez (base e índice/propriedade
+     * são avaliados aqui), como no JS real; assim atribuições compostas e ++/--
+     * não reavaliam efeitos colaterais */
+    var ref = this.evalTargetRef(node.target, env);
     var value;
     if (node.op === '=') {
       value = this.evalExpr(node.value, env);
     } else {
-      var old = this.readTarget(node.target, env);
+      var old = ref.get();
       var rhs = this.evalExpr(node.value, env);
       value = this.binaryOp(node.op.charAt(0), old, rhs, node.line);
     }
-    this.writeTarget(node.target, value, env, node.line);
+    ref.set(value);
     return value;
   };
 
-  Runtime.prototype.readTarget = function (target, env) {
+  /* Resolve o alvo de atribuição (Ident, Member ou Index) avaliando base e
+   * índice/propriedade UMA única vez e devolve get/set sobre a referência. */
+  Runtime.prototype.evalTargetRef = function (target, env) {
+    var self = this;
     if (target.type === 'Ident') {
       var owner = env.find(target.name);
-      if (!owner) this.rtError('"' + target.name + '" não foi definido', target.line);
-      return owner.vars[target.name];
+      if (!owner) this.rtError('"' + target.name + '" não foi definido. Crie a variável com let/const antes de usá-la.', target.line);
+      var isConst = !!owner.consts[target.name];
+      return {
+        get: function () { return owner.vars[target.name]; },
+        set: function (v) {
+          if (isConst) self.rtError('"' + target.name + '" é uma constante e não pode ser reatribuída.', target.line);
+          owner.vars[target.name] = v;
+        }
+      };
     }
     if (target.type === 'Member') {
       var base = this.evalExpr(target.obj, env);
-      if (target.priv) return this.getPrivateMember(base, target.prop, target.line);
-      return this.getMember(base, target.prop, target.line);
+      if (target.priv) {
+        return {
+          get: function () { return self.getPrivateMember(base, target.prop, target.line); },
+          set: function (v) { self.setPrivateMember(base, target.prop, v, target.line); }
+        };
+      }
+      return {
+        get: function () { return self.getMember(base, target.prop, target.line); },
+        set: function (v) { self.setMember(base, target.prop, v, target.line); }
+      };
     }
     if (target.type === 'Index') {
       var baseI = this.evalExpr(target.obj, env);
       var key = this.evalExpr(target.prop, env);
+      var name;
       if (Array.isArray(baseI) || typeof baseI === 'string') {
         var n = typeof key === 'number' ? key : this.toNum(key);
-        if (!isNaN(n)) return this.getMember(baseI, String(n), target.line);
+        if (!isNaN(n)) name = String(n);
       }
-      return this.getMember(baseI, this.toStr(key), target.line);
+      if (name === undefined) name = this.toStr(key);
+      return {
+        get: function () { return self.getMember(baseI, name, target.line); },
+        set: function (v) { self.setMember(baseI, name, v, target.line); }
+      };
     }
     this.rtError('Alvo de atribuição inválido', target.line);
-  };
-
-  Runtime.prototype.writeTarget = function (target, value, env, line) {
-    if (target.type === 'Ident') {
-      this.assignVar(env, target.name, value, line);
-      return;
-    }
-    if (target.type === 'Member') {
-      var base = this.evalExpr(target.obj, env);
-      if (target.priv) { this.setPrivateMember(base, target.prop, value, line); return; }
-      this.setMember(base, target.prop, value, line);
-      return;
-    }
-    if (target.type === 'Index') {
-      var baseI = this.evalExpr(target.obj, env);
-      var key = this.evalExpr(target.prop, env);
-      if (Array.isArray(baseI)) {
-        var n = typeof key === 'number' ? key : this.toNum(key);
-        if (!isNaN(n)) { this.setMember(baseI, String(n), value, line); return; }
-      }
-      this.setMember(baseI, this.toStr(key), value, line);
-      return;
-    }
-    this.rtError('Alvo de atribuição inválido', line);
   };
 
   Runtime.prototype.evalNew = function (node, env) {
@@ -874,12 +884,14 @@
       }
       this.rtError('"' + name + '" não é uma classe. Declare com "class ' + (node.callee.type === 'Ident' ? name : 'Nome') + ' { ... }"', node.line);
     }
+    /* como no JS real: os argumentos são avaliados ANTES de criar o objeto e
+     * rodar os inicializadores de campo */
+    var args = [];
+    for (var i = 0; i < node.args.length; i++) args.push(this.evalExpr(node.args[i], env));
     var obj = {};
     this.defineId(obj);
     Object.defineProperty(obj, '__class', { value: cls, enumerable: false, configurable: false });
     this.initFields(obj, cls);
-    var args = [];
-    for (var i = 0; i < node.args.length; i++) args.push(this.evalExpr(node.args[i], env));
     if (cls.ctor) this.callFunction(cls.ctor, obj, args, node.line, 'new ' + cls.name);
     return obj;
   };
@@ -1003,16 +1015,19 @@
     }
     if (Array.isArray(obj)) {
       if (name === 'length') {
-        var n = this.toNum(value) | 0;
-        if (n < obj.length) obj.length = n;
-        else while (obj.length < n) obj.push(undefined);
+        /* como no JS real: precisa ser inteiro entre 0 e 2^32-1; crescer o
+         * length deixa buracos (não valores undefined) nas posições novas */
+        var n = this.toNum(value);
+        if (typeof n !== 'number' || Number.isNaN(n) || n < 0 || n > 4294967295 || Math.trunc(n) !== n) {
+          this.rtError('Tamanho de array inválido: ' + this.toStr(value), line);
+        }
+        obj.length = n;
         return;
       }
       if (/^[0-9]+$/.test(name)) {
-        var ix = Number(name);
-        if (ix < obj.length) obj[ix] = value;
-        else if (ix === obj.length) obj.push(value);
-        else { while (obj.length < ix) obj.push(undefined); obj.push(value); }
+        /* escrita por índice: o array real cresce sozinho e deixa buracos nas
+         * posições puladas — buraco ≠ um undefined armazenado */
+        obj[Number(name)] = value;
         return;
       }
       obj[name] = value;
@@ -1101,6 +1116,9 @@
   Runtime.prototype.looseEq = function (a, b) {
     if (this.strictEq(a, b)) return true;
     if ((a === null && b === undefined) || (a === undefined && b === null)) return true;
+    /* dois objetos/arrays: no JS real a igualdade frouxa entre eles é a
+     * própria identidade (já testada acima) — não converter para string */
+    if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) return false;
     var ta = typeof a, tb = typeof b;
     if ((ta === 'number' || ta === 'boolean') && (tb === 'number' || tb === 'string' || tb === 'boolean')) {
       return this.toNum(a) === this.toNum(b);
@@ -1285,8 +1303,22 @@
         return arr;
       }
       case 'fill': {
+        /* como o JS real: start/end opcionais, negativos contam do fim,
+         * NaN vira 0 e os limites são truncados ao tamanho do array */
         var fv = args[0];
-        for (var fi = 0; fi < arr.length; fi++) arr[fi] = fv;
+        var flen = arr.length;
+        var toIdx = function (x) {
+          var n = self.toNum(x);
+          if (Number.isNaN(n)) return 0;
+          if (n === Infinity) return flen;
+          if (n === -Infinity) return 0;
+          n = Math.trunc(n);
+          if (n < 0) return Math.max(flen + n, 0);
+          return Math.min(n, flen);
+        };
+        var fs = args.length > 1 && args[1] !== undefined ? toIdx(args[1]) : 0;
+        var fe = args.length > 2 && args[2] !== undefined ? toIdx(args[2]) : flen;
+        for (var fi = fs; fi < fe; fi++) arr[fi] = fv;
         return arr;
       }
       case 'forEach': {
@@ -1582,8 +1614,9 @@
         return parseFloat(rt.toStr(args[0]));
       }),
       parseInt: this.native('Number.parseInt', function (rt, thisVal, args) {
-        var radix = args.length > 1 ? rt.toNum(args[1]) : 10;
-        return parseInt(rt.toStr(args[0]), radix || 10);
+        /* sem radix (undefined/NaN/0) o JS detecta 0x/0X como base 16 */
+        var radix = args.length > 1 && args[1] !== undefined ? rt.toNum(args[1]) : undefined;
+        return parseInt(rt.toStr(args[0]), radix);
       }),
       MAX_SAFE_INTEGER: Number.MAX_SAFE_INTEGER,
       MIN_SAFE_INTEGER: Number.MIN_SAFE_INTEGER
@@ -1597,8 +1630,9 @@
       return rt.truthy(args[0]);
     });
     builtins.vars.parseInt = this.native('parseInt', function (rt, thisVal, args) {
-      var radix = args.length > 1 ? rt.toNum(args[1]) : 10;
-      return parseInt(rt.toStr(args[0]), radix || 10);
+      /* sem radix (undefined/NaN/0) o JS detecta 0x/0X como base 16 */
+      var radix = args.length > 1 && args[1] !== undefined ? rt.toNum(args[1]) : undefined;
+      return parseInt(rt.toStr(args[0]), radix);
     });
     builtins.vars.parseFloat = this.native('parseFloat', function (rt, thisVal, args) {
       return parseFloat(rt.toStr(args[0]));

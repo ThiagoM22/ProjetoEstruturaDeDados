@@ -1,0 +1,9 @@
+# ED Viz — o site publicado é estático: só index.html, css/ e js/ são necessários.
+# Fora do deploy ficam os testes, o servidor de desenvolvimento e arquivos locais.
+tests/
+playwright.config.js
+servidor.js
+iniciar.cmd
+AUDITORIA.md
+package.json
+package-lock.json

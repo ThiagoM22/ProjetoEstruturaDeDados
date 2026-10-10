@@ -3850,6 +3850,70 @@ DSV.EXAMPLES.forEach((ex) => {
 });
 
 /* ---------------------------------------------------------------- */
+console.log('\n[fidelidade com o JS real: casos de regressão]');
+
+test('igualdade frouxa entre objetos usa a identidade (como o JS)', () => {
+  const t = run('const a=[1]; const b=[1]; const p={}; const q={}; console.log(a==b, a==a, a!=b, p==q, p==p);');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['false true true false true']));
+});
+
+test('fill respeita start/end (inclusive negativos)', () => {
+  const t = run('const a=[1,2,3]; a.fill(9,1,2); console.log(a.join(",")); const b=[1,2,3,4]; b.fill(0,-2); console.log(b.join(","));');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['1,9,3', '1,2,0,0']));
+});
+
+test('atribuição composta avalia o alvo uma única vez', () => {
+  const t = run('let i=0; const a=[10,20]; a[i++]+=1; console.log(i, a.join(","));');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['1 11,20']));
+});
+
+test('++ sobre chamada com efeito colateral avalia a base uma única vez', () => {
+  const t = run('let n=0; const o={x:1}; function get(){ n++; return o; } get().x++; console.log(n, o.x);');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['1 2']));
+});
+
+test('a.length = n cresce com buracos (não com undefined)', () => {
+  const t = run('let a=[]; a.length=3; console.log(Object.keys(a).length, a.length, a[0]===undefined);');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['0 3 true']));
+  const terr = run('const a=[]; a.length = -1;');
+  assert(terr.error, 'length negativo deve dar erro');
+  assert(terr.error.message.indexOf('inválido') >= 0, 'mensagem de tamanho inválido: ' + terr.error.message);
+});
+
+test('escrita por índice além do fim deixa buracos', () => {
+  const t = run('const a=[1]; a[3]=4; console.log(a.length, Object.keys(a).join(","));');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['4 0,3']));
+});
+
+test('new avalia os argumentos antes dos inicializadores de campo', () => {
+  const t = run('const log=[]; function f(){log.push("campo"); return 1;} function g(){log.push("arg"); return 2;} class C { x = f(); constructor(v){this.v=v;} } new C(g()); console.log(log.join(">"));');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['arg>campo']));
+});
+
+test('parseInt detecta 0x/0X sem radix (como o JS)', () => {
+  const t = run('console.log(parseInt("0x10"), Number.parseInt("0xff"), parseInt("08"));');
+  noError(t);
+  eq(JSON.stringify(outputs(t)), JSON.stringify(['16 255 8']));
+});
+
+test('return/break fora de contexto dão mensagem clara (não "[object Object]")', () => {
+  const t1 = run('return 1;');
+  assert(t1.error, 'erro esperado para return no topo');
+  assert(t1.error.message.indexOf('[object Object]') < 0, 'sem [object Object]: ' + t1.error.message);
+  assert(t1.error.message.indexOf('return') >= 0, 'mensagem cita return: ' + t1.error.message);
+  const t2 = run('break;');
+  assert(t2.error, 'erro esperado para break no topo');
+  assert(t2.error.message.indexOf('break') >= 0, 'mensagem cita break: ' + (t2.error && t2.error.message));
+});
+
+/* ---------------------------------------------------------------- */
 console.log('\n========================================');
 console.log('Testes: ' + passed + ' passaram, ' + failed + ' falharam.');
 if (failures.length) {

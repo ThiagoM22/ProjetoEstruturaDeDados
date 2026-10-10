@@ -1121,6 +1121,57 @@ test('modo debug: erro de sintaxe não entra em debug', () => {
 });
 
 /* ------------------------------------------------------------------ */
+console.log('\n[edição, debug e buffer por aba]');
+
+test('modo debug: Tab/Enter não editam o código travado', () => {
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  fire('btnDebug', 'click');
+  assert($('code').readOnly === true, 'debug ativo');
+  const antes = $('code').value;
+  const buffersAntes = storage['edviz.buffers'] || '';
+  fire('code', 'keydown', { key: 'Tab', preventDefault() {}, selectionStart: 3, selectionEnd: 3 });
+  fire('code', 'keydown', { key: 'Enter', preventDefault() {}, selectionStart: 3, selectionEnd: 3 });
+  assert($('code').value === antes, 'nenhuma tecla altera o código no debug');
+  assert((storage['edviz.buffers'] || '') === buffersAntes, 'localStorage intocado no debug');
+  const passoAntes = parseInt($('slider').value, 10);
+  key('x');
+  assert(parseInt($('slider').value, 10) === passoAntes + 1, 'o passo continua avançando com qualquer tecla');
+  key('Escape');
+  assert($('code').readOnly === false, 'saiu do debug');
+});
+
+test('edição depois da execução marca o trace como obsoleto', () => {
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  fire('btnNext', 'click');
+  $('code').value = 'let x = 1;\n';
+  fire('code', 'input', {});
+  assert($('statusLine').textContent.indexOf('editado') >= 0, 'status avisa: ' + $('statusLine').textContent);
+  assert($('stepOp').textContent === 'Código editado', 'faixa avisa: ' + $('stepOp').textContent);
+  fire('btnNext', 'click');
+  assert($('statusLine').textContent.indexOf('editado') >= 0, 'navegar mantém o aviso');
+  assert($('lineHilite').style.display === 'none', 'sem destaque de linha no código novo');
+  fire('btnRun', 'click');
+  if ($('btnPlay').textContent === '❚❚') fire('btnPlay', 'click');
+  assert($('statusLine').textContent.indexOf('linha') === 0, 'depois de executar volta ao normal: ' + $('statusLine').textContent);
+});
+
+test('abas: cada exemplo guarda o próprio código', () => {
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  $('code').value = 'const pilha = [1];\npilha.push(2);';
+  fire('code', 'input', {});
+  $('exampleSelect').value = 'fila-array';
+  fire('exampleSelect', 'change');
+  assert($('code').value.indexOf('fila') >= 0, 'abriu o exemplo da fila');
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  assert($('code').value === 'const pilha = [1];\npilha.push(2);', 'código editado da pilha foi restaurado');
+  assert((storage['edviz.buffers'] || '').indexOf('pilha') >= 0 || (storage['edviz.buffers'] || '').indexOf('const pilha = [1]') >= 0, 'buffers persistidos');
+});
+
+/* ------------------------------------------------------------------ */
 console.log('\n[dica de variável: hover no editor]');
 
 /* O editor mede a largura do caractere com um span oculto. No DOM

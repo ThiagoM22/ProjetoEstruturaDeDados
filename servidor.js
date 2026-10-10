@@ -91,7 +91,9 @@ servidor.on('error', function (err) {
   process.exit(1);
 });
 
-servidor.listen(PORTA, function () {
+/* escuta apenas na própria máquina: o portal é para uso local e para
+ * publicação estática (Vercel) — não precisa ficar exposto na rede */
+servidor.listen(PORTA, '127.0.0.1', function () {
   console.log('ED Viz rodando em http://localhost:' + PORTA);
   console.log('(Ctrl+C para parar)');
 });

@@ -263,6 +263,10 @@ js/views.js           detecção de estruturas + renderização (SVG/HTML animad
 js/app.js             editor, playback e painéis
 tests/run-tests.js    testes do núcleo (parser/interpretador/exemplos/animação)
 tests/run-ui-smoke.js testes de integração da interface (DOM simulado)
+tests/e2e/            testes de ponta a ponta em navegador real (Playwright)
+playwright.config.js  configuração dos testes e2e (Chromium + Firefox)
+vercel.json           cabeçalhos de segurança/cache do deploy estático
+.vercelignore         o que não vai para o site publicado
 ```
 
 ## Testes
@@ -288,6 +292,32 @@ distintos de `undefined`, `itemsDuplicados`, `limpar` sobrevivendo à troca do a
 histórico estável),
 recolhimento de painéis, a dica de variável do editor (hover, inclusive de campos como `node.value`,
 cadeias e `this.#campo`), os 16 exemplos e a renderização de todos os passos na interface.
+
+### Testes no navegador (Playwright)
+
+```bash
+npm install                              # instala @playwright/test (só desenvolvimento)
+npx playwright install chromium firefox  # baixa os navegadores (uma vez)
+npm run test:e2e                         # roda a suíte em Chromium e Firefox
+```
+
+Cobrem o que o DOM simulado não alcança: layout real, foco e teclado, persistência por aba
+entre reloads, abertura em `file://`, janela estreita, `prefers-reduced-motion` e memória de um
+trace longo. `npm run test:all` roda o núcleo + UI simulada + navegador.
+
+## Publicação (Vercel)
+
+O ED Viz é um site **estático** — publicar é entregar `index.html`, `css/` e `js/`; não há build,
+backend, variáveis de ambiente nem banco. O `servidor.js` é só uma conveniência local.
+
+- **Via Git:** importe o repositório na Vercel (framework: *Other*, sem build). O `.vercelignore`
+  deixa `tests/`, `servidor.js`, `iniciar.cmd` e arquivos locais fora do deploy.
+- **Via CLI:** `npx vercel` (preview) e `npx vercel --prod`.
+- **Cabeçalhos:** o `vercel.json` define `Content-Security-Policy`, `X-Content-Type-Options`,
+  `Referrer-Policy` e cache de 1h com revalidação para `css/` e `js/`.
+- **Rollback:** publique de novo um commit anterior (o site não guarda estado no servidor).
+- **Banco de trabalho do usuário:** o código fica no `localStorage` do navegador, por aba — cada
+  visitante tem o próprio rascunho local.
 
 ## Ideias de evolução
 

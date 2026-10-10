@@ -6,6 +6,11 @@
   "scripts": {
     "start": "node servidor.js",
     "serve": "node servidor.js",
-    "test": "node tests/run-tests.js && node tests/run-ui-smoke.js"
+    "test": "node tests/run-tests.js && node tests/run-ui-smoke.js",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
   }
 }

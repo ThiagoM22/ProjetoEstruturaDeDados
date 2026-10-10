@@ -68,8 +68,9 @@
   var PAD_TOP = 10;
   var CODE_PAD_LEFT = 12;   /* padding esquerdo do editor (.code-input) */
   var HOVER_DELAY = 350;    /* tempo com o mouse parado sobre a variável */
-  var STORAGE_CODE = 'edviz.code';
+  var STORAGE_CODE = 'edviz.code';        /* legado: migrado para STORAGE_BUFFERS */
   var STORAGE_EX = 'edviz.example';
+  var STORAGE_BUFFERS = 'edviz.buffers';  /* código guardado por aba (id do exemplo) */
 
   var state = {
     trace: null,
@@ -79,6 +80,7 @@
     timer: null,
     speed: 1,
     debug: false,      /* modo debug: cada tecla executa a próxima linha */
+    stale: false,      /* o código foi editado depois da execução */
     forced: null,      /* estrutura escolhida manualmente {type,id,label} */
     sticky: null,      /* última seleção automática */
     candidates: [],
@@ -86,7 +88,8 @@
     visit: { order: [], map: {} },
     errorLine: null,
     tabs: [],          /* exemplos abertos como abas */
-    activeTab: null    /* aba ativa (id do exemplo) */
+    activeTab: null,   /* aba ativa (id do exemplo) */
+    buffers: {}        /* código guardado de cada aba, por id do exemplo */
   };
 
   /* ------------------------------------------------------------------ */
@@ -189,18 +192,41 @@
     syncScroll();
   }
 
+  /* Grava o código de todas as abas (por exemplo) no localStorage. */
+  function saveBuffers() {
+    try { localStorage.setItem(STORAGE_BUFFERS, JSON.stringify(state.buffers)); } catch (e) { /* ignora */ }
+  }
+
+  /* O código foi editado depois da execução: nada na tela pode continuar
+   * apontando para o trace antigo sem avisar. */
+  function updateStaleUI() {
+    if (!state.stale || !state.trace) return;
+    setCurrentLine(null);
+    els.statusLine.textContent = 'código editado — execute novamente';
+    if (els.stepExplainer) {
+      els.stepExplainer.classList.remove('hidden');
+      els.stepOp.textContent = 'Código editado';
+      els.stepText.textContent = 'Execute novamente para atualizar a visualização.';
+      els.stepCount.textContent = (state.index + 1) + '/' + steps().length;
+    }
+  }
+
   function onEdit() {
     hideVarTip();
     renderHighlight();
     renderGutter();
     syncScroll();
-    try { localStorage.setItem(STORAGE_CODE, els.code.value); } catch (e) { /* ignora */ }
+    if (state.activeTab) state.buffers[state.activeTab] = els.code.value;
+    saveBuffers();
+    state.stale = !!(state.trace && els.code.value !== state.traceCode);
+    if (state.stale) updateStaleUI();
   }
 
   els.code.addEventListener('input', onEdit);
   els.code.addEventListener('scroll', syncScroll);
 
   els.code.addEventListener('keydown', function (ev) {
+    if (state.debug) return; /* em debug o editor está travado: nenhuma tecla edita */
     if (ev.key === 'Tab') {
       ev.preventDefault();
       var s = this.selectionStart;
@@ -358,6 +384,7 @@
     stopPlay();
     state.trace = DSV.interpret(els.code.value);
     state.traceCode = els.code.value;
+    state.stale = false;
     state.opsMap = DSV.buildOpsMap(state.trace.steps);
     state.visit = DSV.computeVisitOrder(state.trace.steps);
     state.forced = null;
@@ -378,8 +405,6 @@
     els.slider.max = Math.max(state.trace.steps.length - 1, 0);
     /* em caso de erro, posiciona no passo em que ele ocorreu */
     goto(state.trace.error && state.trace.steps.length ? state.trace.steps.length - 1 : 0);
-
-    try { localStorage.setItem(STORAGE_CODE, els.code.value); } catch (e) { /* ignora */ }
   }
 
   /* Executar também dispara a reprodução: o trace já está todo calculado,
@@ -423,7 +448,7 @@
     state.tabs.forEach(function (id) {
       var ex = exampleById(id);
       var active = id === state.activeTab;
-      html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" title="' + esc(ex ? ex.name : id) + '">' +
+      html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + esc(id) + '" role="tab" aria-selected="' + (active ? 'true' : 'false') + '" tabindex="0" title="' + esc(ex ? ex.name : id) + '">' +
         '<span class="tab-name">' + esc(id + '.js') + '</span>' +
         '<button type="button" class="tab-close" data-close="' + esc(id) + '" title="Fechar aba" aria-label="Fechar ' + esc(id + '.js') + '">×</button>' +
         '</div>';
@@ -440,7 +465,9 @@
   function loadExample(id) {
     var ex = exampleById(id);
     if (!ex) return;
-    els.code.value = ex.code;
+    /* cada aba mantém o próprio código: reabrir um exemplo restaura as edições */
+    var buffered = state.buffers[id];
+    els.code.value = buffered != null ? buffered : ex.code;
     els.exampleSelect.value = ex.id;
     els.exampleSelect.title = ex.name;
     try { localStorage.setItem(STORAGE_EX, ex.id); } catch (e) { /* ignora */ }
@@ -930,6 +957,8 @@
     if (!st.length) {
       els.stepLabel.textContent = 'passo 0/0';
       els.statusLine.textContent = 'linha —';
+      els.slider.value = 0;
+      updateSliderFill();
       setCurrentLine(null);
       DSV.renderStructure(els.structure, null, null, {});
       canvasAfterRender(null);
@@ -949,18 +978,23 @@
     }
     state.index = DSV.clamp(i, 0, st.length - 1);
     var step = st[state.index];
+    var stale = !!state.stale;
 
     els.slider.value = state.index;
     updateSliderFill();
     els.stepLabel.textContent = 'passo ' + (state.index + 1) + '/' + st.length;
 
-    var srcLines = els.code.value.split('\n');
-    var lineText = srcLines[step.line - 1] ? srcLines[step.line - 1].trim() : '';
-    els.statusLine.textContent = 'linha ' + step.line + (lineText ? ' : ' + lineText : '');
+    if (stale) {
+      els.statusLine.textContent = 'código editado — execute novamente';
+    } else {
+      var srcLines = els.code.value.split('\n');
+      var lineText = srcLines[step.line - 1] ? srcLines[step.line - 1].trim() : '';
+      els.statusLine.textContent = 'linha ' + step.line + (lineText ? ' : ' + lineText : '');
+    }
 
-    var isErrorStep = state.errorLine === step.line && state.index === st.length - 1 && !!state.trace.error;
-    setCurrentLine(step.line, isErrorStep);
-    ensureLineVisible(step.line);
+    var isErrorStep = !stale && state.errorLine === step.line && state.index === st.length - 1 && !!state.trace.error;
+    setCurrentLine(stale ? null : step.line, isErrorStep);
+    if (!stale) ensureLineVisible(step.line);
 
     renderStructurePanel(step);
     renderCallstack(step);
@@ -1047,6 +1081,13 @@
     var st = steps();
     if (!st.length || !step) {
       els.stepExplainer.classList.add('hidden');
+      return;
+    }
+    if (state.stale) {
+      els.stepExplainer.classList.remove('hidden');
+      els.stepOp.textContent = 'Código editado';
+      els.stepText.textContent = 'Execute novamente para atualizar a visualização.';
+      els.stepCount.textContent = (state.index + 1) + '/' + st.length;
       return;
     }
     var srcLines = els.code.value.split('\n');
@@ -1271,6 +1312,33 @@
     closeTab(tab.getAttribute('data-tab'));
   });
 
+  /* teclado nas abas (padrão tablist): Enter/Espaço ativa, setas navegam */
+  els.tabs.addEventListener('keydown', function (ev) {
+    var t = ev.target;
+    if (!t || typeof t.closest !== 'function') return;
+    var tab = t.closest('.tab');
+    if (!tab || typeof tab.getAttribute !== 'function') return;
+    if (t.classList && typeof t.classList.contains === 'function' && t.classList.contains('tab-close')) return;
+    var id = tab.getAttribute('data-tab');
+    if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+      if (typeof ev.preventDefault === 'function') ev.preventDefault();
+      openTab(id);
+      return;
+    }
+    if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+      if (typeof ev.preventDefault === 'function') ev.preventDefault();
+      var i = state.tabs.indexOf(id);
+      if (i < 0) return;
+      var j = ev.key === 'ArrowLeft' ? (i - 1 + state.tabs.length) % state.tabs.length : (i + 1) % state.tabs.length;
+      var nextId = state.tabs[j];
+      openTab(nextId);
+      if (typeof els.tabs.querySelector === 'function') {
+        var nt = els.tabs.querySelector('.tab[data-tab="' + nextId + '"]');
+        if (nt && typeof nt.focus === 'function') nt.focus();
+      }
+    }
+  });
+
   /* canvas: controles, roda do mouse e arrasto */
   els.btnZoomIn.addEventListener('click', function () { canvasZoomCenter(1.25); });
   els.btnZoomOut.addEventListener('click', function () { canvasZoomCenter(0.8); });
@@ -1387,10 +1455,15 @@
 
     var savedEx = null;
     var savedCode = null;
+    var savedBuffers = null;
     try {
       savedEx = localStorage.getItem(STORAGE_EX);
       savedCode = localStorage.getItem(STORAGE_CODE);
+      savedBuffers = localStorage.getItem(STORAGE_BUFFERS);
     } catch (e) { /* ignora */ }
+    if (savedBuffers) {
+      try { state.buffers = JSON.parse(savedBuffers) || {}; } catch (e) { state.buffers = {}; }
+    }
 
     var example = null;
     if (savedEx) {
@@ -1404,8 +1477,12 @@
     els.exampleSelect.title = example.name;
     state.tabs = [example.id];
     state.activeTab = example.id;
+    /* migração: o código único salvo pelas versões anteriores vira o buffer da aba ativa */
+    if (savedCode && savedCode.trim() && state.buffers[example.id] == null) {
+      state.buffers[example.id] = savedCode;
+    }
     renderTabs();
-    els.code.value = savedCode && savedCode.trim() ? savedCode : example.code;
+    els.code.value = state.buffers[example.id] != null ? state.buffers[example.id] : example.code;
 
     setupSplitters();
     setupLayoutControls();
