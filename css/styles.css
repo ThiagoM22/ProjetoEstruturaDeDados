@@ -993,15 +993,23 @@ kbd {
 .list-node-wrap { display: flex; flex-direction: column; align-items: center; }
 
 /* faixa reservada das etiquetas (HEAD, ponteiros e visitas): altura fixa
- * para o nó não pular quando as etiquetas aparecem */
+ * para o nó não pular quando as etiquetas aparecem. A faixa é centrada no
+ * NÓ (e não na unidade, que inclui o bloco de setas à direita): sem a
+ * compensação, a etiqueta do HEAD/TAIL fica meia largura das setas à
+ * direita do nó. O deslocamento é metade do bloco de setas
+ * (30px de trilha + 2 × 4px de margem), na escala da lista. */
 .list-ptrs {
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: var(--sp-1);
-  min-height: calc(25px * var(--list-scale));
-  padding-bottom: calc(5px * var(--list-scale));
+  min-height: calc(28px * var(--list-scale));
+  padding-bottom: calc(8px * var(--list-scale));
+  transform: translateX(calc(-19px * var(--list-scale)));
 }
+
+/* nó pendente da lista simples (ainda sem setas): a faixa já está centrada */
+.list-ptrs.no-arrows { transform: none; }
 
 .list-box-row { display: flex; align-items: center; }
 
@@ -1113,8 +1121,8 @@ kbd {
   white-space: nowrap;
 }
 
-/* HEAD/TAIL: etiquetas discretas sobre o primeiro/último nó, com a ponta
- * voltada para ele; quando mudam de nó, a etiqueta fica em roxo naquela etapa */
+/* HEAD/TAIL: etiquetas discretas sobre o primeiro/último nó; quando mudam
+ * de nó, a etiqueta fica em roxo naquela etapa */
 .list-head-tag,
 .list-tail-tag {
   position: relative;
@@ -1127,6 +1135,8 @@ kbd {
   padding: 0 6px;
 }
 
+/* lista vazia (etiquetas fora da faixa .list-ptrs, junto do terminador):
+ * mantém a seta discreta voltada para baixo, como no diagrama atual */
 .list-head-tag::after,
 .list-tail-tag::after {
   content: '';
@@ -1139,6 +1149,19 @@ kbd {
   border-top: 4px solid var(--border-strong);
 }
 
+/* etiqueta sobre um nó: uma linha fina liga a base da etiqueta à borda
+ * superior do nó, centralizada nos dois; termina na borda (nunca sobre o
+ * conteúdo) e a ponta roxa discreta reforça a associação com o nó */
+.list-ptrs .list-head-tag::after,
+.list-ptrs .list-tail-tag::after {
+  top: calc(100% + 1px);
+  bottom: auto;
+  width: 1px;
+  height: calc(8px * var(--list-scale) + 1px);
+  border: 0;
+  background: linear-gradient(to bottom, var(--border-strong), var(--accent-muted));
+}
+
 .list-head-tag.changed,
 .list-tail-tag.changed {
   color: var(--accent-text);
@@ -1148,6 +1171,10 @@ kbd {
 
 .list-head-tag.changed::after,
 .list-tail-tag.changed::after { border-top-color: var(--accent); }
+
+/* o indicador mudou de nó: a linha-guia acompanha o destaque roxo */
+.list-ptrs .list-head-tag.changed::after,
+.list-ptrs .list-tail-tag.changed::after { background: var(--accent); }
 
 /* conexão entre a região NEXT e o próximo nó (ou o terminador); na lista
  * dupla a volta (PREV) usa a pista de baixo, espelhada, para as duas

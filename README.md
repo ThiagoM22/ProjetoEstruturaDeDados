@@ -61,7 +61,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   centralizada quando a estrutura muda de tamanho.
 - **Lista simplesmente encadeada**: cada nó é uma caixa dividida em **VALUE** (o valor, com mais
   destaque) e **NEXT** (a referência); a conexão parte da região NEXT e aponta para o próximo nó —
-  a seta nunca é desenhada dentro da região. **HEAD** é uma etiqueta discreta sobre o primeiro nó e
+  a seta nunca é desenhada dentro da região. **HEAD** é uma etiqueta discreta sobre o primeiro nó —
+  ligada à borda superior dele por uma linha-guia fina, com um leve toque roxo — e
   o fim da corrente é marcado por um indicador compacto **∅** (sem virar um nó, sem contar no
   tamanho e preservando a referência real — `undefined`/`null` — no título); na lista vazia, o
   diagrama mostra `HEAD → ∅`. O nó em exame fica em **roxo forte**, os já visitados na
@@ -76,7 +77,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
   e entre cada par de nós há **duas pistas de setas**: a de cima é a ida (`next` de A para B) e a
   de baixo é a volta (`prev` de B para A), em duas linhas paralelas com as hastes alinhadas no
   mesmo eixo (sem setas cruzadas nem sobrepostas). **HEAD** e **TAIL** marcam as
-  extremidades e as pontas nulas viram o indicador compacto **∅** (no início, para `head.prev`, e
+  extremidades — cada etiqueta ligada ao seu nó por uma linha-guia fina, com um
+  leve toque roxo — e as pontas nulas viram o indicador compacto **∅** (no início, para `head.prev`, e
   no fim, para `tail.next`); na lista vazia, o diagrama mostra `HEAD → ∅ ← TAIL`. O nó em exame
   fica em **roxo forte**, os já visitados em **roxo suave**, e a **referência alterada** (prev ou
   next) e o **HEAD/TAIL que mudou de nó** ficam em destaque naquela etapa; o percurso reverso
@@ -109,7 +111,8 @@ Não precisa instalar nada: é uma aplicação estática (HTML/CSS/JS puro).
 
 1. Escolha um exemplo no seletor (cada exemplo vira uma aba; clique na aba para trocar, no `×` ou com o
    **clique do meio do mouse** — a roda — para fechar) ou escreva seu próprio código no editor.
-2. Clique em **Executar ▶** (ou `Ctrl+Enter`).
+2. Clique em **Executar ▶** (ou `Ctrl+Enter`) — a execução roda e **começa a tocar** do primeiro
+   passo; pause com `Espaço` ou no **▶/❚❚** quando quiser examinar um passo com calma.
 3. Navegue com **▶/❚❚**, os botões de passo, a **barra de progresso** ou o teclado:
    - `←` / `→` — passo anterior / próximo
    - `Espaço` — play/pause

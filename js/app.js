@@ -382,6 +382,14 @@
     try { localStorage.setItem(STORAGE_CODE, els.code.value); } catch (e) { /* ignora */ }
   }
 
+  /* Executar também dispara a reprodução: o trace já está todo calculado,
+   * então o clique mostra a execução avançando em vez de parar no passo 1.
+   * Em caso de erro não toca — o banner e o passo do erro já explicam. */
+  function runAndPlay() {
+    run();
+    if (!state.trace.error && steps().length > 1) play();
+  }
+
   function showBanner(msg) {
     els.banner.innerHTML = esc(msg);
     els.banner.classList.remove('hidden');
@@ -1195,7 +1203,7 @@
   /* Eventos de UI                                                       */
   /* ------------------------------------------------------------------ */
 
-  els.btnRun.addEventListener('click', function () { exitDebug(); run(); });
+  els.btnRun.addEventListener('click', function () { exitDebug(); runAndPlay(); });
   els.btnDebug.addEventListener('click', startDebug);
   els.btnExitDebug.addEventListener('click', exitDebug);
   els.btnPlay.addEventListener('click', play);
@@ -1330,7 +1338,7 @@
     if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
       ev.preventDefault();
       exitDebug();
-      run();
+      runAndPlay();
       return;
     }
     if (ev.key === 'F10') {

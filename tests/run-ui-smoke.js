@@ -992,6 +992,25 @@ test('slider navega para um passo do meio', () => {
   assert($('stepLabel').textContent.indexOf('passo 3/') === 0, 'rótulo do passo: ' + $('stepLabel').textContent);
 });
 
+test('Executar também inicia a reprodução (o clique avança sozinho)', () => {
+  $('code').value = 'const pilha = [];\npilha.push(1);\npilha.push(2);';
+  fire('btnRun', 'click');
+  assert($('btnPlay').textContent === '❚❚', 'play ativo logo após Executar');
+  assert(pendingTimers.length > 0, 'próximo passo agendado');
+  const timer = pendingTimers.pop();
+  timer(); /* dispara o timer como o navegador faria */
+  assert(parseInt($('slider').value, 10) >= 1, 'a execução avançou um passo: ' + $('slider').value);
+  fire('btnPlay', 'click'); /* pausa para não afetar os próximos testes */
+  assert($('btnPlay').textContent === '▶', 'pausado');
+});
+
+test('Executar com erro não dispara o play', () => {
+  $('code').value = 'null.x;';
+  fire('btnRun', 'click');
+  assert($('btnPlay').textContent === '▶', 'play não dispara em erro');
+  assert($('banner').innerHTML.indexOf('Erro') >= 0, 'banner de erro visível');
+});
+
 /* ------------------------------------------------------------------ */
 console.log('\n[modo debug: passo a passo por tecla]');
 

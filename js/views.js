@@ -1417,9 +1417,13 @@
       arrows = opts.arrow === false ? '' : listArrowHtml(opts.arrowCls);
     }
 
+    /* pendente da lista simples ainda não tem setas à direita: a faixa de
+     * etiquetas não leva a compensação e fica centralizada no nó criado */
+    var ptrsCls = 'list-ptrs' + (!opts.doubly && opts.arrow === false ? ' no-arrows' : '');
+
     return '<div class="list-unit' + (opts.pending ? ' pending' : '') + '" data-k="n' + node.id + '" data-enter="' + opts.enterDir + '" data-exit="' + opts.exitDir + '">' +
       '<div class="list-node-wrap">' +
-      '<div class="list-ptrs">' + ptrs + '</div>' +
+      '<div class="' + ptrsCls + '">' + ptrs + '</div>' +
       '<div class="list-box-row">' +
       '<div class="' + nodeCls + '"' + (title ? ' title="' + title + '"' : '') + '>' +
       (opts.doubly ? '<span class="list-prev' + (opts.changedPrev ? ' changed' : '') + '" title="referência para o nó anterior (node.prev)">PREV<span class="list-prev-dot"></span></span>' : '') +
