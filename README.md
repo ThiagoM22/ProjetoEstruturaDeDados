@@ -7,7 +7,7 @@
 ![JavaScript puro](https://img.shields.io/badge/JavaScript-puro-f7df1e?style=flat-square&logo=javascript&logoColor=black)
 ![Sem build](https://img.shields.io/badge/sem_build-site_est%C3%A1tico-2ea44f?style=flat-square)
 
-**[▶ Abrir o ED Viz](https://edviz-rouge.vercel.app)** · **[Rodar localmente](#rodando-localmente)** · **[Como foi feito (guia interno)](docs/COMO-FOI-FEITO.md)**
+**[▶ Abrir o ED Viz](https://edviz-rouge.vercel.app)** · **[Rodar localmente](#rodando-localmente)**
 
 ![ED Viz executando a busca em uma árvore binária de busca](docs/img/arvore.png)
 
@@ -266,19 +266,12 @@ js/app.js               editor, playback e painéis
 js/rough.js             traço "à mão" determinístico (reservado, não usado na interface)
 servidor.js             servidor local sem dependências (porta 8787)
 iniciar.cmd             atalho Windows: sobe o servidor e abre o navegador
-docs/COMO-FOI-FEITO.md  guia de estudo: como tudo funciona por dentro e como reconstruir
 docs/img/               capturas de tela usadas neste README
 tests/                  testes do núcleo, UI simulada e e2e (Playwright)
 playwright.config.js    configuração dos testes e2e (Chromium + Firefox)
 vercel.json             cabeçalhos de segurança/cache do deploy estático
 .vercelignore           o que não vai para o site publicado
 ```
-
-### Aprenda por dentro
-
-O [`docs/COMO-FOI-FEITO.md`](docs/COMO-FOI-FEITO.md) explica cada mecanismo — tokenizer, parser,
-interpretador, trace, detecção de estruturas, animações — e traz um **roteiro de reconstrução em
-fases** para quem quiser reimplementar o projeto do zero.
 
 ## Publicação (Vercel)
 
