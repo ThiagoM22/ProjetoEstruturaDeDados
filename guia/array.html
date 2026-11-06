@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Array — Guia de Estruturas de Dados — ED Viz</title>
+<meta name="description" content="Array: acesso por índice O(1), custo de inserir e remover no meio, quando usar, erros comuns e exemplo executável no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <a href="index.html">Guia</a> / <span aria-current="page">Array</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Array</h1>
+      <p class="lead">Uma faixa contígua de posições, endereçada por índice. É a base de pilhas, filas e do array do próprio JavaScript.</p>
+      <p class="guide-meta">1 exemplo · acesso O(1) · inserção no meio O(n)</p>
+    </header>
+
+    <div class="guide-body">
+      <div class="guide-grid">
+        <article class="prose">
+
+          <section id="o-que-e">
+            <h2>O que é</h2>
+            <p>Um <strong>array</strong> é uma sequência de posições acessadas por índice. No modelo didático, as posições ficam lado a lado na memória e o índice começa em 0: <code>v[0]</code> é a primeira, <code>v[1]</code> a segunda, e assim por diante. O acesso é direto — o programa calcula o endereço da posição e vai até ela, sem passar pelas anteriores.</p>
+            <p>O <strong>comprimento</strong> (<code>length</code>) é o tamanho da faixa; o <strong>tamanho lógico</strong> é quantas posições você está usando. O exemplo <code>MeuArray</code> mantém os dois separados (<code>#items</code> e <code>#tamanho</code>) justamente para mostrar a diferença. Em JavaScript o array cresce sozinho e pode ter buracos; o modelo de posições contíguas continua útil para entender o custo.</p>
+          </section>
+
+          <section id="como-funciona">
+            <h2>Como funciona</h2>
+            <ul>
+              <li><strong>Ler e escrever por índice</strong> — <code>v[i] = x</code> é O(1): o endereço é calculado, não percorrido.</li>
+              <li><strong>Adicionar no fim</strong> — <code>push</code> é O(1) amortizado; o array pode crescer e copiar os elementos de vez em quando.</li>
+              <li><strong>Inserir ou remover no meio</strong> — é O(n): os vizinhos precisam deslizar para abrir ou fechar espaço.</li>
+              <li><strong><code>delete v[i]</code></strong> — abre um buraco e não desloca ninguém; o comprimento continua o mesmo.</li>
+            </ul>
+
+            <pre tabindex="0"><code data-executavel>const v = [10, 20, 30];
+console.log(v[1]);        // 20
+v[1] = 25;                // escrita O(1)
+v.splice(1, 0, 15);       // insere 15 no meio
+console.log(v);           // [10, 15, 25, 30]</code></pre>
+
+            <figure class="diagram">
+              <svg viewBox="0 0 380 150" role="img" aria-labelledby="diagArrayTitulo diagArrayDesc">
+                <title id="diagArrayTitulo">Array com quatro posições: 10, 20, 30 e 40</title>
+                <desc id="diagArrayDesc">Quatro células contíguas, com índices de 0 a 3. A célula do índice 2, com valor 30, está destacada em âmbar.</desc>
+                <text x="30" y="24" class="label">índice</text>
+                <text x="350" y="24" text-anchor="end" class="label">comprimento = 4</text>
+                <text x="70" y="40" text-anchor="middle" class="cell-index">0</text>
+                <text x="150" y="40" text-anchor="middle" class="cell-index">1</text>
+                <text x="230" y="40" text-anchor="middle" class="cell-index">2</text>
+                <text x="310" y="40" text-anchor="middle" class="cell-index">3</text>
+                <rect x="30" y="48" width="320" height="52" rx="3" class="cell"/>
+                <line x1="110" y1="48" x2="110" y2="100" class="divider"/>
+                <line x1="190" y1="48" x2="190" y2="100" class="divider"/>
+                <line x1="270" y1="48" x2="270" y2="100" class="divider"/>
+                <rect x="190" y="48" width="80" height="52" class="cell active"/>
+                <text x="70" y="78" text-anchor="middle" dominant-baseline="middle" class="value">10</text>
+                <text x="150" y="78" text-anchor="middle" dominant-baseline="middle" class="value">20</text>
+                <text x="230" y="78" text-anchor="middle" dominant-baseline="middle" class="value active">30</text>
+                <text x="310" y="78" text-anchor="middle" dominant-baseline="middle" class="value">40</text>
+                <line x1="30" y1="116" x2="350" y2="116" class="arrow"/>
+                <text x="190" y="134" text-anchor="middle" class="label">posições contíguas na memória</text>
+              </svg>
+              <figcaption>O índice aponta direto para a posição; o valor 30 está no índice 2. Inserir ou remover entre 20 e 30 obriga os vizinhos a deslizar.</figcaption>
+            </figure>
+          </section>
+
+          <section id="custo">
+            <h2>Custo</h2>
+            <p>Com <code>n</code> posições no array:</p>
+            <div class="table-wrap">
+              <table class="custo">
+                <caption class="table-caption">Custo das operações com n posições</caption>
+                <thead>
+                  <tr><th scope="col">Operação</th><th scope="col">Custo</th><th scope="col">Observação</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Acesso por índice</td><td>O(1)</td><td>O endereço é calculado; não há caminhada até a posição.</td></tr>
+                  <tr><td>Busca por valor</td><td>O(n)</td><td>Sem índice, é preciso varrer as posições.</td></tr>
+                  <tr><td>Inserir/remover no fim</td><td>O(1) amortizado</td><td>O array pode crescer e copiar os elementos de vez em quando.</td></tr>
+                  <tr><td>Inserir/remover no início ou meio</td><td>O(n)</td><td>Os vizinhos deslizam para abrir ou fechar espaço.</td></tr>
+                  <tr><td><code>delete v[i]</code></td><td>O(1) para abrir o buraco</td><td>O comprimento não muda e o buraco fica; não é o mesmo que remover e deslocar.</td></tr>
+                  <tr><td>Memória</td><td>O(n)</td><td>O array pode reservar capacidade extra para crescer.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>O custo de inserir no meio é o que separa o array da lista encadeada: aqui, abrir espaço custa O(n); na lista, religar ponteiros custa O(1) depois de encontrar a posição.</p>
+          </section>
+
+          <section id="quando-usar">
+            <h2>Quando usar</h2>
+            <p>Use quando o acesso por posição é a operação mais importante:</p>
+            <ul>
+              <li><strong>Leitura e varredura:</strong> percorrer todos os elementos, calcular médias, filtrar, mapear.</li>
+              <li><strong>Acesso aleatório:</strong> pegar o elemento do meio, o último, o índice calculado.</li>
+              <li><strong>Base de outras estruturas:</strong> pilha com <code>push</code>/<code>pop</code> e fila com <code>push</code>/<code>shift</code> (com a ressalva do custo).</li>
+              <li><strong>Tabelas de apoio:</strong> contar frequências, mapear índices pequenos, buffers de tamanho conhecido.</li>
+            </ul>
+            <h3>Quando evitar</h3>
+            <ul>
+              <li>Inserir e remover no meio o tempo todo: a lista encadeada evita o deslocamento.</li>
+              <li>Fila grande com <code>shift</code>: cada remoção é O(n); use índices ou uma lista.</li>
+              <li>Dados esparsos com muitos buracos: o array guarda espaço vazio.</li>
+              <li>Precisa de ordem por prioridade: um heap resolve melhor.</li>
+            </ul>
+          </section>
+
+          <section id="erros-comuns">
+            <h2>Erros comuns</h2>
+            <div class="callout">
+              <span class="label">Antes de rodar</span>
+              <ul>
+                <li>Confundir <code>v[v.length]</code> com <code>v[v.length - 1]</code>: o primeiro é a próxima posição livre; o segundo é o último elemento.</li>
+                <li>Confundir <code>length</code> com “quantidade de valores válidos”. O <code>delete</code> abre um buraco e o comprimento continua igual; use <code>splice</code> ou desloque à mão para remover de verdade.</li>
+                <li>Confundir <code>splice</code> com <code>slice</code>: <code>splice</code> altera o array; <code>slice</code> devolve uma cópia.</li>
+                <li>Usar <code>shift</code> em uma fila grande: a remoção no início desloca todos os vizinhos e custa O(n).</li>
+                <li>No <code>MeuArray</code>, esquecer de atualizar <code>#tamanho</code> depois de um deslocamento manual — o array interno e o tamanho lógico saem de sincronia.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="veja-em-acao">
+            <h2>Veja em ação</h2>
+            <p>Os três links abrem o exemplo no passo indicado, pausado. O array manual mostra <code>#items</code> e <code>#tamanho</code> como coisas distintas.</p>
+            <div class="demos">
+              <a class="demo" href="../visualizador.html?exemplo=meu-array&amp;passo=19">
+                <span class="demo-name">Adicionar 10, 20 e 30</span>
+                <span class="demo-watch">Cada <code>adicionar</code> escreve em <code>#items</code> e incrementa <code>#tamanho</code>; o comprimento do array interno acompanha.</span>
+                <span class="demo-meta">meu-array.js · passo 19</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=meu-array&amp;passo=85">
+                <span class="demo-name">Inserir 15 no meio</span>
+                <span class="demo-watch">Os valores de 25 e 30 deslizam para a direita para abrir a posição 1.</span>
+                <span class="demo-meta">meu-array.js · passo 85</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=meu-array&amp;passo=125">
+                <span class="demo-name">Remover o índice 2</span>
+                <span class="demo-watch">O buraco fecha: os vizinhos deslizam para a esquerda e o tamanho diminui.</span>
+                <span class="demo-meta">meu-array.js · passo 125</span>
+              </a>
+            </div>
+          </section>
+
+          <section id="referencias">
+            <h2>Referências</h2>
+            <ol class="refs">
+              <li><strong>Ziviani</strong>, N. <em>Projetos de Algoritmos com Implementações em Java e C++</em>. São Paulo: Cengage Learning, 2007. Cap. 3, seção 3.1 — listas lineares implementadas com arranjos.</li>
+              <li><strong>Sedgewick</strong>, R.; <strong>Wayne</strong>, K. <em>Algorithms</em>. 4. ed. Upper Saddle River: Addison-Wesley, 2011. Seção 1.3 — estruturas lineares sobre arranjos, incluindo o redimensionamento.</li>
+              <li><strong>OpenDSA</strong>. <em>Arrays e estruturas lineares</em>. Disponível em: <a href="https://opendsa.org/" target="_blank" rel="noopener">opendsa.org</a> — outra visualização para comparar com o EDViz.</li>
+            </ol>
+          </section>
+
+          <nav class="pager" aria-label="Navegação entre estruturas">
+            <a href="index.html">
+              <span class="dir">Visão geral</span>
+              Guia
+            </a>
+            <a class="next" href="pilha.html">
+              <span class="dir">Próxima</span>
+              Pilha
+            </a>
+          </nav>
+
+        </article>
+
+        <aside class="guide-aside">
+          <h2>Nesta página</h2>
+          <nav aria-label="Seções desta página">
+            <a href="#o-que-e">O que é</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#custo">Custo</a>
+            <a href="#quando-usar">Quando usar</a>
+            <a href="#erros-comuns">Erros comuns</a>
+            <a href="#veja-em-acao">Veja em ação</a>
+            <a href="#referencias">Referências</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

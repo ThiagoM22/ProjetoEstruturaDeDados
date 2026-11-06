@@ -8,6 +8,7 @@
     {
       id: 'pilha-array',
       name: 'Pilha com array (push/pop)',
+      estrutura: 'pilha',
       code: [
         '// PILHA (stack) — LIFO: o último que entra é o primeiro que sai.',
         '// push() empilha no topo; pop() remove do topo.',
@@ -30,6 +31,7 @@
     {
       id: 'pilha-classe',
       name: 'Pilha com classe (encapsulada)',
+      estrutura: 'pilha',
       code: [
         '// PILHA com classe — o array interno fica encapsulado em this.itens.',
         '',
@@ -70,6 +72,7 @@
     {
       id: 'fila-array',
       name: 'Fila com array (push/shift)',
+      estrutura: 'fila',
       code: [
         '// FILA (queue) — FIFO: o primeiro que entra é o primeiro que sai.',
         '// push() entra no fim; shift() atende o início.',
@@ -92,6 +95,7 @@
     {
       id: 'fila-classe',
       name: 'Fila com classe (encapsulada)',
+      estrutura: 'fila',
       code: [
         '// FILA com classe — FIFO: enfileira no fim, desenfileira do início.',
         '// O array interno fica encapsulado em this.itens.',
@@ -141,6 +145,7 @@
     {
       id: 'fila-privada',
       name: 'Fila com campos privados (#)',
+      estrutura: 'fila',
       code: [
         '// FILA com campo privado — #itens só pode ser acessado dentro da classe.',
         '// Fora dela, fila.#itens nem compila: é erro de sintaxe.',
@@ -187,6 +192,7 @@
     {
       id: 'fila-indices',
       name: 'Fila com índices (#inicio/#fim)',
+      estrutura: 'fila',
       code: [
         '// FILA com índices — a frente é #inicio; #fim fica logo após o último.',
         '// O array guarda o histórico das posições (o delete deixa buraco).',
@@ -256,6 +262,7 @@
     {
       id: 'lista-encadeada',
       name: 'Lista encadeada (nós com proximo)',
+      estrutura: 'lista',
       code: [
         '// LISTA ENCADEADA — cada nó guarda um valor e a referência do próximo nó.',
         '',
@@ -301,6 +308,7 @@
     {
       id: 'lista-simples',
       name: 'Lista simplesmente encadeada (classe)',
+      estrutura: 'lista',
       code: [
         '// LISTA SIMPLESMENTE ENCADEADA — cada nó guarda um valor e a referência',
         '// para o próximo nó; a lista começa em HEAD e termina em undefined.',
@@ -431,6 +439,7 @@
     {
       id: 'arvore-em-ordem',
       name: 'Árvore binária — percurso em-ordem',
+      estrutura: 'arvore',
       code: [
         '// ÁRVORE BINÁRIA DE BUSCA — inserção e percurso em-ordem recursivo.',
         '// Em-ordem = esquerda, raiz, direita (resulta em ordem crescente).',
@@ -486,6 +495,7 @@
     {
       id: 'arvore-busca',
       name: 'Árvore binária — busca iterativa',
+      estrutura: 'arvore',
       code: [
         '// BUSCA em árvore binária de busca (iterativa).',
         '// O ponteiro "atual" desce pela árvore a cada comparação.',
@@ -532,6 +542,7 @@
     {
       id: 'arvore-bst',
       name: 'Árvore binária de busca — inserção, busca e percursos',
+      estrutura: 'arvore',
       code: [
         '// ÁRVORE BINÁRIA DE BUSCA (BST) — nós menores vão para a esquerda,',
         '// maiores ou iguais para a direita. Sem balanceamento automático.',
@@ -664,6 +675,7 @@
     {
       id: 'arvore-bst-remocao',
       name: 'Árvore binária de busca — remoção (folha, um e dois filhos)',
+      estrutura: 'arvore',
       code: [
         '// ÁRVORE BINÁRIA DE BUSCA — REMOÇÃO nos três casos do algoritmo:',
         '//  1. folha: a referência do pai passa a null;',
@@ -853,6 +865,7 @@
     {
       id: 'arvore-simples',
       name: 'Árvore binária simples — inserção por nível',
+      estrutura: 'arvore',
       code: [
         '// ÁRVORE BINÁRIA SIMPLES — a inserção preenche a primeira vaga livre,',
         '// da esquerda para a direita, nível a nível (busca em largura).',
@@ -1005,6 +1018,7 @@
     {
       id: 'arvore-simples-remocao',
       name: 'Árvore binária simples — remoção com promoção',
+      estrutura: 'arvore',
       code: [
         '// ÁRVORE BINÁRIA SIMPLES — a remoção promove os filhos e preserva',
         '// todos os descendentes. Regra determinística:',
@@ -1261,6 +1275,7 @@
     {
       id: 'lista-dupla',
       name: 'Lista duplamente encadeada (classe)',
+      estrutura: 'lista',
       code: [
         '// LISTA DUPLAMENTE ENCADEADA — cada nó guarda o valor e as referências',
         '// para o próximo (next) e para o anterior (prev). A lista começa em',
@@ -1494,6 +1509,7 @@
     {
       id: 'meu-array',
       name: 'Array com tamanho manual (MeuArray)',
+      estrutura: 'array',
       code: [
         '// ARRAY (MeuArray) — estrutura baseada em um array interno (#items) e em',
         '// um tamanho lógico controlado à mão (#tamanho). Não há push/pop/splice:',

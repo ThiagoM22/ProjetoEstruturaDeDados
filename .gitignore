@@ -1,5 +1,8 @@
 node_modules/
+dist/
+.vite/
 test-results/
 playwright-report/
 blob-report/
 docs/COMO-FOI-FEITO.md
+.impeccable/

@@ -41,6 +41,7 @@
     statusLine: $('statusLine'),
     banner: $('banner'),
     btnHelp: $('btnHelp'),
+    linkGuia: $('linkGuia'),
     helpDialog: $('helpDialog'),
     splitLeft: $('splitLeft'),
     splitRight: $('splitRight'),
@@ -71,6 +72,16 @@
   var STORAGE_CODE = 'edviz.code';        /* legado: migrado para STORAGE_BUFFERS */
   var STORAGE_EX = 'edviz.example';
   var STORAGE_BUFFERS = 'edviz.buffers';  /* código guardado por aba (id do exemplo) */
+
+  /* Cada estrutura tem uma página no guia; o link da barra superior aponta
+   * para a página da estrutura do exemplo ativo. */
+  var GUIA = {
+    array:  { pagina: 'guia/array.html',           nome: 'Array' },
+    pilha:  { pagina: 'guia/pilha.html',           nome: 'Pilha' },
+    fila:   { pagina: 'guia/fila.html',            nome: 'Fila' },
+    lista:  { pagina: 'guia/lista-encadeada.html', nome: 'Lista encadeada' },
+    arvore: { pagina: 'guia/arvore-binaria.html',  nome: 'Árvore binária' }
+  };
 
   var state = {
     trace: null,
@@ -473,6 +484,17 @@
     return DSV.EXAMPLES.filter(function (e) { return e.id === id; })[0] || null;
   }
 
+  /* O link "Guia" acompanha o exemplo ativo: abre a página da estrutura que
+   * está sendo visualizada, não o índice genérico. */
+  function updateGuiaLink() {
+    if (!els.linkGuia) return;
+    var ex = state.activeTab ? exampleById(state.activeTab) : null;
+    var est = ex && ex.estrutura ? GUIA[ex.estrutura] : null;
+    els.linkGuia.href = est ? est.pagina : 'guia/index.html';
+    els.linkGuia.title = est ? 'Ler sobre ' + est.nome : 'Guia de estruturas de dados';
+    els.linkGuia.setAttribute('aria-label', est ? 'Guia: ' + est.nome : 'Guia de estruturas de dados');
+  }
+
   function renderTabs() {
     var html = '';
     state.tabs.forEach(function (id) {
@@ -501,6 +523,7 @@
     els.exampleSelect.value = ex.id;
     els.exampleSelect.title = ex.name;
     try { localStorage.setItem(STORAGE_EX, ex.id); } catch (e) { /* ignora */ }
+    updateGuiaLink();
     onEdit();
     run();
   }
@@ -514,6 +537,33 @@
     state.activeTab = id;
     renderTabs();
     loadExample(id);
+  }
+
+  /* Link direto para um exemplo e um passo: `?exemplo=pilha-array&passo=4`.
+   * O passo é 1-based, igual ao rótulo da interface. Quando há passo, o link
+   * mostra o código original do exemplo (não o buffer editado pelo usuário),
+   * porque o número do passo só faz sentido sobre o código que o gerou; o
+   * buffer original continua salvo no localStorage. */
+  function applyDeepLink() {
+    var params;
+    try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
+    var ex = exampleById(params.get('exemplo'));
+    if (!ex) return;
+
+    var passo = parseInt(params.get('passo'), 10);
+    var comPasso = isFinite(passo) && passo > 0;
+    var tinhaBuffer = Object.prototype.hasOwnProperty.call(state.buffers, ex.id);
+    var bufferAnterior = state.buffers[ex.id];
+
+    if (comPasso) state.buffers[ex.id] = ex.code;
+    openTab(ex.id);
+    if (!comPasso) return;
+
+    if (tinhaBuffer) state.buffers[ex.id] = bufferAnterior;
+    else delete state.buffers[ex.id];
+    saveBuffers();
+    stopPlay();
+    goto(passo - 1);
   }
 
   function closeTab(id) {
@@ -1589,6 +1639,7 @@
       state.buffers[example.id] = savedCode;
     }
     renderTabs();
+    updateGuiaLink();
     els.code.value = state.buffers[example.id] != null ? state.buffers[example.id] : example.code;
 
     setupSplitters();
@@ -1597,6 +1648,7 @@
     setSideTab('vars');
     onEdit();
     run();
+    applyDeepLink();
   }
 
   init();

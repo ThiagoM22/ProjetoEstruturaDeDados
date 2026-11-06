@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Guia de estruturas de dados — ED Viz</title>
+<meta name="description" content="O conceito, o custo e os erros comuns de array, pilha, fila, lista encadeada e árvore binária — com exemplos executáveis no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <span aria-current="page">Guia</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Estruturas de dados</h1>
+      <p class="lead">O conceito, o custo e os erros comuns de cada estrutura — e o exemplo certo para ver tudo acontecendo no visualizador.</p>
+      <p class="guide-meta">5 estruturas · 16 exemplos executáveis · conteúdo em português</p>
+    </header>
+
+    <div class="guide-body">
+      <p class="guide-start">Primeira vez? <a href="array.html">Comece por Array</a> — é o modelo de posições que as outras estruturas usam como referência.</p>
+
+      <ul class="rows">
+        <li>
+          <a class="row" href="array.html">
+            <span class="row-index">01</span>
+            <span>
+              <span class="row-name">Array <span class="row-tag">comece aqui</span></span>
+              <span class="row-desc">Posições indexadas em memória contígua. Acesso O(1); inserir no meio desloca os vizinhos.</span>
+            </span>
+            <span class="row-meta">1 exemplo · O(1) por índice</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="pilha.html">
+            <span class="row-index">02</span>
+            <span>
+              <span class="row-name">Pilha</span>
+              <span class="row-desc">LIFO: o último que entra é o primeiro que sai. Tudo acontece no topo.</span>
+            </span>
+            <span class="row-meta">2 exemplos · LIFO</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="fila.html">
+            <span class="row-index">03</span>
+            <span>
+              <span class="row-name">Fila</span>
+              <span class="row-desc">FIFO: entra no fim, sai da frente. Com índices, a janela viva evita o shift.</span>
+            </span>
+            <span class="row-meta">4 exemplos · FIFO</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="lista-encadeada.html">
+            <span class="row-index">04</span>
+            <span>
+              <span class="row-name">Lista encadeada</span>
+              <span class="row-desc">Nós ligados por referências. Inserir no início é O(1); chegar ao meio exige caminhar.</span>
+            </span>
+            <span class="row-meta">3 exemplos · nós e ponteiros</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="arvore-binaria.html">
+            <span class="row-index">05</span>
+            <span>
+              <span class="row-name">Árvore binária</span>
+              <span class="row-desc">Até dois filhos por nó. Na BST, a comparação descarta um lado inteiro do caminho.</span>
+            </span>
+            <span class="row-meta">6 exemplos · BST e simples</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+      </ul>
+
+      <div class="callout catalog-note">
+        <span class="label">Como ler</span>
+        <p>Cada página segue a mesma ordem: o que é → como funciona → custo → quando usar → erros comuns → veja em ação → referências. Os exemplos abrem no visualizador, e cada um diz o que observar.</p>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

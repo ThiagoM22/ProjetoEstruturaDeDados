@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Lista encadeada — Guia de Estruturas de Dados — ED Viz</title>
+<meta name="description" content="Lista encadeada simples e duplamente encadeada: nós, ponteiros, custo das operações, quando usar, erros comuns e exemplos executáveis no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <a href="index.html">Guia</a> / <span aria-current="page">Lista encadeada</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Lista encadeada</h1>
+      <p class="lead">Nós ligados por referências, sem posições contíguas. A lista simples anda em um sentido; a dupla, nos dois.</p>
+      <p class="guide-meta">3 exemplos · inserir no início O(1) · buscar O(n)</p>
+    </header>
+
+    <div class="guide-body">
+      <div class="guide-grid">
+        <article class="prose">
+
+          <section id="o-que-e">
+            <h2>O que é</h2>
+            <p>Uma <strong>lista encadeada</strong> é uma sequência de <strong>nós</strong>. Cada nó guarda um valor e uma referência para o próximo nó. O primeiro é o <strong>head</strong>; o último aponta para <strong>∅</strong> (<code>null</code> ou <code>undefined</code>). Não há posições contíguas: os nós podem estar espalhados na memória e a ordem existe só pelas referências.</p>
+            <p>Na lista <strong>simples</strong>, cada nó tem <code>valor</code> e <code>proximo</code>. Na <strong>dupla</strong>, cada nó também tem <code>anterior</code>, o que permite andar para trás e manter <strong>head</strong> e <strong>tail</strong>. Em troca, cada nó gasta um ponteiro a mais.</p>
+          </section>
+
+          <section id="como-funciona">
+            <h2>Como funciona</h2>
+            <ul>
+              <li><strong>Inserir no início</strong> — cria o nó, aponta o <code>proximo</code> para o antigo head e atualiza o head. O(1).</li>
+              <li><strong>Inserir no fim</strong> — O(1) se você mantém o tail; sem tail, é preciso caminhar até o último nó (O(n)).</li>
+              <li><strong>Remover por valor</strong> — encontrar o nó é O(n); religar o anterior no próximo é O(1).</li>
+              <li><strong>Percorrer</strong> — O(n): <code>atual = atual.proximo</code> até o terminador.</li>
+            </ul>
+            <p>O invariante: o <code>proximo</code> do último é o terminador, e o <code>anterior</code> do primeiro (na dupla) também. Se você perder uma referência antes de religar, o resto da lista fica inalcançável.</p>
+
+            <pre tabindex="0"><code data-executavel>const no2 = { valor: 20, proximo: null };
+const no1 = { valor: 10, proximo: no2 };
+let inicio = no1;
+inicio = { valor: 5, proximo: inicio };
+console.log(inicio.valor);          // 5
+console.log(inicio.proximo.valor);  // 10</code></pre>
+
+            <figure class="diagram">
+              <svg viewBox="0 0 380 160" role="img" aria-labelledby="diagListaTitulo diagListaDesc">
+                <title id="diagListaTitulo">Lista encadeada com dois nós: 10 aponta para 20, que aponta para o terminador</title>
+                <desc id="diagListaDesc">Dois nós, cada um dividido em valor e próximo. HEAD aponta para o nó 10; o próximo do nó 20 é o terminador vazio.</desc>
+                <defs>
+                  <marker id="setaLista" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0 0 6 3 0 6Z" class="arrow-head"/>
+                  </marker>
+                </defs>
+                <text x="80" y="34" class="tag">HEAD</text>
+                <line x1="80" y1="38" x2="80" y2="54" class="edge"/>
+                <rect x="80" y="56" width="60" height="44" rx="3" class="box"/>
+                <rect x="140" y="56" width="50" height="44" rx="3" class="box"/>
+                <line x1="140" y1="56" x2="140" y2="100" class="divider"/>
+                <text x="110" y="78" text-anchor="middle" dominant-baseline="middle" class="value small">10</text>
+                <text x="165" y="78" text-anchor="middle" dominant-baseline="middle" class="label">•</text>
+                <text x="110" y="46" text-anchor="middle" class="label">valor</text>
+                <text x="165" y="46" text-anchor="middle" class="label">próximo</text>
+                <line x1="190" y1="78" x2="224" y2="78" class="arrow" marker-end="url(#setaLista)"/>
+                <rect x="230" y="56" width="60" height="44" rx="3" class="box"/>
+                <rect x="290" y="56" width="50" height="44" rx="3" class="box"/>
+                <line x1="290" y1="56" x2="290" y2="100" class="divider"/>
+                <text x="260" y="78" text-anchor="middle" dominant-baseline="middle" class="value small">20</text>
+                <text x="315" y="78" text-anchor="middle" dominant-baseline="middle" class="label">∅</text>
+                <text x="260" y="46" text-anchor="middle" class="label">valor</text>
+                <text x="315" y="46" text-anchor="middle" class="label">próximo</text>
+                <text x="190" y="132" text-anchor="middle" class="label">o terminador ∅ não é um nó: é a ausência de próximo</text>
+              </svg>
+              <figcaption>Cada nó guarda o valor e a referência para o próximo. Na lista dupla, entra também o <code>anterior</code>, e as setas voltam.</figcaption>
+            </figure>
+          </section>
+
+          <section id="custo">
+            <h2>Custo</h2>
+            <p>Com <code>n</code> nós na lista:</p>
+            <div class="table-wrap">
+              <table class="custo">
+                <caption class="table-caption">Custo das operações com n nós</caption>
+                <thead>
+                  <tr><th scope="col">Operação</th><th scope="col">Custo</th><th scope="col">Observação</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Acesso por posição / busca</td><td>O(n)</td><td>Não há índice: é preciso caminhar pelos ponteiros.</td></tr>
+                  <tr><td>Inserir no início</td><td>O(1)</td><td>Cria o nó e atualiza o head.</td></tr>
+                  <tr><td>Inserir no fim</td><td>O(1) com tail; O(n) sem tail</td><td>Sem a referência do último, é preciso percorrer a lista.</td></tr>
+                  <tr><td>Remover no início</td><td>O(1)</td><td>O head passa para o próximo nó.</td></tr>
+                  <tr><td>Remover por valor</td><td>O(n) para encontrar + O(1) para religar</td><td>A busca domina o custo; religar os ponteiros é barato.</td></tr>
+                  <tr><td>Memória</td><td>O(n)</td><td>Um ponteiro por nó na simples; dois na dupla, além do valor.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>A vantagem não é ser “mais rápida” em tudo: é trocar o deslocamento do array por ponteiros. Se o acesso por posição domina, o array ganha.</p>
+          </section>
+
+          <section id="quando-usar">
+            <h2>Quando usar</h2>
+            <p>Use quando inserir e remover nas pontas é frequente e o tamanho é imprevisível:</p>
+            <ul>
+              <li><strong>Pilha e fila encadeadas:</strong> push/pop no head ou enqueue/dequeue com head e tail em O(1).</li>
+              <li><strong>Listas de tarefas e históricos:</strong> remover um item do meio sem deslocar o resto.</li>
+              <li><strong>Estruturas compostas:</strong> listas de colisão em tabelas hash, listas de adjacência em grafos.</li>
+              <li><strong>LRU e caches:</strong> a lista dupla combina remoção O(1) com um mapa para localizar o nó.</li>
+            </ul>
+            <h3>Quando evitar</h3>
+            <ul>
+              <li>Acesso por índice ou busca frequente: cada consulta é O(n).</li>
+              <li>Varredura sequencial intensa: o array tem melhor localidade de cache.</li>
+              <li>Você precisa ordenar por posição: o array é mais simples.</li>
+            </ul>
+          </section>
+
+          <section id="erros-comuns">
+            <h2>Erros comuns</h2>
+            <div class="callout">
+              <span class="label">Antes de rodar</span>
+              <ul>
+                <li>Perder o <code>proximo</code> antes de religar. Salve o próximo em uma variável temporária antes de mudar o ponteiro.</li>
+                <li>Esquecer de atualizar o <strong>head</strong> ao inserir no início e ao remover o primeiro nó.</li>
+                <li>Na lista dupla, atualizar só o <code>proximo</code> e esquecer o <code>anterior</code> do nó seguinte.</li>
+                <li>Usar um <code>for</code> com índice como se a lista fosse um array; aqui o caminho é <code>atual = atual.proximo</code>.</li>
+                <li>Confundir o terminador <code>null</code>/<code>undefined</code> com um nó vazio: ele não conta no tamanho.</li>
+                <li>Remover um nó e continuar usando a referência dele; o resto da lista pode ficar inalcançável.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="veja-em-acao">
+            <h2>Veja em ação</h2>
+            <p>Os links abrem o exemplo no passo indicado, pausado. Observe VALUE, NEXT, HEAD e as setas mudando junto com os ponteiros.</p>
+            <div class="demos">
+              <a class="demo" href="../visualizador.html?exemplo=lista-simples&amp;passo=34">
+                <span class="demo-name">Inserir 10 no início</span>
+                <span class="demo-watch">O novo nó aponta para o antigo head e vira o novo HEAD; o tamanho sobe.</span>
+                <span class="demo-meta">lista-simples.js · passo 34</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=lista-simples&amp;passo=176">
+                <span class="demo-name">Remover o valor 10</span>
+                <span class="demo-watch">O <code>next</code> do nó anterior pula o nó removido; a corrente continua ligada.</span>
+                <span class="demo-meta">lista-simples.js · passo 176</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=lista-dupla&amp;passo=225">
+                <span class="demo-name">Percurso reverso na lista dupla</span>
+                <span class="demo-watch">O ponteiro desce pelo <code>prev</code> e a seta de volta acende a cada passo.</span>
+                <span class="demo-meta">lista-dupla.js · passo 225</span>
+              </a>
+            </div>
+          </section>
+
+          <section id="referencias">
+            <h2>Referências</h2>
+            <ol class="refs">
+              <li><strong>Ziviani</strong>, N. <em>Projetos de Algoritmos com Implementações em Java e C++</em>. São Paulo: Cengage Learning, 2007. Cap. 3, seção 3.1 — listas lineares com arranjos e com apontadores.</li>
+              <li><strong>Cormen</strong>, T. H. et al. <em>Introduction to Algorithms</em>. 4. ed. Cambridge: MIT Press, 2022. Cap. 10, seção 10.2 — listas encadeadas e a representação com ponteiros.</li>
+              <li><strong>OpenDSA</strong>. <em>Linked Lists</em>. Disponível em: <a href="https://opendsa.org/" target="_blank" rel="noopener">opendsa.org</a> — outra visualização para comparar com o EDViz.</li>
+            </ol>
+          </section>
+
+          <nav class="pager" aria-label="Navegação entre estruturas">
+            <a href="fila.html">
+              <span class="dir">Anterior</span>
+              Fila
+            </a>
+            <a class="next" href="arvore-binaria.html">
+              <span class="dir">Próxima</span>
+              Árvore binária
+            </a>
+          </nav>
+
+        </article>
+
+        <aside class="guide-aside">
+          <h2>Nesta página</h2>
+          <nav aria-label="Seções desta página">
+            <a href="#o-que-e">O que é</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#custo">Custo</a>
+            <a href="#quando-usar">Quando usar</a>
+            <a href="#erros-comuns">Erros comuns</a>
+            <a href="#veja-em-acao">Veja em ação</a>
+            <a href="#referencias">Referências</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

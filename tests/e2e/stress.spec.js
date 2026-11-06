@@ -6,7 +6,7 @@
 const { test, expect } = require('@playwright/test');
 
 async function preparar(page, exemplo) {
-  await page.goto('/');
+  await page.goto('/visualizador.html');
   await page.evaluate((id) => {
     const sel = document.getElementById('exampleSelect');
     sel.value = id;

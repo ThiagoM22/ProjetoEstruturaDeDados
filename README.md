@@ -5,17 +5,20 @@
 [![Demo](https://img.shields.io/badge/%E2%96%B6_demo-edviz--rouge.vercel.app-e5a66a?style=flat-square)](https://edviz-rouge.vercel.app)
 [![Licença MIT](https://img.shields.io/github/license/ThiagoM22/ProjetoEstruturaDeDados?style=flat-square)](LICENSE)
 ![JavaScript puro](https://img.shields.io/badge/JavaScript-puro-f7df1e?style=flat-square&logo=javascript&logoColor=black)
-![Sem build](https://img.shields.io/badge/sem_build-site_est%C3%A1tico-2ea44f?style=flat-square)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
 
 **[▶ Abrir o ED Viz](https://edviz-rouge.vercel.app)** · **[Rodar localmente](#rodando-localmente)**
 
 ![ED Viz executando a busca em uma árvore binária de busca](docs/img/arvore.png)
 
-O ED Viz é uma aplicação **estática (HTML/CSS/JS puro)** para aprender estrutura de dados
-**vendo o próprio código executar**: você escreve `pilha.push(10)` ou uma classe de árvore e o
-portal desenha a estrutura a cada passo, sincronizada com o editor e com os painéis de depuração.
+O ED Viz é uma aplicação **estática** (HTML/CSS/JS puro no runtime, build com Vite) para aprender
+estrutura de dados **vendo o próprio código executar**: você escreve `pilha.push(10)` ou uma classe
+de árvore e o portal desenha a estrutura a cada passo, sincronizada com o editor e com os painéis
+de depuração.
 
-Não precisa instalar nada para usar — nem build, nem backend, nem banco.
+O site publicado não precisa de backend, banco nem conta. Para desenvolver, Node.js + npm.
+A **home** leva ao **guia** (conceito, custo, erros comuns e referências) e à **ferramenta**
+(`visualizador.html`), onde o código roda.
 
 ## O que você vê
 
@@ -60,19 +63,19 @@ o seletor **Visualização** permite trocar a estrutura exibida.
 
 ## Rodando localmente
 
-Pré-requisitos: **nenhum** para usar. Node.js é necessário apenas para o servidor opcional e os testes.
-
-**Opção 1 — abrir direto:** dê um duplo clique em `index.html` (funciona inclusive via `file://`).
-
-**Opção 2 — servidor local (porta 8787):** dê um duplo clique em `iniciar.cmd` ou rode:
+Pré-requisitos: **Node.js 20+ e npm**.
 
 ```bash
-npm start                # http://localhost:8787
-node servidor.js         # idem
-node servidor.js 9000    # trocar a porta
+npm install
+npm run dev       # http://localhost:5173
+npm run build     # gera dist/
+npm run preview   # serve dist/ em http://localhost:4173
 ```
 
-O servidor é um arquivo único, sem dependências — ele só serve os estáticos localmente.
+No Windows, `iniciar.cmd` instala as dependências na primeira vez e abre o `npm run dev`.
+
+O runtime não tem dependências: o Vite é ferramenta de desenvolvimento e build. O `dist/` é o que
+vai para o ar.
 
 ## Como usar
 
@@ -95,7 +98,7 @@ O servidor é um arquivo único, sem dependências — ele só serve os estátic
 ## Testes
 
 ```bash
-npm test          # núcleo (parser/interpretador/exemplos/animação) + UI com DOM simulado
+npm test          # núcleo + UI simulada + conteúdo e navegação
 npm run test:e2e  # navegador real (Playwright, Chromium + Firefox)
 npm run test:all  # tudo
 ```
@@ -111,9 +114,11 @@ Os testes cobrem precedência de operadores, classes e campos privados, recursã
 laço/recursão e erros com a linha correta; as quatro variantes de árvore (BST, remoção, árvore
 simples e promoção), as duas listas (invariantes de `head`/`tail`, setas nos dois sentidos,
 percurso reverso) e o `MeuArray` (`#items` × `#tamanho`, buracos do `delete`, deslocamentos);
-a dica de variável no hover, a lista de comandos, o enquadramento e os 16 exemplos. No navegador:
-layout real, foco e teclado, persistência por aba, `file://`, janela estreita,
-`prefers-reduced-motion` e acessibilidade (axe).
+a dica de variável no hover, a lista de comandos, o enquadramento e os 16 exemplos. Na home e no
+guia: links internos, template das páginas, o contrato `?exemplo=&passo=` e o link contextual da
+ferramenta. No navegador: layout real, foco e teclado, persistência por aba, janela estreita,
+`prefers-reduced-motion` e acessibilidade (axe). O e2e roda contra o **build de produção** servido
+pelo `vite preview`.
 
 ## Subconjunto de JavaScript
 
@@ -253,8 +258,13 @@ execução sem "pulos para trás". Nós visitados por `atual`/`no`/`current` fic
 ## Estrutura do projeto
 
 ```
-index.html              página do portal
-css/styles.css          tema escuro e layout
+index.html              home: apresentação, guia e visualizador
+visualizador.html       a ferramenta (editor, playback e painéis)
+guia/                   índice do guia e as 5 páginas de estrutura
+css/tokens.css          tokens compartilhados (cores, tipografia, espaçamento)
+css/styles.css          tema escuro e layout da ferramenta
+css/conteudo.css        home e guia (prosa, listas, tabelas)
+js/main.js              entrada do Vite: importa os módulos na ordem
 js/util.js              utilitários e formatação de valores
 js/tokenizer.js         tokenizador do subconjunto de JS
 js/parser.js            parser (AST com número de linha em cada nó)
@@ -264,32 +274,36 @@ js/anim.js              animação FLIP (movimentos, entradas e saídas)
 js/views.js             detecção de estruturas + renderização (SVG/HTML animado)
 js/app.js               editor, playback e painéis
 js/rough.js             traço "à mão" determinístico (reservado, não usado na interface)
-servidor.js             servidor local sem dependências (porta 8787)
-iniciar.cmd             atalho Windows: sobe o servidor e abre o navegador
+vite.config.mjs         build multi-page (7 HTMLs) com saída em dist/
+iniciar.cmd             atalho Windows: instala e abre o npm run dev
 docs/img/               capturas de tela usadas neste README
-tests/                  testes do núcleo, UI simulada e e2e (Playwright)
+tests/                  testes do núcleo, UI simulada, conteúdo e e2e (Playwright)
 playwright.config.js    configuração dos testes e2e (Chromium + Firefox)
-vercel.json             cabeçalhos de segurança/cache do deploy estático
-.vercelignore           o que não vai para o site publicado
+vercel.json             build, cabeçalhos de segurança e cache do deploy
+.vercelignore           o que não vai para o upload do deploy
+dist/                   build gerado (não versionado)
 ```
 
 ## Publicação (Vercel)
 
-O ED Viz é um site **estático**: publicar é entregar `index.html`, `css/`, `js/` e os favicons.
-Não há build, backend, variáveis de ambiente nem banco. O `servidor.js` é só conveniência local.
+O ED Viz é um site **estático com build Vite**: publicar é rodar `npm run build` e entregar `dist/`.
+Não há backend, banco nem variáveis de ambiente.
 
-- **Via Git:** importe o repositório na Vercel (framework *Other*, sem build). O `.vercelignore`
-  deixa `tests/`, `servidor.js`, `iniciar.cmd` e arquivos locais fora do deploy.
+- **Via Git:** importe o repositório na Vercel. O framework Vite é detectado e o build roda
+  `npm run build`; o `vercel.json` fixa `buildCommand` e `outputDirectory`.
 - **Via CLI:** `npx vercel` (preview) e `npx vercel --prod`.
 - **Cabeçalhos:** o `vercel.json` define `Content-Security-Policy`, `X-Content-Type-Options`,
-  `Referrer-Policy` e cache de 1h com revalidação para `css/` e `js/`.
+  `Referrer-Policy` e cache imutável para os assets com hash em `/assets/`.
 - **Rollback:** publique de novo um commit anterior — o site não guarda estado no servidor.
 - **Rascunhos:** o código do usuário fica no `localStorage` do navegador, por aba.
+- **Limpeza:** o `.vercelignore` deixa testes, `dist/`, `iniciar.cmd` e documentos internos fora
+  do upload.
 
 ## Ideias de evolução
 
 - Novos visualizadores: grafo, tabela hash, `Map`/`Set`.
-- Exportar o trace em JSON e compartilhar um link com exemplo + passo.
+- Exportar o trace em JSON e compartilhar um link com exemplo + passo (o link direto já
+  abre no passo; falta o botão de copiar).
 - Modo "exercício": o portal propõe um objetivo e verifica a estrutura final.
 
 ## Licença

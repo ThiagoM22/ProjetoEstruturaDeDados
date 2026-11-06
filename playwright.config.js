@@ -17,10 +17,11 @@ module.exports = defineConfig({
     trace: 'retain-on-failure'
   },
   webServer: {
-    command: 'node servidor.js 8788',
+    /* testa o build de produção servido pelo preview do Vite */
+    command: 'npm run build && npm run preview -- --port 8788 --strictPort --host 127.0.0.1',
     url: 'http://127.0.0.1:8788/',
-    reuseExistingServer: true,
-    timeout: 20000
+    reuseExistingServer: false,
+    timeout: 180000
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

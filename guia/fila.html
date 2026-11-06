@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Fila — Guia de Estruturas de Dados — ED Viz</title>
+<meta name="description" content="Fila (FIFO): frente, fim, o custo de shift e da janela viva, quando usar, erros comuns e quatro exemplos executáveis no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <a href="index.html">Guia</a> / <span aria-current="page">Fila</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Fila</h1>
+      <p class="lead">O primeiro que entra é o primeiro que sai. Entra no fim (rear), sai da frente (front).</p>
+      <p class="guide-meta">4 exemplos · enfileirar/desenfileirar O(1)</p>
+    </header>
+
+    <div class="guide-body">
+      <div class="guide-grid">
+        <article class="prose">
+
+          <section id="o-que-e">
+            <h2>O que é</h2>
+            <p>Uma <strong>fila</strong> é uma coleção linear com duas extremidades com papéis fixos: a <strong>frente</strong> (<em>front</em>) e o <strong>fim</strong> (<em>rear</em>). Elementos entram no fim e saem pela frente. Por isso a regra é <strong>FIFO</strong> — <em>first in, first out</em>: o primeiro que entra é o primeiro que sai.</p>
+            <p>A metáfora é a fila de espera: quem chegou primeiro é atendido primeiro; quem chega depois vai para o fim. A fila não oferece acesso ao meio — para chegar ao terceiro elemento, é preciso desenfileirar os dois primeiros.</p>
+          </section>
+
+          <section id="como-funciona">
+            <h2>Como funciona</h2>
+            <ul>
+              <li><code>enqueue(x)</code> / <code>enfileirar</code> — coloca <code>x</code> no fim; o tamanho aumenta em 1.</li>
+              <li><code>dequeue()</code> / <code>desenfileirar</code> — remove e devolve a frente; o tamanho diminui em 1.</li>
+              <li><code>front()</code> / <code>frente</code> — devolve a frente sem remover.</li>
+              <li><code>isEmpty()</code> / <code>estaVazia</code> e <code>size()</code> / <code>tamanho</code> — consultam o estado.</li>
+            </ul>
+            <p>O invariante: a frente é o elemento mais antigo; o fim é o mais recente. Com um array, <code>push</code> no fim e <code>shift</code> na frente funcionam, mas <code>shift</code> custa O(n) porque desloca todos os vizinhos. Com os índices <code>#inicio</code> e <code>#fim</code>, a fila vira uma janela <code>[#inicio, #fim)</code>: desenfileirar só avança o início, e o custo é O(1) amortizado.</p>
+
+            <pre tabindex="0"><code data-executavel>const fila = ['A', 'B', 'C'];
+console.log(fila.shift()); // A
+console.log(fila[0]);      // B
+fila.push('D');            // entra no fim
+console.log(fila);         // [B, C, D]</code></pre>
+
+            <figure class="diagram">
+              <svg viewBox="0 0 380 150" role="img" aria-labelledby="diagFilaTitulo diagFilaDesc">
+                <title id="diagFilaTitulo">Fila com três elementos: A na frente, B no meio e C no fim</title>
+                <desc id="diagFilaDesc">Três células horizontais. A célula da frente, com A, está destacada em âmbar. FRONT aponta para A e REAR aponta para C.</desc>
+                <text x="105" y="34" text-anchor="middle" class="tag">FRONT</text>
+                <text x="265" y="34" text-anchor="middle" class="tag">REAR</text>
+                <rect x="70" y="48" width="70" height="44" rx="3" class="cell active"/>
+                <text x="105" y="70" text-anchor="middle" dominant-baseline="middle" class="value active">A</text>
+                <rect x="150" y="48" width="70" height="44" rx="3" class="cell"/>
+                <text x="185" y="70" text-anchor="middle" dominant-baseline="middle" class="value">B</text>
+                <rect x="230" y="48" width="70" height="44" rx="3" class="cell"/>
+                <text x="265" y="70" text-anchor="middle" dominant-baseline="middle" class="value">C</text>
+                <text x="105" y="116" text-anchor="middle" class="label">sai da frente</text>
+                <text x="265" y="116" text-anchor="middle" class="label">entra no fim</text>
+              </svg>
+              <figcaption>FRONT é o próximo a sair; REAR é o último que entrou. Com índices, a janela viva é [#inicio, #fim): o que sai fica fora do intervalo.</figcaption>
+            </figure>
+
+            <p>Com uma lista encadeada, a frente é o início e o fim é o último nó: enfileirar e desenfileirar continuam O(1) se você mantiver as duas referências. A fila com índices é a versão de array que evita o <code>shift</code>.</p>
+          </section>
+
+          <section id="custo">
+            <h2>Custo</h2>
+            <p>Com <code>n</code> elementos na fila:</p>
+            <div class="table-wrap">
+              <table class="custo">
+                <caption class="table-caption">Custo das operações com n elementos</caption>
+                <thead>
+                  <tr><th scope="col">Operação</th><th scope="col">Custo</th><th scope="col">Observação</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>enqueue(x)</code></td><td>O(1)</td><td><code>push</code> no fim é amortizado; na lista, O(1) estrito.</td></tr>
+                  <tr><td><code>dequeue()</code> com índices/lista</td><td>O(1)</td><td>Avança o início ou religa o ponteiro; não desloca os vizinhos.</td></tr>
+                  <tr><td><code>dequeue()</code> com <code>shift</code></td><td>O(n)</td><td>O array desloca todos os elementos para a esquerda.</td></tr>
+                  <tr><td><code>front()</code></td><td>O(1)</td><td>Só lê a frente, sem remover.</td></tr>
+                  <tr><td>Busca por valor</td><td>O(n)</td><td>Percorre da frente ao fim; a fila não é feita para busca.</td></tr>
+                  <tr><td>Memória</td><td>O(n)</td><td>Com índices, o array pode manter posições já consumidas até compactar.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>A diferença entre O(1) e O(n) no <code>dequeue</code> aparece rápido: uma fila de 10 mil elementos com <code>shift</code> copia os outros 9.999 a cada saída.</p>
+          </section>
+
+          <section id="quando-usar">
+            <h2>Quando usar</h2>
+            <p>Use quando a ordem de chegada é o critério:</p>
+            <ul>
+              <li><strong>Escalonamento:</strong> tarefas, impressões e requisições atendidas por ordem de chegada.</li>
+              <li><strong>Buffers:</strong> producer/consumer, streams e filas de mensagens.</li>
+              <li><strong>BFS:</strong> a busca em largura visita os nós na ordem em que eles entram na fila.</li>
+              <li><strong>Simulações:</strong> clientes, pacotes e eventos processados em ordem temporal.</li>
+            </ul>
+            <h3>Quando evitar</h3>
+            <ul>
+              <li>Precisa do último que chegou? A estrutura é uma <strong>pilha</strong>.</li>
+              <li>Precisa do menor/maior elemento? Use um <strong>heap</strong> / fila de prioridade.</li>
+              <li>Precisa acessar o meio com frequência? Array ou lista são mais diretos.</li>
+            </ul>
+          </section>
+
+          <section id="erros-comuns">
+            <h2>Erros comuns</h2>
+            <div class="callout">
+              <span class="label">Antes de rodar</span>
+              <ul>
+                <li>Usar <code>pop</code> em vez de <code>shift</code>: <code>pop</code> remove do fim e transforma a fila em pilha.</li>
+                <li>Usar <code>shift</code> em uma fila grande: a remoção no início é O(n); prefira os índices <code>#inicio/#fim</code> ou uma lista.</li>
+                <li>Confundir frente com fim ao ler o primeiro elemento: a frente é <code>fila[0]</code>; o fim é <code>fila[fila.length - 1]</code>.</li>
+                <li>Chamar <code>dequeue</code> ou <code>front</code> sem verificar se a fila está vazia. No EDViz, a operação devolve <code>undefined</code>; em Java e C#, lança exceção.</li>
+                <li>Deixar a fila crescer sem limite: consumidores mais lentos que produtores enchem a memória.</li>
+                <li>Na fila com índices, achar que o array interno é a fila: a janela viva é <code>[#inicio, #fim)</code>; o que está fora não conta.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="veja-em-acao">
+            <h2>Veja em ação</h2>
+            <p>Os links abrem o exemplo no passo indicado, pausado. Compare a versão com <code>shift</code> e a versão com índices.</p>
+            <div class="demos">
+              <a class="demo" href="../visualizador.html?exemplo=fila-array&amp;passo=5">
+                <span class="demo-name">Carla entra no fim</span>
+                <span class="demo-watch">FRONT continua em Ana; REAR passa a apontar para Carla.</span>
+                <span class="demo-meta">fila-array.js · passo 5</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=fila-array&amp;passo=8">
+                <span class="demo-name">Ana sai da frente</span>
+                <span class="demo-watch">O <code>shift</code> devolve Ana e desloca Bruno e Carla para a esquerda.</span>
+                <span class="demo-meta">fila-array.js · passo 8</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=fila-indices&amp;passo=23">
+                <span class="demo-name">A janela viva avança</span>
+                <span class="demo-watch">O <code>delete</code> remove a célula e <code>#inicio</code> avança; nada desliza.</span>
+                <span class="demo-meta">fila-indices.js · passo 23</span>
+              </a>
+            </div>
+          </section>
+
+          <section id="referencias">
+            <h2>Referências</h2>
+            <ol class="refs">
+              <li><strong>Ziviani</strong>, N. <em>Projetos de Algoritmos com Implementações em Java e C++</em>. São Paulo: Cengage Learning, 2007. Cap. 3, seção 3.3 — filas com arranjos e com apontadores.</li>
+              <li><strong>Cormen</strong>, T. H. et al. <em>Introduction to Algorithms</em>. 4. ed. Cambridge: MIT Press, 2022. Cap. 10, seção 10.1 — pilhas, filas e a implementação com arranjos.</li>
+              <li><strong>OpenDSA</strong>. <em>Queues</em>. Disponível em: <a href="https://opendsa.org/" target="_blank" rel="noopener">opendsa.org</a> — outra visualização para comparar com o EDViz.</li>
+            </ol>
+          </section>
+
+          <nav class="pager" aria-label="Navegação entre estruturas">
+            <a href="pilha.html">
+              <span class="dir">Anterior</span>
+              Pilha
+            </a>
+            <a class="next" href="lista-encadeada.html">
+              <span class="dir">Próxima</span>
+              Lista encadeada
+            </a>
+          </nav>
+
+        </article>
+
+        <aside class="guide-aside">
+          <h2>Nesta página</h2>
+          <nav aria-label="Seções desta página">
+            <a href="#o-que-e">O que é</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#custo">Custo</a>
+            <a href="#quando-usar">Quando usar</a>
+            <a href="#erros-comuns">Erros comuns</a>
+            <a href="#veja-em-acao">Veja em ação</a>
+            <a href="#referencias">Referências</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

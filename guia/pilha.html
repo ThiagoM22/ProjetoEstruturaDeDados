@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Pilha — Guia de Estruturas de Dados — ED Viz</title>
+<meta name="description" content="Pilha (LIFO): o que é, como push e pop funcionam, o custo das operações, quando usar, erros comuns e exemplos executáveis no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <a href="index.html">Guia</a> / <span aria-current="page">Pilha</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Pilha</h1>
+      <p class="lead">O último elemento que entra é o primeiro que sai. Push e pop acontecem sempre no topo — e é isso que o desenho mostra.</p>
+      <p class="guide-meta">2 exemplos · push/pop O(1) · acesso ao topo O(1)</p>
+    </header>
+
+    <div class="guide-body">
+      <div class="guide-grid">
+        <article class="prose">
+
+          <section id="o-que-e">
+            <h2>O que é</h2>
+            <p>Uma <strong>pilha</strong> é uma coleção linear em que inserções, remoções e leituras acontecem em uma única extremidade: o <strong>topo</strong>. O elemento mais antigo fica na <strong>base</strong>; o mais recente, no topo. Por isso a regra é <strong>LIFO</strong> — <em>last in, first out</em>: o último que entra é o primeiro que sai.</p>
+            <p>A metáfora clássica é a pilha de pratos: você põe e tira sempre de cima. A pilha não oferece acesso por índice; para chegar ao meio, é preciso desempilhar o que está acima. Essa restrição é a característica da estrutura, não uma limitação a contornar.</p>
+          </section>
+
+          <section id="como-funciona">
+            <h2>Como funciona</h2>
+            <p>As operações essenciais são:</p>
+            <ul>
+              <li><code>push(x)</code> / <code>empilhar</code> — coloca <code>x</code> no topo; o tamanho aumenta em 1.</li>
+              <li><code>pop()</code> / <code>desempilhar</code> — remove e devolve o topo; o tamanho diminui em 1.</li>
+              <li><code>peek()</code> / <code>topo</code> — devolve o topo sem remover.</li>
+              <li><code>isEmpty()</code> / <code>estaVazia</code> e <code>size()</code> / <code>tamanho</code> — consultam o estado.</li>
+            </ul>
+            <p>O invariante: os elementos abaixo do topo não se movem quando você empilha ou desempilha. A pilha só muda na extremidade.</p>
+
+            <pre tabindex="0"><code data-executavel>const pilha = [];
+pilha.push(10);            // base
+pilha.push(20);
+pilha.push(30);            // topo
+console.log(pilha.pop());  // 30
+console.log(pilha.length); // 2</code></pre>
+
+            <figure class="diagram">
+              <svg viewBox="0 0 360 200" role="img" aria-labelledby="diagPilhaTitulo diagPilhaDesc">
+                <title id="diagPilhaTitulo">Pilha com três elementos: 10 na base, 20 no meio e 30 no topo</title>
+                <desc id="diagPilhaDesc">Caixas empilhadas verticalmente. A caixa do topo, com o valor 30, está destacada em âmbar. Uma seta dupla à direita indica que push e pop acontecem no topo.</desc>
+                <defs>
+                  <marker id="setaPilha" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M0 0 6 3 0 6Z" class="arrow-head"/>
+                  </marker>
+                </defs>
+                <text x="180" y="28" text-anchor="middle" class="label">topo = 30</text>
+                <rect x="120" y="52" width="120" height="44" rx="3" class="cell active"/>
+                <text x="180" y="74" text-anchor="middle" class="value active" dominant-baseline="middle">30</text>
+                <rect x="120" y="96" width="120" height="44" rx="3" class="cell"/>
+                <text x="180" y="118" text-anchor="middle" class="value" dominant-baseline="middle">20</text>
+                <rect x="120" y="140" width="120" height="44" rx="3" class="cell"/>
+                <text x="180" y="162" text-anchor="middle" class="value" dominant-baseline="middle">10</text>
+                <text x="104" y="74" text-anchor="end" class="label" dominant-baseline="middle">topo</text>
+                <text x="104" y="162" text-anchor="end" class="label" dominant-baseline="middle">base</text>
+                <line x1="276" y1="46" x2="276" y2="146" class="arrow" marker-start="url(#setaPilha)" marker-end="url(#setaPilha)"/>
+                <text x="288" y="96" class="label" dominant-baseline="middle">push / pop</text>
+              </svg>
+              <figcaption>O topo é a única extremidade que muda: 10 entrou primeiro (base), 30 entrou por último (topo).</figcaption>
+            </figure>
+
+            <p>Com um array, o topo é o fim (<code>push</code>/<code>pop</code>). Com uma lista encadeada, o topo é o início (<code>head</code>), e as duas operações continuam O(1). A classe <code>Pilha</code> apenas esconde o array interno atrás de métodos — a regra LIFO é a mesma.</p>
+          </section>
+
+          <section id="custo">
+            <h2>Custo</h2>
+            <p>Com <code>n</code> elementos na pilha:</p>
+            <div class="table-wrap">
+              <table class="custo">
+                <caption class="table-caption">Custo das operações com n elementos</caption>
+                <thead>
+                  <tr><th scope="col">Operação</th><th scope="col">Custo</th><th scope="col">Observação</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>push(x)</code></td><td>O(1) amortizado</td><td>No array dinâmico, uma expansão ocasional custa O(n); na lista encadeada, O(1).</td></tr>
+                  <tr><td><code>pop()</code></td><td>O(1)</td><td>Remove e devolve o topo.</td></tr>
+                  <tr><td><code>peek()</code> / <code>topo</code></td><td>O(1)</td><td>Só lê o topo, sem remover.</td></tr>
+                  <tr><td><code>isEmpty()</code> / <code>size()</code></td><td>O(1)</td><td>Consulta o estado.</td></tr>
+                  <tr><td>Busca por valor</td><td>O(n)</td><td>Percorre do topo à base; a pilha não é feita para busca.</td></tr>
+                  <tr><td>Acesso por índice</td><td>O(1) no array interno</td><td>Fora da API da pilha; se precisa disso, provavelmente quer um array.</td></tr>
+                  <tr><td>Memória</td><td>O(n)</td><td>O array pode reservar capacidade extra; a lista gasta um ponteiro por nó.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>O custo amortizado é o que importa na prática: <code>N</code> pushes custam <code>O(N)</code> no total, mesmo que um deles seja O(n).</p>
+          </section>
+
+          <section id="quando-usar">
+            <h2>Quando usar</h2>
+            <p>Use quando a ordem de processamento precisa ser a reversa da chegada:</p>
+            <ul>
+              <li><strong>Desfazer e refazer:</strong> uma pilha guarda as ações feitas; outra, as desfeitas.</li>
+              <li><strong>Chamadas de função e recursão:</strong> cada chamada empilha um quadro; o retorno desempilha.</li>
+              <li><strong>Expressões e parênteses:</strong> validar aninhamento e avaliar notação pós-fixa.</li>
+              <li><strong>DFS e backtracking iterativo:</strong> guardar o próximo caminho a explorar.</li>
+            </ul>
+            <h3>Quando evitar</h3>
+            <ul>
+              <li>Precisa atender por ordem de chegada? A estrutura é uma <strong>fila</strong>.</li>
+              <li>Precisa acessar ou buscar no meio com frequência? Um array ou uma lista é mais direto.</li>
+              <li>Precisa sempre do menor ou do maior elemento? Use um <strong>heap</strong> / fila de prioridade.</li>
+            </ul>
+          </section>
+
+          <section id="erros-comuns">
+            <h2>Erros comuns</h2>
+            <div class="callout">
+              <span class="label">Antes de rodar</span>
+              <ul>
+                <li>Usar <code>shift()</code> para “tirar do topo”. Em um array, o topo é o <strong>fim</strong>: <code>pop()</code> remove o último; <code>shift()</code> remove o primeiro e transforma a pilha em fila.</li>
+                <li>Chamar <code>pop()</code> ou <code>peek()</code> sem verificar se a pilha está vazia. No EDViz, <code>pop()</code> em vazio devolve <code>undefined</code>; em Java e C#, a operação lança exceção. <a href="../visualizador.html?exemplo=pilha-array&amp;passo=10">Veja o passo 10 do exemplo</a>.</li>
+                <li>Ler <code>pilha[0]</code> achando que é o topo. O topo é <code>pilha[pilha.length - 1]</code>.</li>
+                <li>Confundir LIFO com FIFO: se a saída precisa respeitar a ordem de chegada, a estrutura é uma fila.</li>
+                <li>Em uma implementação manual, esquecer de atualizar o tamanho ou o topo ao remover. O <code>MeuArray</code> mostra por que <code>#items.length</code> e <code>#tamanho</code> são coisas diferentes.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="veja-em-acao">
+            <h2>Veja em ação</h2>
+            <p>Cada link abre o exemplo no passo indicado, pausado. O melhor jeito de ler é acompanhar a linha destacada e o desenho ao mesmo tempo.</p>
+            <div class="demos">
+              <a class="demo" href="../visualizador.html?exemplo=pilha-array&amp;passo=5">
+                <span class="demo-name">Push: o 30 entra no topo</span>
+                <span class="demo-watch">O topo passa a ser 30 e o tamanho vira 3; a base continua 10.</span>
+                <span class="demo-meta">pilha-array.js · passo 5</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=pilha-array&amp;passo=8">
+                <span class="demo-name">Pop: o 30 sai</span>
+                <span class="demo-watch">O valor devolvido é 30 e o topo passa a ser 20. A ordem de saída é a reversa da entrada.</span>
+                <span class="demo-meta">pilha-array.js · passo 8</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=pilha-classe&amp;passo=12">
+                <span class="demo-name">A mesma pilha, encapsulada</span>
+                <span class="demo-watch">desempilhar chama this.itens.pop(); o valor “C” sai e o topo passa a ser “B”.</span>
+                <span class="demo-meta">pilha-classe.js · passo 12</span>
+              </a>
+            </div>
+          </section>
+
+          <section id="referencias">
+            <h2>Referências</h2>
+            <ol class="refs">
+              <li><strong>Ziviani</strong>, N. <em>Projetos de Algoritmos com Implementações em Java e C++</em>. São Paulo: Cengage Learning, 2007. Cap. 3, seção 3.2 — as implementações com arranjo e com apontadores, na notação da faculdade.</li>
+              <li><strong>Cormen</strong>, T. H. et al. <em>Introduction to Algorithms</em>. 4. ed. Cambridge: MIT Press, 2022. Cap. 10, seção 10.1 — a definição formal e o custo amortizado.</li>
+              <li><strong>OpenDSA</strong>. <em>Stacks</em>. Disponível em: <a href="https://opendsa.org/" target="_blank" rel="noopener">opendsa.org</a> — outra visualização para comparar com o EDViz.</li>
+            </ol>
+          </section>
+
+          <nav class="pager" aria-label="Navegação entre estruturas">
+            <a href="array.html">
+              <span class="dir">Anterior</span>
+              Array
+            </a>
+            <a class="next" href="fila.html">
+              <span class="dir">Próxima</span>
+              Fila
+            </a>
+          </nav>
+
+        </article>
+
+        <aside class="guide-aside">
+          <h2>Nesta página</h2>
+          <nav aria-label="Seções desta página">
+            <a href="#o-que-e">O que é</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#custo">Custo</a>
+            <a href="#quando-usar">Quando usar</a>
+            <a href="#erros-comuns">Erros comuns</a>
+            <a href="#veja-em-acao">Veja em ação</a>
+            <a href="#referencias">Referências</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

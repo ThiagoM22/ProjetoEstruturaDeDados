@@ -1399,10 +1399,10 @@ test('resize: cruzar o breakpoint reenquadra mesmo após pan (P3)', () => {
 document.createElement = origCreateElement;
 
 /* ------------------------------------------------------------------ */
-console.log('\n[consistência index.html x app.js]');
+console.log('\n[consistência visualizador.html x app.js]');
 
 test('todos os ids usados no app existem no HTML', () => {
-  const html = read('index.html');
+  const html = read('visualizador.html');
   const app = read('js/app.js');
   const ids = [];
   const rx = /\$\('([^']+)'\)/g;
@@ -1412,14 +1412,17 @@ test('todos os ids usados no app existem no HTML', () => {
   assert(missing.length === 0, 'ids ausentes no HTML: ' + missing.join(', '));
 });
 
-test('ordem dos scripts no HTML está correta', () => {
-  const html = read('index.html');
-  const order = ['js/util.js', 'js/tokenizer.js', 'js/parser.js', 'js/interpreter.js', 'js/examples.js', 'js/anim.js', 'js/rough.js', 'js/views.js', 'js/app.js'];
+test('módulo de entrada carrega os scripts na ordem correta', () => {
+  const html = read('visualizador.html');
+  assert(html.indexOf('type="module" src="js/main.js"') >= 0, 'HTML não usa o módulo js/main.js');
+  const main = read('js/main.js');
+  const order = ['util', 'tokenizer', 'parser', 'interpreter', 'examples', 'anim', 'rough', 'views', 'app'];
   let last = -1;
-  for (const s of order) {
-    const idx = html.indexOf('src="' + s + '"');
-    assert(idx >= 0, 'script ausente: ' + s);
-    assert(idx > last, 'script fora de ordem: ' + s);
+  for (const name of order) {
+    const needle = "import './" + name + ".js';";
+    const idx = main.indexOf(needle);
+    assert(idx >= 0, 'import ausente: ' + name);
+    assert(idx > last, 'import fora de ordem: ' + name);
     last = idx;
   }
 });

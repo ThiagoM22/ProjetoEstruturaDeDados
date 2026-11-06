@@ -1,81 +1,10 @@
 /* ==========================================================================
-   ED Viz — Visualizador de Estruturas de Dados
-   Tema escuro neutro · tokens centralizados · accent âmbar (uso contido)
+   ED Viz — visualizador (interface da ferramenta)
+   Tema escuro neutro · accent âmbar (uso contido)
    Espaçamento em múltiplos de 4 · raio máximo 6px
+   Tokens em `css/tokens.css` (carregado antes deste arquivo). Fonte da verdade
+   visual: `DESIGN.md`. Não crie valores avulsos aqui: promova o valor a token lá.
    ========================================================================== */
-
-:root {
-  /* ---- superfícies (escuras, leve tom azulado) ---- */
-  --bg-primary:    #17191d;   /* editor */
-  --bg-secondary:  #121418;   /* cabeçalho, status e barra de execução */
-  --bg-surface:    #17191d;   /* painéis */
-  --bg-elevated:   #1e2127;   /* células, aba ativa e superfícies discretas */
-  --bg-hover:      #24272e;
-  --bg-input:      #21242a;
-  --bg-track:      #3a4048;   /* trilha da barra de progresso */
-  --bg-canvas:     #131519;   /* área de visualização (um tom abaixo) */
-
-  /* ---- bordas ---- */
-  --border:        #2e3238;
-  --border-strong: #383d44;
-
-  /* ---- texto ---- */
-  --text-primary:   #d6d8dc;
-  --text-secondary: #8a8e96;
-  --text-muted:     #9196a0;
-
-  /* ---- destaque (accent, uso contido) ---- */
-  --accent:           #e5a66a;
-  --accent-hover:     #eeb781;
-  --accent-soft:      rgba(229, 166, 106, 0.12);
-  --accent-muted:     rgba(229, 166, 106, 0.38);
-  --accent-text:      #f0c494;
-  --accent-fill:      rgba(229, 166, 106, 0.22);
-  --accent-contrast:  #17191d;   /* texto sobre o accent (fundo escuro) */
-
-  /* ---- estados ---- */
-  --danger:         #e5766d;
-  --danger-soft:    rgba(229, 118, 109, 0.10);
-  --danger-border:  rgba(229, 118, 109, 0.35);
-  --success:        #74b98f;
-  --success-soft:   rgba(116, 185, 143, 0.10);
-  --success-border: rgba(116, 185, 143, 0.28);
-  --warn:           #ecd24c;
-
-  /* ---- código (VS Code Dark+) ---- */
-  --tk-comment: #6a9955;
-  --tk-str:     #ce9178;
-  --tk-num:     #b5cea8;
-  --tk-kw:      #569cd6;
-  --tk-ctrl:    #c586c0;
-  --tk-fn:      #dcdcaa;
-  --tk-var:     #9cdcfe;
-  --tk-type:    #4ec9b0;
-
-  /* ---- tipografia ---- */
-  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Fira Code", "Courier New", monospace;
-
-  /* ---- espaçamento (múltiplos de 4) ---- */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 24px;
-  --sp-6: 32px;
-
-  /* ---- raio ---- */
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-
-  /* ---- medidas ---- */
-  --header-h: 44px;
-  --transport-h: 44px;
-  --split-w: 5px;
-  --line-h: 22px;
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
 
 * { box-sizing: border-box; }
 
@@ -92,15 +21,15 @@ body {
 }
 
 /* scrollbars finas */
-* { scrollbar-width: thin; scrollbar-color: #343941 transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
-  background: #343941;
+  background: var(--scrollbar-thumb);
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 6px;
 }
-::-webkit-scrollbar-thumb:hover { background-color: #454b54; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -132,7 +61,9 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.brand { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.brand { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; text-decoration: none; }
+
+a.brand, a.btn { text-decoration: none; }
 
 .brand-mark { display: grid; place-items: center; color: var(--accent); flex: none; }
 
@@ -296,7 +227,7 @@ body {
 
 .topbar .btn.ghost { border-color: var(--border); }
 
-.btn.small { padding: 3px 8px; font-size: 11.5px; }
+.btn.small { min-height: 24px; padding: 3px 8px; font-size: 11.5px; }
 
 .btn.debug.active {
   border-color: var(--accent-muted);
@@ -330,6 +261,7 @@ body {
 
 .select:focus-visible,
 .btn:focus-visible,
+.brand:focus-visible,
 .tbtn:focus-visible,
 .zbtn:focus-visible,
 .zoom-label:focus-visible,
@@ -551,6 +483,7 @@ kbd {
 
 .gline.cur::before {
   content: "▶";
+  /* impeccable-disable-next-line design-system-font-size -- glifo ▶ do gutter: marcador de 7px documentado em DESIGN.md */
   font-size: 7px;
   margin-right: 3px;
   vertical-align: 1px;
@@ -581,7 +514,7 @@ kbd {
   min-width: 100%;
   min-height: 100%;
   pointer-events: none;
-  color: #d4d4d4;
+  color: var(--tk-fg);
   will-change: transform;
 }
 
@@ -635,7 +568,7 @@ kbd {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-tip);
   font: 12px/1.55 var(--font-mono);
   color: var(--text-primary);
   pointer-events: none;
@@ -800,7 +733,7 @@ kbd {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font: 500 10.5px var(--font-mono);
+  font: 500 11px var(--font-mono);
   cursor: pointer;
 }
 
@@ -964,7 +897,7 @@ kbd {
 
 .queue-ptr.ptr-rear {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-soft);
   border: 1px solid var(--border);
 }
 
@@ -1159,7 +1092,7 @@ kbd {
   font: 600 10.5px/18px var(--font-mono);
   letter-spacing: 0.4px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 0 6px;
@@ -1176,6 +1109,7 @@ kbd {
   transform: translateX(-50%);
   border-left: 3.5px solid transparent;
   border-right: 3.5px solid transparent;
+  /* impeccable-disable-next-line border-accent-on-rounded -- triângulo de 4px é o ponteiro da etiqueta HEAD/TAIL, não borda de card */
   border-top: 4px solid var(--border-strong);
 }
 
@@ -1275,14 +1209,14 @@ kbd {
 
 .list-null.cycle {
   color: var(--warn);
-  border-color: rgba(236, 210, 76, 0.4);
-  background: rgba(236, 210, 76, 0.08);
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
 }
 
 .ptr-chip {
   font: 600 11.5px/18px var(--font-mono);
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 0 6px;
@@ -1346,6 +1280,7 @@ kbd {
   opacity: 0.7;
 }
 
+/* impeccable-disable-next-line side-tab -- faixa interna marca o limite lógico do array, não aba de card */
 .array-cell.at-boundary { box-shadow: inset 2px 0 0 var(--accent-muted); }
 
 .array-val {
@@ -1632,7 +1567,7 @@ input[type="range"]:focus-visible {
 
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: linear-gradient(to right,
     var(--accent) 0, var(--accent) var(--fill, 0%),
     var(--bg-track) var(--fill, 0%), var(--bg-track) 100%);
@@ -1652,7 +1587,7 @@ input[type="range"]:hover::-webkit-slider-thumb { background: var(--accent-hover
 
 input[type="range"]::-moz-range-track {
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: linear-gradient(to right,
     var(--accent) 0, var(--accent) var(--fill, 0%),
     var(--bg-track) var(--fill, 0%), var(--bg-track) 100%);
@@ -1852,6 +1787,9 @@ input[type="range"]::-moz-range-thumb {
 
 dialog.help {
   max-width: 620px;
+  max-height: calc(100vh - 2 * var(--sp-4));
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
@@ -1862,7 +1800,7 @@ dialog.help {
   box-shadow: var(--shadow-pop);
 }
 
-dialog.help::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog.help::backdrop { background: var(--backdrop); }
 
 dialog.help h2 { margin: 0 0 var(--sp-3); font-size: 14px; color: var(--text-primary); }
 
@@ -1894,13 +1832,7 @@ dialog.help form { text-align: right; margin: var(--sp-4) 0 0; }
 /* ------------------------------------------------------------------ */
 /* Responsivo                                                          */
 
-/* painel de código estreito: ações viram ícones */
-@media (max-width: 1500px) {
-  .topbar-actions .btn-label { display: none; }
-  .topbar-actions .btn { padding: var(--sp-1); min-width: 28px; }
-  .select-compact { max-width: 128px; }
-}
-
+/* grade empilhada: a barra superior também troca rótulos por ícones */
 @media (max-width: 1100px) {
   body { height: auto; min-height: 100vh; overflow: auto; }
   .layout { grid-template-columns: 1fr; flex: none; }
@@ -1913,6 +1845,9 @@ dialog.help form { text-align: right; margin: var(--sp-4) 0 0; }
   .side-panel { max-height: none; min-height: 40vh; }
   .transport { position: sticky; bottom: 0; z-index: 20; }
   .step-explainer { position: sticky; bottom: var(--transport-h); z-index: 19; }
+  .topbar-actions .btn-label { display: none; }
+  .topbar-actions .btn { padding: var(--sp-1); min-width: 28px; }
+  .select-compact { max-width: 128px; }
 }
 
 @media (max-width: 720px) {
@@ -1922,6 +1857,35 @@ dialog.help form { text-align: right; margin: var(--sp-4) 0 0; }
   .step-label { min-width: 0; }
   .speed { max-width: 68px; }
   .select-compact { max-width: 96px; }
+}
+
+/* Celulares estreitos: a barra é o único lugar sem rolagem própria, então
+ * ela precisa caber. Encolha os vãos antes de esconder qualquer controle. */
+@media (max-width: 480px) {
+  .topbar { gap: var(--sp-2); }
+  .topbar-actions { gap: var(--sp-1); }
+  .topbar .select { max-width: 100px; }
+}
+
+@media (max-width: 380px) {
+  /* o nome continua no outline do documento; some só do desenho */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .brand { padding: 6px; margin-left: -6px; }
+  .topbar { gap: var(--sp-1); padding: 0 6px; }
+  .topbar .select { max-width: 88px; }
+  /* a barra de execução também precisa caber em 320px */
+  .transport { padding: 0 6px; }
+  .transport .tbtn:not(.tbtn-play) { width: 28px; }
+  .transport-group { gap: 2px; }
+  .speed { width: 42px; padding-right: 14px; }
+  .step-label { min-width: 64px; font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

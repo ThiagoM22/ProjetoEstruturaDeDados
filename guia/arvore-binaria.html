@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>Árvore binária — Guia de Estruturas de Dados — ED Viz</title>
+<meta name="description" content="Árvore binária e árvore binária de busca: raiz, filhos, percursos, custo médio e pior caso, erros comuns e exemplos executáveis no visualizador.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon.png">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="../index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="index.html" aria-current="page">Guia</a>
+      <a href="../visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <nav class="crumbs" aria-label="Trilha">
+      <a href="../index.html">Início</a> / <a href="index.html">Guia</a> / <span aria-current="page">Árvore binária</span>
+    </nav>
+
+    <header class="guide-head">
+      <h1>Árvore binária</h1>
+      <p class="lead">Cada nó tem até dois filhos. Na árvore binária de busca, a ordem permite descartar um lado a cada comparação.</p>
+      <p class="guide-meta">6 exemplos · busca O(log n) média · O(n) no pior caso</p>
+    </header>
+
+    <div class="guide-body">
+      <div class="guide-grid">
+        <article class="prose">
+
+          <section id="o-que-e">
+            <h2>O que é</h2>
+            <p>Uma <strong>árvore binária</strong> é uma estrutura hierárquica em que cada nó tem no máximo dois filhos: <strong>esquerda</strong> e <strong>direita</strong>. O nó do topo é a <strong>raiz</strong>; nós sem filhos são <strong>folhas</strong>; cada nó com seus descendentes forma uma <strong>subárvore</strong>. A <strong>altura</strong> é o comprimento do caminho mais longo da raiz até uma folha.</p>
+            <p>Uma <strong>árvore binária de busca</strong> (BST) acrescenta uma regra de ordem: para todo nó, os valores menores ficam à esquerda e os maiores à direita. Neste projeto, valores iguais vão para a direita. Isso permite buscar, inserir e remover descartando um lado inteiro a cada comparação — mas só se a árvore estiver razoavelmente equilibrada.</p>
+          </section>
+
+          <section id="como-funciona">
+            <h2>Como funciona</h2>
+            <ul>
+              <li><strong>Buscar/inserir:</strong> compare com o nó atual; menor vai à esquerda, maior (ou igual) à direita. O custo é O(h), onde <code>h</code> é a altura.</li>
+              <li><strong>Percorrer:</strong> em-ordem (esquerda, raiz, direita) devolve os valores em ordem crescente na BST; pré e pós-ordem servem para copiar, serializar e avaliar expressões.</li>
+              <li><strong>Remover:</strong> folha ou um filho são casos diretos; com dois filhos, o sucessor é o menor nó da subárvore direita (ou o antecessor, o maior da esquerda).</li>
+              <li><strong>Recursão:</strong> os percursos descem e voltam; a pilha de chamadas do EDViz mostra esse caminho.</li>
+            </ul>
+            <p>O ponto delicado é o equilíbrio. Uma BST construída em ordem crescente vira uma lista: a altura é <code>n</code> e a busca é O(n). Árvores balanceadas (AVL, rubro-negra) garantem O(log n) no pior caso; a BST simples não.</p>
+
+            <pre tabindex="0"><code data-executavel>class No {
+  constructor(v) {
+    this.valor = v;
+    this.esquerda = null;
+    this.direita = null;
+  }
+}
+const raiz = new No(50);
+raiz.esquerda = new No(30);
+raiz.direita = new No(70);
+console.log(raiz.esquerda.valor); // 30</code></pre>
+
+            <figure class="diagram">
+              <svg viewBox="0 0 380 230" role="img" aria-labelledby="diagArvoreTitulo diagArvoreDesc">
+                <title id="diagArvoreTitulo">Árvore binária de busca com raiz 50 e o caminho 50, 30, 40 destacado</title>
+                <desc id="diagArvoreDesc">A raiz 50 tem filhos 30 e 70. O nó 30 tem filhos 20 e 40; o nó 70 tem filhos 60 e 80. O caminho 50 para 30 para 40 está em âmbar, e o nó 40 está destacado.</desc>
+                <text x="190" y="14" text-anchor="middle" class="tag">raiz</text>
+                <line x1="190" y1="42" x2="100" y2="112" class="edge active"/>
+                <line x1="190" y1="42" x2="280" y2="112" class="edge"/>
+                <line x1="100" y1="112" x2="50" y2="182" class="edge"/>
+                <line x1="100" y1="112" x2="150" y2="182" class="edge active"/>
+                <line x1="280" y1="112" x2="230" y2="182" class="edge"/>
+                <line x1="280" y1="112" x2="330" y2="182" class="edge"/>
+                <circle cx="190" cy="42" r="18" class="node visited"/>
+                <circle cx="100" cy="112" r="18" class="node visited"/>
+                <circle cx="280" cy="112" r="18" class="node"/>
+                <circle cx="50" cy="182" r="18" class="node"/>
+                <circle cx="150" cy="182" r="18" class="node active"/>
+                <circle cx="230" cy="182" r="18" class="node"/>
+                <circle cx="330" cy="182" r="18" class="node"/>
+                <text x="190" y="42" text-anchor="middle" dominant-baseline="middle" class="value small">50</text>
+                <text x="100" y="112" text-anchor="middle" dominant-baseline="middle" class="value small">30</text>
+                <text x="280" y="112" text-anchor="middle" dominant-baseline="middle" class="value small">70</text>
+                <text x="50" y="182" text-anchor="middle" dominant-baseline="middle" class="value small">20</text>
+                <text x="150" y="182" text-anchor="middle" dominant-baseline="middle" class="value small active">40</text>
+                <text x="230" y="182" text-anchor="middle" dominant-baseline="middle" class="value small">60</text>
+                <text x="330" y="182" text-anchor="middle" dominant-baseline="middle" class="value small">80</text>
+              </svg>
+              <figcaption>Busca por 40: a comparação com 50 vai para a esquerda; com 30, para a direita; 40 é encontrado. Cada passo descarta um lado.</figcaption>
+            </figure>
+          </section>
+
+          <section id="custo">
+            <h2>Custo</h2>
+            <p>Com <code>n</code> nós e altura <code>h</code>:</p>
+            <div class="table-wrap">
+              <table class="custo">
+                <caption class="table-caption">Custo das operações em uma árvore binária</caption>
+                <thead>
+                  <tr><th scope="col">Operação</th><th scope="col">Custo</th><th scope="col">Observação</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Busca, inserção e remoção</td><td>O(h)</td><td>Na média de uma BST aleatória, O(log n); no pior caso, O(n).</td></tr>
+                  <tr><td>Percurso em/pré/pós-ordem</td><td>O(n)</td><td>Visita cada nó uma vez; a recursão usa a pilha de chamadas.</td></tr>
+                  <tr><td>Mínimo e máximo</td><td>O(h)</td><td>Desce sempre à esquerda ou sempre à direita.</td></tr>
+                  <tr><td>Memória</td><td>O(n)</td><td>Um valor e duas referências por nó.</td></tr>
+                  <tr><td>Árvore balanceada (AVL, rubro-negra)</td><td>O(log n) no pior caso</td><td>O balanceamento garante que a altura fique logarítmica.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>A tabela só é honesta com a altura: uma BST comum pode ter <code>h = n</code>. Inserir <code>1, 2, 3, 4, 5</code> em ordem crescente produz uma corrente, não uma árvore equilibrada.</p>
+          </section>
+
+          <section id="quando-usar">
+            <h2>Quando usar</h2>
+            <p>Use quando a ordem dos dados é parte do problema:</p>
+            <ul>
+              <li><strong>Busca ordenada:</strong> encontrar, inserir e remover mantendo a ordem.</li>
+              <li><strong>Percursos ordenados:</strong> o em-ordem da BST devolve os valores em ordem crescente.</li>
+              <li><strong>Consultas por intervalo:</strong> “todos os valores entre 30 e 70” sem varrer a estrutura inteira.</li>
+              <li><strong>Índices e dicionários ordenados:</strong> bancos de dados e mapas que precisam de ordem, não só de igualdade.</li>
+            </ul>
+            <h3>Quando evitar</h3>
+            <ul>
+              <li>Você só precisa de igualdade (chave → valor): uma tabela hash é mais direta.</li>
+              <li>Precisa sempre do menor/maior: um heap resolve com menos estrutura.</li>
+              <li>Os dados entram em ordem crescente e você não vai balancear: a BST degenera.</li>
+              <li>O acesso é sequencial e a localidade de cache importa: o array ganha.</li>
+            </ul>
+          </section>
+
+          <section id="erros-comuns">
+            <h2>Erros comuns</h2>
+            <div class="callout">
+              <span class="label">Antes de rodar</span>
+              <ul>
+                <li>Inverter a regra: menores à esquerda, maiores ou iguais à direita. Comparar com o nó errado produz uma árvore que parece BST, mas não é.</li>
+                <li>Confundir árvore binária simples com BST: a simples só limita os filhos; a BST impõe a ordem.</li>
+                <li>Inserir duplicados sem uma regra. Neste projeto, os iguais vão para a direita; em outra implementação, podem ser recusados.</li>
+                <li>Remover um nó com dois filhos sem o sucessor (menor da direita) ou o antecessor (maior da esquerda); o buraco quebra a busca.</li>
+                <li>Esquecer de atualizar o ponteiro do pai ao remover ou promover um filho.</li>
+                <li>Esperar equilíbrio de uma BST comum. Se a entrada é ordenada, a altura vira O(n).</li>
+                <li>Recursão sem caso-base: a pilha de chamadas cresce até o limite (no EDViz, 500 chamadas).</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="veja-em-acao">
+            <h2>Veja em ação</h2>
+            <p>Os links abrem o exemplo no passo indicado, pausado. A árvore destaca o nó da operação e os já visitados.</p>
+            <div class="demos">
+              <a class="demo" href="../visualizador.html?exemplo=arvore-bst&amp;passo=111">
+                <span class="demo-name">Busca por 40 em uma BST</span>
+                <span class="demo-watch">O caminho 50 → 30 → 40 acende; o nó 40 fica em âmbar e os visitados em âmbar suave.</span>
+                <span class="demo-meta">arvore-bst.js · passo 111</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=arvore-bst-remocao&amp;passo=519">
+                <span class="demo-name">Remover a raiz 50 com dois filhos</span>
+                <span class="demo-watch">O sucessor 55 sobe para a raiz; a árvore continua de busca.</span>
+                <span class="demo-meta">arvore-bst-remocao.js · passo 519</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=arvore-simples&amp;passo=85">
+                <span class="demo-name">Inserção por nível na árvore simples</span>
+                <span class="demo-watch">A BFS procura a primeira vaga; D entra como filho esquerdo de B.</span>
+                <span class="demo-meta">arvore-simples.js · passo 85</span>
+              </a>
+              <a class="demo" href="../visualizador.html?exemplo=arvore-em-ordem&amp;passo=102">
+                <span class="demo-name">Percurso em-ordem</span>
+                <span class="demo-watch">A recursão visita 20 primeiro; a pilha de chamadas mostra o caminho de volta.</span>
+                <span class="demo-meta">arvore-em-ordem.js · passo 102</span>
+              </a>
+            </div>
+          </section>
+
+          <section id="referencias">
+            <h2>Referências</h2>
+            <ol class="refs">
+              <li><strong>Ziviani</strong>, N. <em>Projetos de Algoritmos com Implementações em Java e C++</em>. São Paulo: Cengage Learning, 2007. Cap. 5, seção 5.3 — árvores de pesquisa sem e com balanceamento.</li>
+              <li><strong>Cormen</strong>, T. H. et al. <em>Introduction to Algorithms</em>. 4. ed. Cambridge: MIT Press, 2022. Cap. 12 — árvores binárias de busca, inserção, remoção e percursos.</li>
+              <li><strong>OpenDSA</strong>. <em>Binary Search Trees</em>. Disponível em: <a href="https://opendsa.org/" target="_blank" rel="noopener">opendsa.org</a> — outra visualização para comparar com o EDViz.</li>
+            </ol>
+          </section>
+
+          <nav class="pager" aria-label="Navegação entre estruturas">
+            <a href="lista-encadeada.html">
+              <span class="dir">Anterior</span>
+              Lista encadeada
+            </a>
+            <a class="next" href="index.html">
+              <span class="dir">Visão geral</span>
+              Guia
+            </a>
+          </nav>
+
+        </article>
+
+        <aside class="guide-aside">
+          <h2>Nesta página</h2>
+          <nav aria-label="Seções desta página">
+            <a href="#o-que-e">O que é</a>
+            <a href="#como-funciona">Como funciona</a>
+            <a href="#custo">Custo</a>
+            <a href="#quando-usar">Quando usar</a>
+            <a href="#erros-comuns">Erros comuns</a>
+            <a href="#veja-em-acao">Veja em ação</a>
+            <a href="#referencias">Referências</a>
+          </nav>
+        </aside>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="../index.html">Início</a> · <a href="../visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+</body>
+</html>

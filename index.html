@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17191d">
+<title>ED Viz — veja seu código de estrutura de dados rodar</title>
+<meta name="description" content="Array, pilha, fila, lista ou árvore em JavaScript: acompanhe cada linha, ponteiro e mudança no desenho em um visualizador que interpreta o seu código.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/conteudo.css">
+</head>
+<body class="site">
+
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+<header class="site-header">
+  <div class="site-wrap">
+    <a class="site-brand" href="index.html" aria-label="ED Viz — página inicial">
+      <span class="site-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="20" height="20">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <span class="site-name">ED Viz</span>
+      <span class="site-sub">Estruturas de Dados</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="guia/index.html">Guia</a>
+      <a href="visualizador.html">Visualizador</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="site-wrap">
+
+    <section class="hero">
+      <div class="hero-intro">
+        <div class="hero-title">
+          <h1>Entenda a estrutura vendo o seu código rodar.</h1>
+        </div>
+        <div class="hero-aside">
+          <p class="lead">Array, pilha, fila, lista ou árvore: escreva em JavaScript e veja cada linha, ponteiro e mudança no desenho. O ED Viz interpreta o seu código — não reproduz uma animação pronta.</p>
+          <div class="actions">
+            <a class="btn-site primary" href="guia/index.html">Começar pelo guia</a>
+            <a class="btn-site" href="visualizador.html">Abrir o visualizador</a>
+          </div>
+          <p class="note"><span>Sem instalação e sem conta.</span> <span class="note-count">5 estruturas · 16 exemplos executáveis</span></p>
+        </div>
+      </div>
+
+      <figure class="proof">
+        <div class="proof-frame">
+          <picture>
+            <source media="(max-width: 900px)" type="image/avif" srcset="docs/img/arvore-prova-mobile.avif 1x, docs/img/arvore-prova-mobile@2x.avif 2x">
+            <source media="(max-width: 900px)" type="image/webp" srcset="docs/img/arvore-prova-mobile.webp 1x, docs/img/arvore-prova-mobile@2x.webp 2x">
+            <source type="image/avif" srcset="docs/img/arvore-prova.avif 1x, docs/img/arvore-prova@2x.avif 2x">
+            <source type="image/webp" srcset="docs/img/arvore-prova.webp 1x, docs/img/arvore-prova@2x.webp 2x">
+            <img src="docs/img/arvore-prova.png" width="1070" height="420" alt="Visualizador aberto na busca de uma árvore binária: linha 53 destacada no código e o nó 70 em âmbar no desenho." fetchpriority="high" decoding="async">
+          </picture>
+        </div>
+        <div class="proof-step">
+          <span class="proof-op">Busca</span>
+          <p>No nó 70: 99 &gt; 70 — a busca segue para a direita.</p>
+          <span class="proof-count">passo 121/370</span>
+        </div>
+        <figcaption>
+          <span>Captura real · BST com 7 nós</span>
+          <a class="btn-site proof-cta" href="visualizador.html?exemplo=arvore-bst&amp;passo=121">Abrir este passo <span aria-hidden="true">→</span></a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="section">
+      <div class="section-label">
+        <h2>Como funciona</h2>
+        <span>ler → ver → escrever</span>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">01</span>
+          <h3>Leia o conceito</h3>
+          <p>O guia explica a estrutura, o custo das operações e os erros comuns — sem pular direto para o código.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">02</span>
+          <h3>Veja no passo a passo</h3>
+          <p>Abra um exemplo e acompanhe a linha em execução, os ponteiros e o desenho mudando juntos.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">03</span>
+          <h3>Escreva o seu</h3>
+          <p>Troque o exemplo pelo seu código, execute e veja onde ele para. O erro aparece na linha certa.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="passo">
+      <div class="section-label">
+        <h2>Um passo, por dentro</h2>
+        <span>exemplo · pilha-array.js</span>
+      </div>
+      <div class="demo-grid">
+        <div class="demo-copy">
+          <p>A miniatura usa o exemplo da pilha: a linha acesa, o topo mudando e a explicação andam juntos. Na ferramenta, isso acontece com o seu código — e você pode pausar, voltar e inspecionar.</p>
+          <a class="btn-site" href="visualizador.html?exemplo=pilha-array">Abrir o exemplo da pilha</a>
+          <p class="note">Push e pop em 6 linhas · o mesmo exemplo do guia</p>
+        </div>
+
+        <figure class="mini" id="miniDemo" aria-label="Miniatura do ED Viz: push e pop em uma pilha. O 30 entra por último no topo e sai primeiro.">
+          <div class="mini-head">
+            <span class="mini-title">exemplo · pilha-array.js</span>
+            <span class="mini-tag">LIFO</span>
+            <button type="button" class="mini-toggle" id="miniToggle" aria-label="Pausar animação" hidden>Pausar</button>
+          </div>
+          <div class="mini-body" aria-hidden="true">
+            <div class="mini-code">
+              <span class="mini-line" data-line="1"><span class="kw">const</span> pilha = [];</span>
+              <span class="mini-line" data-line="2">pilha.<span class="fn">push</span>(<span class="num">10</span>);</span>
+              <span class="mini-line" data-line="3">pilha.<span class="fn">push</span>(<span class="num">20</span>);</span>
+              <span class="mini-line is-current" data-line="4">pilha.<span class="fn">push</span>(<span class="num">30</span>);</span>
+              <span class="mini-line" data-line="5"><span class="fn">console</span>.<span class="fn">log</span>(pilha.<span class="fn">pop</span>()); <span class="com">// 30</span></span>
+              <span class="mini-line" data-line="6"><span class="fn">console</span>.<span class="fn">log</span>(pilha.<span class="fn">pop</span>()); <span class="com">// 20</span></span>
+            </div>
+            <div class="mini-stack">
+              <span class="mini-stack-label top">topo</span>
+              <div class="mini-cells">
+                <div class="mini-cell is-on" data-value="10" style="--i:0">10</div>
+                <div class="mini-cell is-on" data-value="20" style="--i:1">20</div>
+                <div class="mini-cell is-on is-top" data-value="30" style="--i:2">30</div>
+              </div>
+              <span class="mini-stack-label bottom">base</span>
+            </div>
+          </div>
+          <div class="mini-bar">
+            <span class="mini-op" id="miniOp">push</span>
+            <span class="mini-text" id="miniText">Topo = 30: o 30 foi o último a entrar.</span>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-label">
+        <h2>Estruturas</h2>
+        <span>5 estruturas</span>
+      </div>
+      <ul class="rows">
+        <li>
+          <a class="row" href="guia/array.html">
+            <span class="row-index">01</span>
+            <span>
+              <span class="row-name">Array <span class="row-tag">comece aqui</span></span>
+              <span class="row-desc">Posições indexadas em memória contígua. Acesso O(1); inserir no meio desloca os vizinhos.</span>
+            </span>
+            <span class="row-meta">1 exemplo</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="guia/pilha.html">
+            <span class="row-index">02</span>
+            <span>
+              <span class="row-name">Pilha</span>
+              <span class="row-desc">LIFO: o último que entra é o primeiro que sai. Tudo acontece no topo.</span>
+            </span>
+            <span class="row-meta">2 exemplos</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="guia/fila.html">
+            <span class="row-index">03</span>
+            <span>
+              <span class="row-name">Fila</span>
+              <span class="row-desc">FIFO: entra no fim, sai da frente. Com índices, a janela viva evita o shift.</span>
+            </span>
+            <span class="row-meta">4 exemplos</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="guia/lista-encadeada.html">
+            <span class="row-index">04</span>
+            <span>
+              <span class="row-name">Lista encadeada</span>
+              <span class="row-desc">Nós ligados por referências. Inserir no início é O(1); chegar ao meio exige caminhar.</span>
+            </span>
+            <span class="row-meta">3 exemplos</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+        <li>
+          <a class="row" href="guia/arvore-binaria.html">
+            <span class="row-index">05</span>
+            <span>
+              <span class="row-name">Árvore binária</span>
+              <span class="row-desc">Até dois filhos por nó. Na BST, a comparação descarta um lado inteiro do caminho.</span>
+            </span>
+            <span class="row-meta">6 exemplos</span>
+            <svg class="row-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-label">
+        <h2>Por que não é só uma animação</h2>
+      </div>
+      <div class="points">
+        <div class="point">
+          <h3>Interpretador próprio</h3>
+          <p>O código roda em um subconjunto didático de JavaScript, com mensagens de erro em português e limites de laço e recursão.</p>
+        </div>
+        <div class="point">
+          <h3>Histórico completo antes do desenho</h3>
+          <p>O passo a passo é gravado de verdade. Voltar, avançar, dar zoom ou redimensionar nunca mudam o que aconteceu.</p>
+        </div>
+        <div class="point">
+          <h3>Serve à sala e ao estudo</h3>
+          <p>Playback por teclado, zoom e pan para projetar; o código do aluno fica no navegador, por aba.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing">
+      <p>Já sabe o que quer testar? Abra o visualizador e rode o seu código.</p>
+      <a class="btn-site closing-cta" href="visualizador.html">Escrever meu código <span aria-hidden="true">→</span></a>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-wrap">
+    <p>ED Viz · Visualizador de Estruturas de Dados</p>
+    <p><a href="guia/index.html">Guia</a> · <a href="visualizador.html">Visualizador</a></p>
+  </div>
+</footer>
+
+<script type="module" src="js/home.js"></script>
+</body>
+</html>

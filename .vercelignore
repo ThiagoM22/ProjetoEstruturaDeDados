@@ -1,8 +1,12 @@
-# ED Viz — o site publicado é estático: só index.html, css/, js/, favicon.svg e favicon.png são necessários.
-# Fora do deploy ficam os testes, o servidor de desenvolvimento e arquivos locais.
+# ED Viz — o deploy é o build do Vite em dist/; o Vercel roda `npm run build`.
+# Fora do upload ficam testes, artefatos locais e documentos internos.
 tests/
+test-results/
+playwright-report/
 playwright.config.js
-servidor.js
 iniciar.cmd
-package.json
-package-lock.json
+dist/
+.impeccable/
+DESIGN.md
+PRODUCT.md
+docs/COMO-FOI-FEITO.md

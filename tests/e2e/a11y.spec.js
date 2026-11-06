@@ -39,8 +39,8 @@ async function conferirEstruturaA11y(page) {
   await expect(page.locator('#speedSelect')).toHaveAccessibleName('Velocidade de reprodução');
 }
 
-test('acessibilidade: página inicial sem violações críticas/sérias', async ({ page }) => {
-  await page.goto('/');
+test('acessibilidade: visualizador sem violações críticas/sérias', async ({ page }) => {
+  await page.goto('/visualizador.html');
   const results = await analisar(page, 'inicial');
   const graves = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
   expect(graves.map((v) => v.id)).toEqual([]);
@@ -49,7 +49,7 @@ test('acessibilidade: página inicial sem violações críticas/sérias', async 
 });
 
 test('acessibilidade: depois de executar um exemplo', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/visualizador.html');
   await page.click('#btnRun');
   if ((await page.locator('#btnPlay').textContent()) === '❚❚') await page.click('#btnPlay');
   await page.click('#btnNext');

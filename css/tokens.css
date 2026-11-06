@@ -1,0 +1,91 @@
+/* ==========================================================================
+   ED Viz — tokens compartilhados
+   Fonte da verdade visual: este arquivo. O visualizador (`styles.css`) e as
+   páginas de conteúdo (`conteudo.css`) carregam estes tokens antes do próprio
+   CSS. Não crie valores avulsos nas folhas: promova o valor a token aqui.
+   ========================================================================== */
+
+:root {
+  /* ---- superfícies (escuras, leve tom azulado) ---- */
+  --bg-primary:    #17191d;   /* editor */
+  --bg-secondary:  #121418;   /* cabeçalho, status e barra de execução */
+  --bg-surface:    #17191d;   /* painéis */
+  --bg-elevated:   #1e2127;   /* células, aba ativa e superfícies discretas */
+  --bg-hover:      #24272e;
+  --bg-track:      #3a4048;   /* trilha da barra de progresso */
+  --bg-canvas:     #131519;   /* área de visualização (um tom abaixo) */
+  --overlay-soft:  rgba(255, 255, 255, 0.04);  /* etiquetas e chips sobre superfícies */
+  --backdrop:      rgba(0, 0, 0, 0.60);        /* véu do diálogo */
+  --scrollbar-thumb:       #343941;
+  --scrollbar-thumb-hover: #454b54;
+
+  /* ---- bordas ---- */
+  --border:        #2e3238;
+  --border-strong: #383d44;
+
+  /* ---- texto ---- */
+  --text-primary:   #d6d8dc;
+  --text-secondary: #8a8e96;
+  --text-muted:     #9196a0;
+
+  /* ---- destaque (accent, uso contido) ---- */
+  --accent:           #e5a66a;
+  --accent-hover:     #eeb781;
+  --accent-soft:      rgba(229, 166, 106, 0.12);
+  --accent-muted:     rgba(229, 166, 106, 0.38);
+  --accent-text:      #f0c494;
+  --accent-fill:      rgba(229, 166, 106, 0.22);
+  --accent-contrast:  #17191d;   /* texto sobre o accent (fundo escuro) */
+
+  /* ---- estados ---- */
+  --danger:         #e5766d;
+  --danger-soft:    rgba(229, 118, 109, 0.10);
+  --danger-border:  rgba(229, 118, 109, 0.35);
+  --success:        #74b98f;                   /* reservado, sem uso atual */
+  --warn:           #ecd24c;
+  --warn-soft:      rgba(236, 210, 76, 0.08);
+  --warn-border:    rgba(236, 210, 76, 0.40);
+
+  /* ---- código (VS Code Dark+) ---- */
+  --tk-fg:      #d4d4d4;
+  --tk-comment: #6a9955;
+  --tk-str:     #ce9178;
+  --tk-num:     #b5cea8;
+  --tk-kw:      #569cd6;
+  --tk-ctrl:    #c586c0;
+  --tk-fn:      #dcdcaa;
+  --tk-var:     #9cdcfe;
+  --tk-type:    #4ec9b0;
+
+  /* ---- tipografia ---- */
+  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Fira Code", "Courier New", monospace;
+
+  /* ---- espaçamento (múltiplos de 4) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ---- raio ---- */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* ---- medidas ---- */
+  --header-h: 44px;
+  --transport-h: 44px;
+  --split-w: 5px;
+  --line-h: 22px;
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-tip: 0 8px 20px rgba(0, 0, 0, 0.45);
+
+  /* ---- conteúdo (home e guia) ---- */
+  --site-max: 1120px;      /* largura da coluna de página */
+  --content-max: 68ch;     /* medida de leitura da prosa */
+  --dur-fast: 120ms;       /* feedback imediato */
+  --dur-base: 180ms;       /* mudança de estado */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
