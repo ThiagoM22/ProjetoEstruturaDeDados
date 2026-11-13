@@ -46,6 +46,6 @@ test('segurar a seta não quebra a animação', async ({ page }) => {
   await page.keyboard.up('ArrowRight');
   await page.waitForTimeout(900);
   expect(await clonesPresos(page)).toBe(0);
-  await expect(page.locator('#stepLabel')).toHaveText(/passo \d+\/\d+/);
+  await expect(page.locator('#stepLabel')).toHaveText(/^\d+ \/ \d+$/);
   expect(erros).toEqual([]);
 });
