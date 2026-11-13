@@ -6,39 +6,87 @@
    ========================================================================== */
 
 :root {
-  /* ---- superfícies (escuras, leve tom azulado) ---- */
-  --bg-primary:    #17191d;   /* editor */
-  --bg-secondary:  #121418;   /* cabeçalho, status e barra de execução */
-  --bg-surface:    #17191d;   /* painéis */
-  --bg-elevated:   #1e2127;   /* células, aba ativa e superfícies discretas */
-  --bg-hover:      #24272e;
-  --bg-track:      #3a4048;   /* trilha da barra de progresso */
-  --bg-canvas:     #131519;   /* área de visualização (um tom abaixo) */
-  --overlay-soft:  rgba(255, 255, 255, 0.04);  /* etiquetas e chips sobre superfícies */
-  --backdrop:      rgba(0, 0, 0, 0.60);        /* véu do diálogo */
-  --scrollbar-thumb:       #343941;
-  --scrollbar-thumb-hover: #454b54;
+  /* ---- aplicativo (visualizador) ----
+     O instrumento usa um grafite um degrau abaixo das páginas de conteúdo.
+     Estes tokens são mapeados em styles.css; a home e o guia não mudam. */
+  --viz-bg:             #101216;
+  --viz-panel:          #16191f;
+  --viz-chrome:         #14171c;
+  --viz-editor:         #111419;
+  --viz-canvas:         #0b0d10;
+  --viz-raised:         #1d2027;
+  --viz-hover:          #242931;
+  --viz-border:         #292e37;
+  --viz-border-strong:  #363c46;
+  --viz-edge:           #3a404a;
+  --viz-node:           #1a1d22;
+  --viz-node-edge:      #3b414b;
+  --viz-node-visited:   #211e19;
+  --viz-node-visited-edge: #575044;
+  --viz-node-visited-ink:  #d4c4af;
+  --viz-node-active:    #2a2119;
+  --viz-node-new:       #241f19;
+  --viz-node-new-edge:  #a67b53;
+  --viz-edge-new:       #8a6d4e;
+  --viz-edge-pending:   #6d5a44;
+  --viz-grid:           rgba(224, 228, 236, 0.012);
+  --viz-grid-major:     rgba(224, 228, 236, 0.026);
+  --viz-head-h:         58px;
+
+  /* ---- superfícies (grafite frio com recesso tonal) ---- */
+  --bg-primary:    #16181c;   /* página, editor e área de trabalho */
+  --bg-secondary:  #1b1e24;   /* cabeçalho, status, transporte e explicação */
+  --bg-surface:    #1b1e24;   /* painéis contínuos */
+  --bg-editor:     #16181c;   /* recesso do editor */
+  --bg-elevated:   #202329;   /* células, aba ativa, popovers e superfícies discretas */
+  --bg-hover:      #272b32;
+  --bg-track:      #30343c;   /* trilha da barra de progresso */
+  --bg-canvas:     #12151a;   /* área de visualização (recesso do palco) */
+  --bg-inset:      rgba(0, 0, 0, 0.16);
+  --overlay-soft:  rgba(255, 255, 255, 0.045); /* etiquetas e chips sobre superfícies */
+  --grid-dot:      rgba(224, 228, 236, 0.050); /* grid do palco e da miniatura */
+  --grid-line:     rgba(224, 228, 236, 0.030); /* malha fina do palco */
+  --grid-line-major: rgba(224, 228, 236, 0.052); /* malha principal do palco */
+  --ambient-warm:  rgba(240, 170, 104, 0.090); /* luz ambiente do palco */
+  --ambient-warm-soft: rgba(240, 170, 104, 0.040);
+  --edge-line:     #3f4552;                     /* conexões em repouso no desenho */
+  --node-visited:  #2b2823;                     /* nó visitado na árvore */
+  --node-active:   #3a2f24;                     /* nó ativo na árvore */
+  --selection:     rgba(240, 170, 104, 0.28);
+  --backdrop:      rgba(7, 8, 10, 0.72);       /* véu do diálogo */
+  --scrollbar-thumb:       #30343c;
+  --scrollbar-thumb-hover: #3c424c;
 
   /* ---- bordas ---- */
-  --border:        #2e3238;
-  --border-strong: #383d44;
+  --border:        #30343c;
+  --border-strong: #3c424c;
+  --border-soft:   rgba(224, 228, 236, 0.075);
+  --border-warm:   rgba(240, 170, 104, 0.30);
 
   /* ---- texto ---- */
-  --text-primary:   #d6d8dc;
-  --text-secondary: #8a8e96;
-  --text-muted:     #9196a0;
+  --text-primary:   #e0e4ec;
+  --text-secondary: #929baa;
+  --text-muted:     #8b94a3;
+  --text-faint:     #858f9e;
 
   /* ---- destaque (accent, uso contido) ---- */
-  --accent:           #e5a66a;
-  --accent-hover:     #eeb781;
-  --accent-soft:      rgba(229, 166, 106, 0.12);
-  --accent-muted:     rgba(229, 166, 106, 0.38);
-  --accent-text:      #f0c494;
-  --accent-fill:      rgba(229, 166, 106, 0.22);
-  --accent-contrast:  #17191d;   /* texto sobre o accent (fundo escuro) */
+  --accent:           #f0aa68;
+  --accent-hover:     #f7bb80;
+  --accent-light:     #f8bd84;
+  --accent-deep:      #e99d58;
+  --accent-edge:      #e7a25e;
+  --accent-track:     #d99a5f;
+  --accent-soft:      rgba(240, 170, 104, 0.10);
+  --accent-muted:     rgba(240, 170, 104, 0.36);
+  --accent-text:      #f8c999;
+  --accent-fill:      rgba(240, 170, 104, 0.19);
+  --accent-line:      rgba(240, 170, 104, 0.42);
+  --accent-glow:      rgba(240, 170, 104, 0.16);
+  --accent-contrast:  #16181c;   /* texto sobre o accent */
 
   /* ---- estados ---- */
   --danger:         #e5766d;
+  --danger-text:    #f08a82;                   /* texto sobre danger-soft (AA) */
   --danger-soft:    rgba(229, 118, 109, 0.10);
   --danger-border:  rgba(229, 118, 109, 0.35);
   --success:        #74b98f;                   /* reservado, sem uso atual */
@@ -46,20 +94,25 @@
   --warn-soft:      rgba(236, 210, 76, 0.08);
   --warn-border:    rgba(236, 210, 76, 0.40);
 
-  /* ---- código (VS Code Dark+) ---- */
-  --tk-fg:      #d4d4d4;
-  --tk-comment: #6a9955;
-  --tk-str:     #ce9178;
-  --tk-num:     #b5cea8;
-  --tk-kw:      #569cd6;
-  --tk-ctrl:    #c586c0;
-  --tk-fn:      #dcdcaa;
-  --tk-var:     #9cdcfe;
-  --tk-type:    #4ec9b0;
+  /* ---- código (VS Code Dark+, com contraste ajustado ao novo fundo) ---- */
+  --tk-fg:      #d8dce5;
+  --tk-comment: #7f9d7a;
+  --tk-str:     #d9a78d;
+  --tk-num:     #c0d8ae;
+  --tk-kw:      #79b8ef;
+  --tk-ctrl:    #ce93cf;
+  --tk-fn:      #e5d798;
+  --tk-var:     #abd7f5;
+  --tk-type:    #62d0bc;
 
   /* ---- tipografia ---- */
-  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Fira Code", "Courier New", monospace;
+  --code-font: 13px;       /* 12,5px em telas ≤1366 para preservar a largura útil */
+  --text-stage: 17px;      /* título da estrutura no palco */
+  --text-stage-sm: 15px;   /* mesmo título em telas estreitas */
+  --text-micro: 11px;      /* piso dos rótulos funcionais, mesmo em telas estreitas */
 
   /* ---- espaçamento (múltiplos de 4) ---- */
   --sp-1: 4px;
@@ -68,24 +121,160 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
 
-  /* ---- raio ---- */
+  /* ---- raio (contido: controles pequenos, janelas maiores) ---- */
   --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
 
   /* ---- medidas ---- */
-  --header-h: 44px;
-  --transport-h: 44px;
-  --split-w: 5px;
+  --header-h: 52px;
+  --transport-h: 64px;
+  --split-w: 4px;
   --line-h: 22px;
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-tip: 0 8px 20px rgba(0, 0, 0, 0.45);
+  --dock-h: 0px;           /* barras fixas do layout empilhado (explicação + transporte) */
+
+  /* ---- profundidade ---- */
+  --shadow-pop: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.025);
+  --shadow-tip: 0 12px 28px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(255, 255, 255, 0.025);
+  --shadow-float: 0 32px 90px rgba(0, 0, 0, 0.52), 0 8px 28px rgba(0, 0, 0, 0.34);
+  --shadow-accent: 0 8px 26px rgba(240, 170, 104, 0.20);
+  --highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --highlight-warm: inset 0 1px 0 rgba(255, 224, 192, 0.16);
 
   /* ---- conteúdo (home e guia) ---- */
-  --site-max: 1120px;      /* largura da coluna de página */
+  --site-max: 1160px;      /* largura da coluna de página */
   --content-max: 68ch;     /* medida de leitura da prosa */
-  --dur-fast: 120ms;       /* feedback imediato */
-  --dur-base: 180ms;       /* mudança de estado */
+  --dur-fast: 140ms;       /* feedback imediato */
+  --dur-base: 220ms;       /* mudança de estado */
+  --dur-slow: 520ms;       /* entrada de composição */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ==========================================================================
+   ED Viz — Design System v1.0 (UI Kit, em validação)
+   --------------------------------------------------------------------------
+   As escalas primitivas abaixo são a base do novo tema Ocean. Os tokens
+   semânticos usam o prefixo `--ds-` para não alterar a paleta âmbar das telas
+   atuais: a UI Kit consome apenas esta camada e, quando o Design System for
+   aprovado, as telas existentes poderão apontar seus tokens para ela.
+   ========================================================================== */
+
+:root {
+  /* ---- primitivas · neutral ---- */
+  --neutral-950: #09090D;
+  --neutral-900: #0D0D12;
+  --neutral-850: #111118;
+  --neutral-800: #15151D;
+  --neutral-700: #1E1E29;
+  --neutral-600: #292936;
+  --neutral-500: #393947;
+  --neutral-400: #656575;
+  --neutral-300: #9696A5;
+  --neutral-200: #C4C3CF;
+  --neutral-100: #E7E5ED;
+
+  /* ---- primitivas · ocean ---- */
+  --ocean-50: #E5FAFC;
+  --ocean-100: #C6F1F5;
+  --ocean-200: #9CE6ED;
+  --ocean-300: #65D4DF;
+  --ocean-400: #35B8C8;
+  --ocean-500: #249DAC;
+  --ocean-600: #1D7E8D;
+  --ocean-700: #1B626E;
+  --ocean-800: #174B54;
+  --ocean-900: #12343A;
+  --ocean-950: #0B252A;
+
+  /* ---- funcionais · uso exclusivo para estado ---- */
+  --ds-success: #4CCB91;
+  --ds-success-bg: #163A2C;
+  --ds-success-border: #286B4D;
+  --ds-warning: #E9B65C;
+  --ds-warning-bg: #403018;
+  --ds-warning-border: #765526;
+  --ds-error: #F07482;
+  --ds-error-bg: #411F29;
+  --ds-error-border: #793744;
+  --ds-error-hover: #F58C98;
+  --ds-error-active: #E25B6B;
+  --ds-info: #64A8F8;
+  --ds-info-bg: #172E49;
+  --ds-info-border: #305A89;
+
+  /* ---- tipografia do Design System ---- */
+  --ds-font-sans: "Geist", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-mono: "Geist Mono", "JetBrains Mono", "Cascadia Code", Consolas, "Fira Code", "Courier New", monospace;
+  --ds-weight-regular: 400;
+  --ds-weight-medium: 500;
+  --ds-weight-semibold: 600;
+  --ds-text-2xs: 11px;
+  --ds-text-xs: 12px;
+  --ds-text-sm: 13px;
+  --ds-text-md: 14px;
+  --ds-text-lg: 16px;
+  --ds-text-xl: 20px;
+  --ds-text-2xl: 26px;
+  --ds-text-3xl: 34px;
+  --ds-text-4xl: 44px;
+  --ds-leading-tight: 1.12;
+  --ds-leading-snug: 1.4;
+  --ds-leading-normal: 1.65;
+  --ds-tracking-tight: -0.025em;
+  --ds-tracking-wide: 0.08em;
+
+  /* ---- semânticos · superfícies ---- */
+  --ds-bg-canvas: var(--neutral-950);
+  --ds-bg-surface: var(--neutral-900);
+  --ds-bg-raised: var(--neutral-850);
+  --ds-bg-overlay: var(--neutral-800);
+  --ds-bg-field: var(--neutral-950);
+  --ds-bg-code: var(--neutral-950);
+  --ds-bg-hover: var(--neutral-800);
+  --ds-bg-active: var(--neutral-700);
+  --ds-bg-disabled: var(--neutral-850);
+
+  /* ---- semânticos · texto ---- */
+  --ds-text-primary: var(--neutral-100);
+  --ds-text-secondary: var(--neutral-200);
+  --ds-text-muted: var(--neutral-300);
+  --ds-text-disabled: var(--neutral-400);
+  --ds-text-accent: var(--ocean-300);
+  --ds-text-on-accent: var(--neutral-950);
+
+  /* ---- semânticos · bordas ---- */
+  --ds-border-soft: var(--neutral-700);
+  --ds-border: var(--neutral-600);
+  --ds-border-strong: var(--neutral-500);
+  --ds-border-control: var(--neutral-400);
+
+  /* ---- semânticos · ações, foco e seleção ---- */
+  --ds-accent: var(--ocean-400);
+  --ds-accent-hover: var(--ocean-300);
+  --ds-accent-active: var(--ocean-500);
+  --ds-accent-soft: var(--ocean-900);
+  --ds-accent-soft-text: var(--ocean-200);
+  --ds-accent-border: var(--ocean-700);
+  --ds-focus: var(--ocean-300);
+  --ds-selection: rgba(53, 184, 200, 0.30);
+  --ds-accent-wash: rgba(53, 184, 200, 0.10);
+  --ds-backdrop: rgba(4, 5, 8, 0.72);
+  --ds-grid-line: rgba(231, 229, 237, 0.045);
+  --ds-grid-line-major: rgba(231, 229, 237, 0.075);
+
+  /* ---- profundidade e raio ---- */
+  --ds-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.24), 0 8px 24px rgba(0, 0, 0, 0.18);
+  --ds-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.24), 0 16px 40px rgba(0, 0, 0, 0.38);
+  --ds-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.30), 0 32px 80px rgba(0, 0, 0, 0.50);
+  --ds-radius-xs: 4px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 10px;
+  --ds-radius-full: 9999px;
 }
