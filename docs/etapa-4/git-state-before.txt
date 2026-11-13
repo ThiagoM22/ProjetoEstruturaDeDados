@@ -1,0 +1,60 @@
+# Estado do Git antes da Etapa 4A
+
+Registrado em 10/11/2026, antes de qualquer escrita em `docs/etapa-4/`.
+
+```text
+Branch: redesign/etapa-1-baseline
+HEAD:   b97545f
+```
+
+## `git status --porcelain=v1`
+
+```text
+ M DESIGN.md
+ M PRODUCT.md
+ M README.md
+ M css/conteudo.css
+ M css/styles.css
+ M css/tokens.css
+ M docs/img/arvore-prova-mobile.avif
+ M docs/img/arvore-prova-mobile.png
+ M docs/img/arvore-prova-mobile.webp
+ M docs/img/arvore-prova-mobile@2x.avif
+ M docs/img/arvore-prova-mobile@2x.webp
+ M guia/array.html
+ M guia/arvore-binaria.html
+ M guia/fila.html
+ M guia/index.html
+ M guia/lista-encadeada.html
+ M guia/pilha.html
+ M index.html
+ M js/app.js
+ M js/home.js
+ M js/views.js
+ M tests/e2e/a11y.spec.js
+ M tests/e2e/conteudo.spec.js
+ M tests/e2e/edviz.spec.js
+ M tests/run-content.js
+ M tests/run-tests.js
+ M tests/run-ui-smoke.js
+ M visualizador.html
+ M vite.config.mjs
+?? css/fonts.css
+?? css/landing.css
+?? css/uikit.css
+?? docs/baseline/
+?? docs/design-references/
+?? docs/etapa-2/
+?? docs/etapa-3/
+?? fonts/
+?? js/uikit.js
+?? tests/e2e/uikit.spec.js
+?? uikit.html
+```
+
+## Preservação
+
+- Nenhum arquivo de produção foi alterado nesta etapa.
+- Nenhum `reset`, `checkout`, `clean`, `stash`, troca de branch ou commit foi executado.
+- As 40 entradas acima (29 modificadas + 11 não rastreadas) foram preservadas.
+- A única escrita desta etapa ocorre em `docs/etapa-4/`.
