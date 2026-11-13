@@ -163,10 +163,13 @@ console.log('\n[integração da interface]');
 
 test('init executou: exemplo padrão renderiza a pilha', () => {
   const html = $('structure').innerHTML;
-  assert(html.indexOf('Pilha') >= 0, 'título Pilha presente: ' + html.slice(0, 120));
+  assert($('canvasTitle').textContent.indexOf('Pilha') >= 0, 'título Pilha presente: ' + $('canvasTitle').textContent);
   assert(html.indexOf('stack-cell') >= 0 || html.indexOf('empty') >= 0, 'células da pilha');
   assert($('exampleSelect').value === DSV.DEFAULT_EXAMPLE, 'exemplo padrão selecionado');
   assert($('code').value.length > 0, 'código carregado no editor');
+  assert($('vizRunStateText').textContent === 'prévia', 'primeiro contato é prévia: ' + $('vizRunStateText').textContent);
+  fire('btnNext', 'click');
+  assert($('vizRunStateText').textContent === 'pausado', 'navegar vira pausado: ' + $('vizRunStateText').textContent);
 });
 
 test('markCurrentLineInGutter é seguro', () => {
@@ -174,16 +177,25 @@ test('markCurrentLineInGutter é seguro', () => {
     assert(local && local.innerHTML.indexOf('gline') >= 0, 'gutter numerado');
 });
 
+function canvasHeaderText() {
+  return ' ' + $('canvasTitle').textContent + ' ' + $('canvasSub').textContent + ' ' + $('canvasBadge').textContent;
+}
+
 function snapshotExample(exId) {
   $('exampleSelect').value = exId;
   fire('exampleSelect', 'change');
+  /* o exemplo abre em prévia; a varredura abaixo sempre começa no passo 0 */
+  if (parseInt($('slider').value, 10) > 0) fire('btnFirst', 'click');
   const total = parseInt($('slider').max, 10);
   assert(total > 0, 'exemplo ' + exId + ' gerou passos');
   const snaps = [];
+  const headers = [];
   for (let i = 0; i <= total; i++) {
     if (i > 0) fire('btnNext', 'click');
     snaps.push($('structure').innerHTML);
+    headers.push(canvasHeaderText());
   }
+  snaps.headers = headers;
   assert(parseInt($('slider').value, 10) === total, 'navegou até o último passo');
   assert($('btnNext').disabled === true, 'botão próximo desabilitado no fim');
   assert($('vars').innerHTML.length > 10, 'painel de variáveis preenchido');
@@ -192,7 +204,11 @@ function snapshotExample(exId) {
 }
 
 function percorrerExemplo(exId) {
-  return snapshotExample(exId).join('\n');
+  const snaps = snapshotExample(exId);
+  /* o chrome do canvas (título, contagem e evento) é do workspace; entra na
+   * varredura junto com o desenho para as asserções de conteúdo continuarem
+   * verificando o que o aluno vê */
+  return snaps.join('\n') + '\n' + (snaps.headers || []).join('\n');
 }
 
 test('percorre TODOS os passos do exemplo padrão (pilha)', () => {
@@ -252,7 +268,7 @@ test('fila: retroceder restaura exatamente o desenho do passo', () => {
   fire('btnLast', 'click');
   while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
   assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
-  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+  assert($('stepLabel').textContent.indexOf((idx + 1) + ' / ') === 0, 'rótulo do passo coerente');
 });
 
 test('fila: comandos, variáveis e console acompanham o mesmo passo', () => {
@@ -262,14 +278,14 @@ test('fila: comandos, variáveis e console acompanham o mesmo passo', () => {
   let encontrado = false;
   for (let i = 0; i < total && !encontrado; i++) {
     fire('btnNext', 'click');
-    if ($('structure').innerHTML.indexOf('shift() → ') < 0) continue;
+    if ($('canvasBadge').textContent.indexOf('shift() → ') < 0) continue;
     encontrado = true;
     const cur = $('commands').innerHTML;
     assert(cur.indexOf('command current') >= 0, 'comando do passo marcado como atual');
     assert(cur.indexOf('shift() → ') >= 0, 'comando atual é o shift');
     assert($('vars').innerHTML.indexOf('fila') >= 0, 'variáveis mostram a fila');
     const passo = parseInt($('slider').value, 10);
-    assert($('stepLabel').textContent === 'passo ' + (passo + 1) + '/' + (total + 1), 'rótulo do passo');
+    assert($('stepLabel').textContent === (passo + 1) + ' / ' + (total + 1), 'rótulo do passo');
     assert($('console').innerHTML.indexOf('Atendendo:') >= 0, 'console já mostra o atendimento do passo');
     const html = $('structure').innerHTML;
     assert(html.indexOf('cell-val">&quot;Ana&quot;') < 0, 'Ana já saiu das células do passo');
@@ -426,7 +442,7 @@ test('lista simples: retroceder restaura exatamente o desenho do passo', () => {
   fire('btnLast', 'click');
   while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
   assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
-  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+  assert($('stepLabel').textContent.indexOf((idx + 1) + ' / ') === 0, 'rótulo do passo coerente');
   fire('btnNext', 'click');
   assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz a próxima etapa idêntica');
   fire('btnPrev', 'click');
@@ -623,7 +639,7 @@ test('array manual: limpar não derruba a estrutura selecionada', () => {
   fire('btnLast', 'click');
   const h = $('structure').innerHTML;
   assert(h.indexOf('ainda não existe') < 0, 'render sobrevive à troca do array interno');
-  assert(h.indexOf('Array') >= 0, 'título do array');
+  assert($('canvasTitle').textContent.indexOf('Array') >= 0, 'título do array');
   assert(h.indexOf('tamanho = 0') >= 0, 'estado final com tamanho 0');
 });
 
@@ -671,7 +687,7 @@ test('árvore simples: retroceder restaura exatamente o desenho do passo', () =>
   fire('btnLast', 'click');
   while (parseInt($('slider').value, 10) > idx) fire('btnPrev', 'click');
   assert($('structure').innerHTML === snaps[idx], 'mesmo desenho ao retroceder');
-  assert($('stepLabel').textContent.indexOf('passo ' + (idx + 1) + '/') === 0, 'rótulo do passo coerente');
+  assert($('stepLabel').textContent.indexOf((idx + 1) + ' / ') === 0, 'rótulo do passo coerente');
   /* avança de novo: mesma sequência; volta outra vez: mesmo estado */
   fire('btnNext', 'click');
   assert($('structure').innerHTML === snaps[idx + 1], 'avançar reproduz o próximo estado idêntico');
@@ -756,7 +772,7 @@ test('árvore simples: variáveis e console acompanham a remoção', () => {
     encontrado = true;
     assert($('vars').innerHTML.indexOf('arvore') >= 0, 'painel de variáveis mostra a árvore');
     assert($('structure').innerHTML.indexOf('tree-node') >= 0, 'árvore desenhada no passo da remoção');
-    assert($('stepLabel').textContent.indexOf('passo ') === 0, 'rótulo do passo');
+    assert(/^\d+ \/ \d+$/.test($('stepLabel').textContent), 'rótulo do passo');
   }
   assert(encontrado, 'encontrou o passo da remoção de F');
 });
@@ -925,38 +941,106 @@ test('BST: seletor lista a estrutura e regressão das demais segue ok', () => {
   assert(lista.indexOf('list-head-tag') >= 0, 'lista encadeada continua funcionando');
 });
 
-test('painéis: abas alternam comandos, variáveis, chamadas e saída', () => {
+test('painéis: inspetor alterna uma seção por vez e o histórico alterna comandos, eventos e saída', () => {
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  /* o inspetor mostra uma aba por vez, sem empilhar um debugger inteiro */
+  assert($('pageVars').classList.contains('is-active'), 'variáveis ativa por padrão');
+  assert(!$('pageStructure').classList.contains('is-active'), 'estrutura recolhida');
+  fire('inspTabStructure', 'click');
+  assert($('pageStructure').classList.contains('is-active'), 'estrutura ativa');
+  assert(!$('pageVars').classList.contains('is-active'), 'variáveis recolhidas');
+  fire('inspTabVars', 'click');
+  assert($('pageVars').classList.contains('is-active'), 'variáveis reabertas');
+
+  /* setas movem a seleção entre as abas do inspetor */
+  fire('inspTabVars', 'keydown', { key: 'ArrowRight', preventDefault() {} });
+  assert($('pageCallstack').classList.contains('is-active'), 'seta à direita ativa chamadas');
+
+  /* o histórico vive no dock e alterna comandos, eventos e saída */
+  fire('btnDockToggle', 'click');
   fire('tabConsole', 'click');
   assert($('pageConsole').classList.contains('active'), 'saída ativa');
-  assert(!$('pageVars').classList.contains('active'), 'variáveis inativa');
-  assert($('console').innerHTML.length > 0, 'conteúdo do console mantido');
-  fire('tabCallstack', 'click');
-  assert($('pageCallstack').classList.contains('active'), 'chamadas ativa');
+  assert(!$('pageCommands').classList.contains('active'), 'comandos inativos');
+  fire('tabEvents', 'click');
+  assert($('pageEvents').classList.contains('active'), 'eventos ativos');
   assert(!$('pageConsole').classList.contains('active'), 'saída inativa');
-  fire('tabVars', 'click');
-  assert($('pageVars').classList.contains('active'), 'variáveis ativa');
+  fire('tabCommands', 'click');
+  assert($('pageCommands').classList.contains('active'), 'comandos ativos');
+  assert($('btnDockToggle').classList.contains('is-open'), 'dock expandido');
+  fire('btnDockClose', 'click');
+  assert(!$('btnDockToggle').classList.contains('is-open'), 'dock recolhido');
 });
 
-test('painéis: recolher e expandir editor e painel lateral', () => {
+test('workspace: Roteiro é coluna no desktop e gaveta única em tela estreita', () => {
+  globalThis.innerWidth = 1400;
   $('layout').clientWidth = 1400;
-  $('codePanel').clientWidth = 420;
-  $('vizPanel').clientWidth = 700;
-  $('sidePanel').clientWidth = 274;
+  $('layout').clientHeight = 800;
+  $('codePanel').clientWidth = 448;
+
+  /* no desktop o Roteiro já nasce como coluna; a Margem continua recolhida */
+  assert(!$('codePanel').classList.contains('collapsed'), 'roteiro começa aberto no desktop');
+  assert(!$('layout').classList.contains('code-collapsed'), 'grade reserva a coluna do roteiro');
+  assert($('sidePanel').classList.contains('collapsed'), 'inspetor começa recolhido');
+
   fire('btnToggleCode', 'click');
-  assert($('codePanel').classList.contains('collapsed'), 'editor recolhido');
-  assert($('btnToggleCode').classList.contains('active'), 'botão Código marcado');
-  assert($('layout').style.gridTemplateColumns.indexOf('0px 0px') === 0, 'colunas do editor zeradas: ' + $('layout').style.gridTemplateColumns);
+  assert($('codePanel').classList.contains('collapsed'), 'botão do topo recolhe o roteiro');
+  fire('btnToggleCode', 'click');
+  assert(!$('codePanel').classList.contains('collapsed'), 'botão do topo reabre o roteiro');
+  assert($('btnToggleCode').classList.contains('active'), 'botão Código marca aberto');
+  assert($('layout').classList.contains('side-collapsed'), 'inspetor continua recolhido');
+  assert(!$('layout').classList.contains('code-collapsed'), 'grade libera a coluna do código');
+
   fire('btnToggleSide', 'click');
-  assert($('sidePanel').classList.contains('collapsed'), 'painel lateral recolhido');
+  assert(!$('sidePanel').classList.contains('collapsed'), 'inspetor abre junto em tela larga');
+  assert(!$('codePanel').classList.contains('collapsed'), 'código permanece aberto em tela larga');
+
+  fire('btnCollapseCode', 'click');
+  assert($('codePanel').classList.contains('collapsed'), 'botão interno recolhe o editor');
+  fire('btnCollapseSide', 'click');
+  assert($('sidePanel').classList.contains('collapsed'), 'botão interno recolhe o inspetor');
+
+  /* em tela estreita, abrir uma gaveta fecha a outra para o palco não ficar
+   * imprensado entre duas folhas */
+  globalThis.innerWidth = 1000;
+  fire('btnToggleCode', 'click');
+  fire('btnToggleSide', 'click');
+  assert($('codePanel').classList.contains('collapsed'), 'tela estreita fecha o código ao abrir o inspetor');
+  assert(!$('sidePanel').classList.contains('collapsed'), 'inspetor aberto');
+  fire('btnCollapseSide', 'click');
+  globalThis.innerWidth = 1400;
+});
+
+test('grade do canvas: alterna sem perder o desenho', () => {
+  const before = $('structure').innerHTML;
+  fire('btnGrid', 'click');
+  assert($('structure').classList.contains('no-grid'), 'grade desligada');
+  assert($('btnGrid').classList.contains('is-off'), 'botão desmarcado');
+  assert($('structure').innerHTML === before, 'desenho preservado');
+  fire('btnGrid', 'click');
+  assert(!$('structure').classList.contains('no-grid'), 'grade religada');
+});
+
+test('painéis: abas laterais e botões do topo controlam as mesmas gavetas', () => {
+  globalThis.innerWidth = 1400;
+  $('layout').clientWidth = 1400;
+  assert($('codePanel').classList.contains('collapsed'), 'editor recolhido no início');
+  assert($('sidePanel').classList.contains('collapsed'), 'inspetor recolhido no início');
+
+  fire('railCode', 'click');
+  assert(!$('codePanel').classList.contains('collapsed'), 'aba lateral abre o editor');
   assert($('structure').innerHTML.length > 0, 'canvas continua renderizando');
-  const cols = $('layout').style.gridTemplateColumns;
-  assert(cols === '0px 0px minmax(0,1fr) 0px 0px' || cols.indexOf('0px 0px minmax(0,') === 0, 'visualização ocupa todo o espaço: ' + cols);
+
+  fire('railInspector', 'click');
+  assert(!$('sidePanel').classList.contains('collapsed'), 'aba lateral abre o inspetor');
+  assert(!$('codePanel').classList.contains('collapsed'), 'editor permanece aberto');
+
   fire('btnToggleCode', 'click');
-  assert(!$('codePanel').classList.contains('collapsed'), 'editor reexpandido');
-  assert(!$('btnToggleCode').classList.contains('active'), 'botão Código desmarcado');
-  assert($('layout').style.gridTemplateColumns.indexOf('minmax(280px,') === 0, 'coluna do editor restaurada: ' + $('layout').style.gridTemplateColumns);
+  assert($('codePanel').classList.contains('collapsed'), 'botão do topo fecha o editor');
   fire('btnToggleSide', 'click');
-  assert(!$('sidePanel').classList.contains('collapsed'), 'painel lateral reexpandido');
+  assert($('sidePanel').classList.contains('collapsed'), 'botão do topo fecha o inspetor');
+  assert($('layout').classList.contains('code-collapsed'), 'grade devolve a coluna do editor');
+  assert($('layout').classList.contains('side-collapsed'), 'grade devolve a coluna do inspetor');
 });
 
 test('abas de código: clique do meio fecha a aba', () => {
@@ -1004,7 +1088,7 @@ test('explicação: sem execução mostra orientação breve (estado vazio)', ()
   fire('btnRun', 'click');
   assert(!$('stepExplainer').classList.contains('hidden'), 'faixa permanece visível');
   assert($('stepOp').textContent === 'Execução', 'operação neutra: ' + $('stepOp').textContent);
-  assert($('stepText').textContent.indexOf('Execute uma operação') >= 0, 'orientação breve: ' + $('stepText').textContent);
+  assert($('stepText').textContent.indexOf('Execute o código') >= 0, 'orientação breve: ' + $('stepText').textContent);
   assert($('stepCount').textContent === '', 'sem contador quando não há etapas');
 });
 
@@ -1074,7 +1158,7 @@ test('play/pause alterna o botão', () => {
 test('slider navega para um passo do meio', () => {
   $('slider').value = '2';
   fire('slider', 'input');
-  assert($('stepLabel').textContent.indexOf('passo 3/') === 0, 'rótulo do passo: ' + $('stepLabel').textContent);
+  assert($('stepLabel').textContent.indexOf('3 / ') === 0, 'rótulo do passo: ' + $('stepLabel').textContent);
 });
 
 test('Executar também inicia a reprodução (o clique avança sozinho)', () => {
@@ -1094,6 +1178,9 @@ test('Executar com erro não dispara o play', () => {
   fire('btnRun', 'click');
   assert($('btnPlay').textContent === '▶', 'play não dispara em erro');
   assert($('banner').innerHTML.indexOf('Erro') >= 0, 'banner de erro visível');
+  assert($('btnPlay').disabled === true, 'play desabilitado no erro');
+  fire('btnPlay', 'click');
+  assert($('btnPlay').textContent === '▶', 'play não reproduz trace falho');
 });
 
 /* ------------------------------------------------------------------ */
@@ -1228,8 +1315,8 @@ $('code').scrollTop = 0;
 $('code').scrollLeft = 0;
 
 function hoverAt(line, col) {
-  const x = 100 + 12 + col * 8.65 + 1;   /* 12 = padding esquerdo do editor */
-  const y = 50 + 10 + line * 22 + 11;    /* 10 = padding superior, 22 = linha */
+  const x = 100 + 16 + col * 8.65 + 1;   /* 16 = padding esquerdo do editor */
+  const y = 50 + 14 + line * 22 + 11;    /* 14 = padding superior, 22 = linha */
   fire('code', 'mousemove', { clientX: x, clientY: y, buttons: 0 });
 }
 

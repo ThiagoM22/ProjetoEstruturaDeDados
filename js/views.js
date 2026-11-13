@@ -1290,12 +1290,12 @@
   /* Renderização                                                        */
   /* ------------------------------------------------------------------ */
 
-  function head(title, sub, badge) {
-    return '<div class="canvas-toolbar">' +
-      '<span class="canvas-title">' + esc(title) + '</span>' +
-      (sub ? '<span class="canvas-sub">' + esc(sub) + '</span>' : '') +
-      (badge ? '<span class="canvas-badge">' + esc(badge) + '</span>' : '') +
-      '</div>';
+  /* O chrome do canvas pertence ao workspace. Os renderizadores devolvem
+   * apenas os metadados do desenho; o app decide onde e como exibi-los. */
+  function setMeta(ctx, title, sub, badge) {
+    if (ctx && typeof ctx.onMeta === 'function') {
+      ctx.onMeta({ title: title || '', sub: sub || '', badge: badge || '' });
+    }
   }
 
   /* comparação tolerante a acentos e maiúsculas (arvore x Árvore binária) */
@@ -1327,8 +1327,8 @@
     var dur = animDur(ctx);
 
     DSV.flipRender(container, function () {
-      var html = head('Pilha', structureSub(sel, n, 'item', 'itens'), badge);
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      setMeta(ctx, 'Pilha', structureSub(sel, n, 'item', 'itens'), badge);
+      var html = '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="stack-wrap" style="--stack-scale:' + scale + '">';
       if (n === 0) {
         html += '<div class="empty-inline">A pilha está vazia neste passo.</div>';
@@ -1382,8 +1382,8 @@
     var rearIdx = win ? n - 1 : (reverse ? 0 : n - 1);
 
     DSV.flipRender(container, function () {
-      var html = head('Fila', structureSub(sel, n, 'item', 'itens'), badge);
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      setMeta(ctx, 'Fila', structureSub(sel, n, 'item', 'itens'), badge);
+      var html = '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="queue-wrap" style="--queue-scale:' + scale + '">';
       if (n === 0) {
         html += '<div class="empty-inline">A fila está vazia neste passo.</div>';
@@ -1745,9 +1745,9 @@
     });
 
     DSV.flipRender(container, function () {
-      var html = head(doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
+      setMeta(ctx, doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
         structureSub(sel, nodes.length, 'nó', 'nós', doubly ? 'Lista duplamente encadeada' : 'Lista encadeada'), badge);
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      var html = '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap" style="--list-scale:' + scale + '">';
 
       html += listPendingUnitsHtml(pendingLeft, ctx, chain, 'left', diff.pendingChanged, pendingOpts);
@@ -1851,9 +1851,9 @@
 
     container.__treeScene = null;
     DSV.flipRender(container, function () {
-      var html = head(doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
+      setMeta(ctx, doubly ? 'Lista duplamente encadeada' : 'Lista encadeada',
         structureSub(sel, 0, 'nó', 'nós', doubly ? 'Lista duplamente encadeada' : 'Lista encadeada'), eventsBadge(sel, ctx));
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      var html = '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="list-wrap" style="--list-scale:' + listScale(0) + '">';
       html += listPendingUnitsHtml(pendingLeft, ctx, emptyChain, 'left', diff.pendingChanged, pendingOpts);
       html += '<div class="list-unit" data-k="head-empty"><div class="list-node-wrap"><div class="list-ptrs"></div>' +
@@ -2359,9 +2359,9 @@
 
     container.__treeScene = null;
     DSV.flipRender(container, function () {
-      var html = head(plain ? 'Array' : 'Array (tamanho manual)',
+      setMeta(ctx, plain ? 'Array' : 'Array (tamanho manual)',
         structureSub(sel, size, 'item', 'itens', plain ? 'Array' : 'Tamanho manual'), eventsBadge(sel, ctx));
-      html += '<div class="canvas-viewport"><div class="canvas-stage">';
+      var html = '<div class="canvas-viewport"><div class="canvas-stage">';
       html += '<div class="array-wrap" style="--array-scale:' + scale + '">';
       if (!total) {
         html += '<div class="empty-inline">' + (plain ? 'A estrutura está vazia (comprimento = 0).' : 'A estrutura está vazia (tamanho = 0).') + '</div>';
@@ -2437,11 +2437,11 @@
    * árvores grandes mantêm o tamanho-base, que segue legível — a navegação
    * fica por conta do zoom/pan. Determinístico: só depende da contagem de nós. */
   var TREE_TIERS = [
-    { max: 2, r: 29, hgap: 108, vgap: 100 },
-    { max: 7, r: 27, hgap: 96, vgap: 96 },
-    { max: 15, r: 25, hgap: 88, vgap: 92 },
-    { max: 31, r: 23, hgap: 80, vgap: 88 },
-    { max: Infinity, r: 23, hgap: 76, vgap: 84 }
+    { max: 2, r: 29, hgap: 92, vgap: 100 },
+    { max: 7, r: 27, hgap: 84, vgap: 96 },
+    { max: 15, r: 25, hgap: 78, vgap: 92 },
+    { max: 31, r: 23, hgap: 74, vgap: 88 },
+    { max: Infinity, r: 23, hgap: 72, vgap: 84 }
   ];
 
   function treeMetrics(nodeCount) {
@@ -2455,8 +2455,8 @@
     return { r: 23, hgap: 76, vgap: 84 };
   }
 
-  /* percorre em-ordem: x = ordem horizontal (subárvores não se sobrepõem),
-   * y = profundidade; guarda também pai e lado de cada nó */
+  /* percorre em-ordem para preservar a ordem de leitura; y = profundidade;
+   * guarda também pai e lado de cada nó */
   function treeLayout(v) {
     var nodes = [];
     var seen = Object.create(null);
@@ -2467,11 +2467,77 @@
       var L = nodeChild(node, 'L');
       var R = nodeChild(node, 'R');
       walk(L, depth + 1, node.id, 'L');
-      nodes.push({ ser: node, x: nodes.length, depth: depth, left: L, right: R, parentId: parentId, side: side });
+      nodes.push({ ser: node, depth: depth, left: L, right: R, parentId: parentId, side: side });
       if (depth > maxDepth) maxDepth = depth;
       walk(R, depth + 1, node.id, 'R');
     })(v, 0, null, null);
-    return { nodes: nodes, maxDepth: maxDepth };
+    return { nodes: nodes, maxDepth: maxDepth, root: v };
+  }
+
+  /* Medida de uma subárvore para o desenho compacto: cada subárvore mantém
+   * os contornos esquerdo/direito por profundidade, e duas subárvores irmãs
+   * só se aproximam até o espaçamento mínimo entre nós. Isso permite que
+   * galhos vazios (uma árvore em corrente, por exemplo) não gastem uma
+   * coluna inteira por nível — o desenho ocupa a largura que a distribuição
+   * real dos nós pede, não a contagem de nós. */
+  function measureTreeSubtree(node, m, seen) {
+    if (!isObj(node) || seen[node.id]) return null;
+    seen[node.id] = true;
+    var L = measureTreeSubtree(nodeChild(node, 'L'), m, seen);
+    var R = measureTreeSubtree(nodeChild(node, 'R'), m, seen);
+    var items = [{ id: node.id, dx: 0, dy: 0 }];
+    var leftContour = [0];
+    var rightContour = [0];
+    var maxDepth = 0;
+    var i, d;
+
+    function append(child, shift) {
+      for (i = 0; i < child.items.length; i++) {
+        var it = child.items[i];
+        items.push({ id: it.id, dx: it.dx + shift, dy: it.dy + 1 });
+      }
+    }
+
+    if (L && R) {
+      /* separação mínima entre os dois contornos em cada nível */
+      var sep = m.hgap;
+      var common = Math.min(L.maxDepth, R.maxDepth);
+      for (d = 0; d <= common; d++) {
+        sep = Math.max(sep, m.hgap + L.rightContour[d] - R.leftContour[d]);
+      }
+      var lShift = -sep / 2;
+      var rShift = sep / 2;
+      append(L, lShift);
+      append(R, rShift);
+      maxDepth = 1 + Math.max(L.maxDepth, R.maxDepth);
+      for (d = 0; d <= maxDepth - 1; d++) {
+        var lLeft = d <= L.maxDepth ? L.leftContour[d] + lShift : Infinity;
+        var rLeft = d <= R.maxDepth ? R.leftContour[d] + rShift : Infinity;
+        var lRight = d <= L.maxDepth ? L.rightContour[d] + lShift : -Infinity;
+        var rRight = d <= R.maxDepth ? R.rightContour[d] + rShift : -Infinity;
+        leftContour[d + 1] = Math.min(lLeft, rLeft);
+        rightContour[d + 1] = Math.max(lRight, rRight);
+      }
+    } else if (L || R) {
+      /* filho único fica a meio passo do pai: mantém a leitura hierárquica
+       * (esquerda/direita) sem transformar uma corrente em uma diagonal
+       * larga. A corrente anda meia coluna por nível, não uma coluna. */
+      var only = L || R;
+      var shift = L ? -m.hgap / 2 : m.hgap / 2;
+      append(only, shift);
+      maxDepth = 1 + only.maxDepth;
+      for (d = 0; d <= only.maxDepth; d++) {
+        leftContour[d + 1] = only.leftContour[d] + shift;
+        rightContour[d + 1] = only.rightContour[d] + shift;
+      }
+    }
+
+    return {
+      items: items,
+      leftContour: leftContour,
+      rightContour: rightContour,
+      maxDepth: maxDepth
+    };
   }
 
   /* posições centralizadas: a caixa real da árvore (nós + margem) fica no
@@ -2480,17 +2546,42 @@
   function treePositions(layout) {
     var m = treeMetrics(layout.nodes.length);
     var pad = Math.max(48, m.r + 24);
-    var count = layout.nodes.length;
-    var width = 2 * pad + 2 * m.r + Math.max(0, count - 1) * m.hgap;
-    var height = 2 * pad + 2 * m.r + layout.maxDepth * m.vgap;
+    var sub = measureTreeSubtree(layout.root, m, Object.create(null));
     var pos = Object.create(null);
-    layout.nodes.forEach(function (n) {
-      pos[n.ser.id] = {
-        x: pad + m.r + n.x * m.hgap,
-        y: pad + m.r + n.depth * m.vgap
+    if (!sub) {
+      return { pos: pos, width: 2 * (pad + m.r), height: 2 * (pad + m.r), r: m.r, hgap: m.hgap, vgap: m.vgap };
+    }
+    var minX = Infinity;
+    var maxX = -Infinity;
+    var i;
+    for (i = 0; i < sub.items.length; i++) {
+      if (sub.items[i].dx < minX) minX = sub.items[i].dx;
+      if (sub.items[i].dx > maxX) maxX = sub.items[i].dx;
+    }
+    var shift = pad + m.r - minX;
+    for (i = 0; i < sub.items.length; i++) {
+      var it = sub.items[i];
+      pos[it.id] = {
+        x: it.dx + shift,
+        y: pad + m.r + it.dy * m.vgap
       };
+    }
+    /* segurança para árvores com referência repetida: nenhum nó fica sem
+     * posição (o desenho nunca deixa de mostrar um nó existente) */
+    var fallbackX = pad + m.r + (maxX - minX) + m.hgap;
+    layout.nodes.forEach(function (n) {
+      if (pos[n.ser.id]) return;
+      pos[n.ser.id] = { x: fallbackX, y: pad + m.r + n.depth * m.vgap };
+      fallbackX += m.hgap;
     });
-    return { pos: pos, width: width, height: height, r: m.r, hgap: m.hgap, vgap: m.vgap };
+    return {
+      pos: pos,
+      width: 2 * (pad + m.r) + (maxX - minX),
+      height: 2 * (pad + m.r) + layout.maxDepth * m.vgap,
+      r: m.r,
+      hgap: m.hgap,
+      vgap: m.vgap
+    };
   }
 
   function treeIds(root) {
@@ -2867,8 +2958,8 @@
   function treeTipMarkersHtml() {
     var out = '<defs>';
     TREE_TIP_MARKERS.forEach(function (m) {
-      out += '<marker id="' + m[0] + '" viewBox="0 0 12 10" refX="11" refY="5" markerWidth="12" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">' +
-        '<path class="' + m[1] + '" d="M2 1.6L11 5L2 8.4Z" />' +
+      out += '<marker id="' + m[0] + '" viewBox="0 0 10 8" refX="8.6" refY="4" markerWidth="9" markerHeight="7.2" markerUnits="userSpaceOnUse" orient="auto">' +
+        '<path class="' + m[1] + '" d="M1.5 1.2L8.6 4L1.5 6.8Z" />' +
         '</marker>';
     });
     return out + '</defs>';
@@ -2879,16 +2970,16 @@
     TREE_TIP_MARKERS.forEach(function (m) {
       var marker = document.createElementNS(SVGNS, 'marker');
       marker.setAttribute('id', m[0]);
-      marker.setAttribute('viewBox', '0 0 12 10');
-      marker.setAttribute('refX', '11');
-      marker.setAttribute('refY', '5');
-      marker.setAttribute('markerWidth', '12');
-      marker.setAttribute('markerHeight', '10');
+      marker.setAttribute('viewBox', '0 0 10 8');
+      marker.setAttribute('refX', '8.6');
+      marker.setAttribute('refY', '4');
+      marker.setAttribute('markerWidth', '9');
+      marker.setAttribute('markerHeight', '7.2');
       marker.setAttribute('markerUnits', 'userSpaceOnUse');
       marker.setAttribute('orient', 'auto');
       var shape = document.createElementNS(SVGNS, 'path');
       shape.setAttribute('class', m[1]);
-      shape.setAttribute('d', 'M2 1.6L11 5L2 8.4Z');
+      shape.setAttribute('d', 'M1.5 1.2L8.6 4L1.5 6.8Z');
       marker.appendChild(shape);
       defs.appendChild(marker);
     });
@@ -3057,8 +3148,8 @@
       treeTipMarkersHtml() + lines + circles + '</svg>';
 
     var badge = eventsBadge(sel, ctx);
-    container.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), badge) +
-      '<div class="canvas-viewport"><div class="canvas-stage"><div class="tree-wrap">' + svg + '</div></div></div>';
+    setMeta(ctx, 'Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), badge);
+    container.innerHTML = '<div class="canvas-viewport"><div class="canvas-stage"><div class="tree-wrap">' + svg + '</div></div></div>';
   }
 
   /* ------------------------------------------------------------------ */
@@ -3085,8 +3176,6 @@
     };
 
     container.innerHTML = '';
-    var headEl = document.createElement('div');
-    container.appendChild(headEl);
     var viewport = document.createElement('div');
     viewport.className = 'canvas-viewport';
     container.appendChild(viewport);
@@ -3110,7 +3199,7 @@
     svg.appendChild(gNodes);
     wrap.appendChild(svg);
 
-    scene.head = headEl;
+    scene.head = null;
     scene.wrap = wrap;
     scene.svg = svg;
     scene.gEdges = gEdges;
@@ -3141,6 +3230,15 @@
     scene.svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
     scene.wrap.style.minWidth = box.width + 'px';
     scene.wrap.style.height = box.height + 'px';
+    var stageEl = scene.wrap.parentNode;
+    var contentBox = treeContentBounds(geo, preview);
+    if (stageEl && stageEl.setAttribute) {
+      if (contentBox) {
+        stageEl.setAttribute('data-content', [round2(contentBox.x), round2(contentBox.y), round2(contentBox.w), round2(contentBox.h)].join(' '));
+      } else if (stageEl.removeAttribute) {
+        stageEl.removeAttribute('data-content');
+      }
+    }
     scene.r = geo.r;
 
     var targets = Object.create(null);
@@ -3156,7 +3254,8 @@
       };
     });
 
-    scene.head.innerHTML = head('Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), eventsBadge(sel, ctx));
+    scene.head = null;
+    setMeta(ctx, 'Árvore binária', structureSub(sel, nodes.length, 'nó', 'nós', 'Árvore binária'), eventsBadge(sel, ctx));
 
     var activeId = activeNodeId(ctx.pointers || {});
     var addedMap = null;
@@ -3538,6 +3637,27 @@
     return active;
   }
 
+  /* caixa real do desenho (nós + vaga da prévia), usada pela câmera para
+   * enquadrar o conteúdo em vez da margem interna do SVG */
+  function treeContentBounds(geo, preview) {
+    var minX = Infinity;
+    var minY = Infinity;
+    var maxX = -Infinity;
+    var maxY = -Infinity;
+    function include(p, r) {
+      if (!p) return;
+      var rr = r == null ? geo.r : r;
+      if (p.x - rr < minX) minX = p.x - rr;
+      if (p.y - rr < minY) minY = p.y - rr;
+      if (p.x + rr > maxX) maxX = p.x + rr;
+      if (p.y + rr > maxY) maxY = p.y + rr;
+    }
+    Object.keys(geo.pos).forEach(function (id) { include(geo.pos[id], geo.r); });
+    if (preview && preview.pos) include(preview.pos, preview.r || geo.r);
+    if (!isFinite(minX) || maxX <= minX || maxY <= minY) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
   function renderTree(container, v, sel, ctx) {
     if (!supportsTreeScene()) {
       renderTreeStatic(container, v, sel, ctx);
@@ -3556,10 +3676,11 @@
 
   /* Contrato: `msg` entra como HTML na página — os chamadores devem escapar
    * qualquer dado vindo do código do usuário (ver `esc` nos usos abaixo). */
-  function renderMessage(container, msg, kind) {
+  function renderMessage(container, msg, kind, ctx, meta) {
     /* a mensagem substitui a cena da árvore: descarta a referência para
      * que o próximo passo recrie a cena em vez de atualizar um DOM antigo */
     container.__treeScene = null;
+    if (meta) setMeta(ctx, meta.title, meta.sub, meta.badge);
     container.innerHTML = '<div class="canvas-viewport"><div class="canvas-stage"><div class="empty ' + (kind || '') + '">' + msg + '</div></div></div>';
   }
 
@@ -3571,26 +3692,60 @@
    *   contextual da árvore, sempre calculada dos ponteiros reais do passo.
    */
   DSV.renderStructure = function (container, sel, step, ctx) {
-    if (!step) { renderMessage(container, 'Execute o código para começar.'); return; }
-    if (!sel || sel.type === 'none') {
-      renderMessage(container, 'Nenhuma estrutura detectada ainda. Use uma pilha ou fila (array com <code>push/pop</code> ou <code>push/shift</code>), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).');
+    ctx = ctx || {};
+    if (!step) {
+      var stopped = !!ctx.traceError;
+      renderMessage(container, stopped ? 'Corrija o erro e execute de novo.' : 'Execute o código para começar.', stopped ? 'error' : '', ctx, { title: 'automático', sub: '', badge: '' });
       return;
     }
-    ctx = ctx || {};
+    if (!sel || sel.type === 'none') {
+      /* Trace válido, mas a estrutura ainda não foi criada neste passo. Não
+       * recomende outra estrutura para quem abriu um exemplo oficial. */
+      if (ctx.traceError) {
+        renderMessage(container, 'Corrija o erro e execute de novo.', 'error', ctx, { title: 'automático', sub: '', badge: '' });
+        return;
+      }
+      var expected = ctx.expectedStructure;
+      if (expected && expected.type && expected.type !== 'none') {
+        var waiting = {
+          tree: 'A árvore aparece quando o código criar a raiz.',
+          list: 'A lista aparece quando o código criar o primeiro nó.',
+          array: 'O array aparece quando o código criar a primeira célula.',
+          stack: 'A pilha aparece quando o código criar o primeiro item.',
+          queue: 'A fila aparece quando o código criar o primeiro item.'
+        }[expected.type] || 'A estrutura aparece quando o código criar o primeiro item.';
+        renderMessage(container, waiting, '', ctx, { title: DSV.typeLabel(expected.type), sub: 'aguardando a estrutura', badge: '' });
+        return;
+      }
+      renderMessage(container, 'Nenhuma estrutura compatível foi detectada neste código. Use uma pilha ou fila (array com <code>push/pop</code> ou <code>push/shift</code>), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).', '', ctx, { title: 'automático', sub: '', badge: '' });
+      return;
+    }
     /* carimba o passo atual: renderizadores dependem dele para visitas,
      * prévia de inserção e destaque de arestas */
     ctx.step = step;
 
     if (sel.id == null) {
-      if (sel.type === 'list') renderListEmpty(container, sel, ctx);
-      else if (sel.type === 'tree') renderMessage(container, 'A árvore está vazia neste passo.');
-      else renderMessage(container, 'Estrutura vazia.');
+      /* O título do palco nomeia o tipo, não a variável do aluno. Estruturas
+       * vazias herdavam o rótulo da seleção ("arvore", "DoublyLinkedList") e
+       * trocavam de nome ao ganhar o primeiro item. */
+      var emptyTitle = sel.type === 'tree' ? 'Árvore binária' : DSV.typeLabel(sel.type);
+      var emptyItems = sel.type === 'array' || sel.type === 'stack' || sel.type === 'queue';
+      var emptySub = structureSub(sel, 0, emptyItems ? 'item' : 'nó', emptyItems ? 'itens' : 'nós', emptyTitle);
+      if (sel.type === 'list') {
+        /* renderListEmpty publica o título concreto (simples/dupla) e o
+         * subtítulo com a contagem; não sobrescrever depois. */
+        renderListEmpty(container, sel, ctx);
+      } else if (sel.type === 'tree') {
+        renderMessage(container, 'A árvore está vazia neste passo.', '', ctx, { title: emptyTitle, sub: emptySub, badge: '' });
+      } else {
+        renderMessage(container, 'Estrutura vazia.', '', ctx, { title: emptyTitle, sub: emptySub, badge: '' });
+      }
       return;
     }
 
     var v = DSV.findValueById(step, sel.id);
     if (!v) {
-      renderMessage(container, 'A estrutura <code>' + esc(sel.label) + '</code> ainda não existe neste passo.');
+      renderMessage(container, 'A estrutura <code>' + esc(sel.label) + '</code> ainda não existe neste passo.', '', ctx, { title: sel.label || DSV.typeLabel(sel.type), sub: '', badge: '' });
       return;
     }
 
@@ -3601,10 +3756,10 @@
       else if (sel.type === 'list' && isObj(v)) renderList(container, v, sel, ctx);
       else if (sel.type === 'array' && (isObj(v) || isArr(v))) renderArray(container, v, sel, ctx);
       else if (sel.type === 'tree' && isObj(v)) { usedTree = true; renderTree(container, v, sel, ctx); }
-      else renderMessage(container, 'Tipo de estrutura não suportado para este valor.');
+      else renderMessage(container, 'Tipo de estrutura não suportado para este valor.', '', ctx, { title: sel.label || DSV.typeLabel(sel.type), sub: '', badge: '' });
     } catch (e) {
       usedTree = false;
-      renderMessage(container, 'Não foi possível desenhar a estrutura: ' + esc(e.message), 'error');
+      renderMessage(container, 'Não foi possível desenhar a estrutura: ' + esc(e.message), 'error', ctx, { title: sel.label || DSV.typeLabel(sel.type), sub: '', badge: '' });
     }
     if (!usedTree) container.__treeScene = null;
   };

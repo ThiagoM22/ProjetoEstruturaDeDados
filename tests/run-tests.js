@@ -3103,8 +3103,14 @@ test('BST remoção: seleção automática cede da árvore vazia para a duplicad
     const n = modelCount(step, cand);
     assert(n > 0, 'passo ' + (i + 1) + ': modelo com nós');
     const container = {};
-    DSV.renderStructure(container, cand, step, { opsMap: opsMap, pointers: step.pointers || {}, events: step.events || [] });
-    assert(container.innerHTML.indexOf('duplicada · ' + n + (n === 1 ? ' nó' : ' nós')) >= 0, 'passo ' + (i + 1) + ': cabeçalho com a contagem');
+    const meta = {};
+    DSV.renderStructure(container, cand, step, {
+      opsMap: opsMap,
+      pointers: step.pointers || {},
+      events: step.events || [],
+      onMeta: (m) => Object.assign(meta, m)
+    });
+    assert(String(meta.sub).indexOf('duplicada · ' + n + (n === 1 ? ' nó' : ' nós')) >= 0, 'passo ' + (i + 1) + ': cabeçalho com a contagem');
     eq((container.innerHTML.match(/class="tree-node/g) || []).length, n, 'passo ' + (i + 1) + ': nós desenhados = modelo');
   });
 });

@@ -5,6 +5,11 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+/* O primeiro teste do projeto Firefox faz duas varreduras do axe logo após o
+ * processo do Chromium encerrar; em máquinas mais lentas a segunda pode
+ * passar do teto padrão de 60s. O teto maior não altera a varredura. */
+test.setTimeout(120000);
+
 async function analisar(page, rotulo) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -33,7 +38,10 @@ async function conferirEstruturaA11y(page) {
   /* o cabeçalho do app é o h1 da página */
   await expect(page.locator('h1.brand-name')).toHaveCount(1);
   await expect(page.locator('h1.brand-name')).toHaveText('ED Viz');
-  /* os seletores têm nome acessível próprio (before: só title) */
+  /* o seletor de exemplo vive na gaveta de código; abra-a para que o nome
+   * acessível seja computado como um controle visível */
+  if (!(await page.locator('#codePanel').isVisible())) await page.click('#btnToggleCode');
+  await expect(page.locator('#codePanel')).toBeVisible();
   await expect(page.locator('#structureSelect')).toHaveAccessibleName('Estrutura exibida');
   await expect(page.locator('#exampleSelect')).toHaveAccessibleName('Abrir exemplo');
   await expect(page.locator('#speedSelect')).toHaveAccessibleName('Velocidade de reprodução');
@@ -58,4 +66,19 @@ test('acessibilidade: depois de executar um exemplo', async ({ page }) => {
   expect(graves.map((v) => v.id)).toEqual([]);
   expect(await regrasBestPractice(page)).toEqual([]);
   await conferirEstruturaA11y(page);
+});
+
+test('acessibilidade: com código e inspetor abertos', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto('/visualizador.html');
+  /* o Roteiro já abre em coluna no desktop */
+  if (!(await page.locator('#codePanel').isVisible())) await page.click('#btnToggleCode');
+  await page.click('#btnToggleSide');
+  await page.click('#inspTabStructure');
+  const results = await analisar(page, 'gavetas');
+  const graves = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+  expect(graves.map((v) => v.id)).toEqual([]);
+  expect(await regrasBestPractice(page)).toEqual([]);
+  await expect(page.locator('#inspTabVars')).toHaveAccessibleName(/Variáveis/);
+  await expect(page.locator('#railCode')).not.toBeVisible();
 });

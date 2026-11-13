@@ -1,0 +1,3235 @@
+/* ==========================================================================
+   ED Viz — Visualizador · fundação da nova interface (Etapa 4B)
+   --------------------------------------------------------------------------
+   Este arquivo é a base do shell do Caderno de Execução. A composição final
+   em três zonas será construída nas etapas 4C–4F; aqui ficam o contrato
+   visual, os tokens de escopo, o layout estrutural e os estilos da interface.
+   Portado de css/styles.css sem alterar o arquivo legado.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Ponte de tokens — Visualizador (Etapa 4B)
+   --------------------------------------------------------------------------
+   O shell e os renderizadores consomem nomes legados (`--viz-*`, `--bg-*`,
+   `--accent-*`). Esta camada os resolve para a paleta One Dark Pro do
+   Visualizador, escopada em `body.viz-app`, sem remapear o restante do site.
+   -------------------------------------------------------------------------- */
+
+* { box-sizing: border-box; }
+
+
+html, body { height: 100%; }
+
+
+body.viz-app {
+  color-scheme: dark;
+
+  /* ---- One Dark Pro · somente no Visualizador ----
+     O app deixa o quase-preto e adota o grafite do editor: chrome #21252B,
+     superfície de trabalho #282C34, células #333842. O azul #61AFEF assume
+     ação, seleção e execução; a sintaxe ganha as cores da IDE. As páginas de
+     conteúdo mantêm Ocean, por isso a troca fica escopada aqui. */
+  --od-chrome:        #21252b;
+  --od-editor:        #282c34;
+  --od-raised:        #333842;
+  --od-hover:         #3a404b;
+  --od-active:        #434a57;
+  --od-overlay:       #2c313a;
+  --od-border-soft:   #353b45;
+  --od-border:        #3e4451;
+  --od-border-strong: #4b5263;
+  --od-text:          #d7dae0;
+  --od-text-secondary:#abb2bf;
+  --od-text-muted:    #9aa3b2;
+  --od-blue:          #61afef;
+  --od-blue-hover:    #7cc0f5;
+  --od-blue-active:   #4a9ee0;
+  --od-blue-soft:     #2b3a4b;
+  --od-blue-deep:     #243446;
+  --od-blue-text:     #9cc7f0;
+  --od-blue-border:   #3f7fb3;
+  --od-ink:           #1b1f24;
+  --od-grid:          rgba(171, 178, 191, 0.050);
+  --od-grid-major:    rgba(171, 178, 191, 0.085);
+
+  /* semânticos locais: os componentes consultam --ds-* em toda parte */
+  --ds-bg-canvas: var(--od-editor);
+  --ds-bg-surface: var(--od-chrome);
+  --ds-bg-raised: var(--od-raised);
+  --ds-bg-overlay: var(--od-overlay);
+  --ds-bg-field: var(--od-editor);
+  --ds-bg-code: var(--od-editor);
+  --ds-bg-hover: var(--od-hover);
+  --ds-bg-active: var(--od-active);
+  --ds-bg-disabled: var(--od-overlay);
+  --ds-text-primary: var(--od-text);
+  --ds-text-secondary: var(--od-text-secondary);
+  --ds-text-muted: var(--od-text-muted);
+  --ds-text-disabled: #6f7784;
+  --ds-text-accent: var(--od-blue-text);
+  --ds-text-on-accent: var(--od-ink);
+  --ds-border-soft: var(--od-border-soft);
+  --ds-border: var(--od-border);
+  --ds-border-strong: var(--od-border-strong);
+  --ds-border-control: #6f7784;
+  --ds-accent: var(--od-blue);
+  --ds-accent-hover: var(--od-blue-hover);
+  --ds-accent-active: var(--od-blue-active);
+  --ds-accent-soft: var(--od-blue-soft);
+  --ds-accent-soft-text: var(--od-blue-text);
+  --ds-accent-border: var(--od-blue-border);
+  --ds-focus: var(--od-blue-hover);
+  --ds-selection: rgba(97, 175, 239, 0.30);
+  --ds-accent-wash: rgba(97, 175, 239, 0.12);
+  --ds-grid-line: var(--od-grid);
+  --ds-grid-line-major: var(--od-grid-major);
+  --ds-error: #e5808a;
+  --ds-error-bg: rgba(224, 108, 117, 0.14);
+  --ds-error-border: rgba(224, 108, 117, 0.42);
+  --ds-error-hover: #f0979f;
+  --ds-error-active: #d26872;
+  --ds-success: #98c379;
+  --ds-success-bg: rgba(152, 195, 121, 0.12);
+  --ds-success-border: rgba(152, 195, 121, 0.38);
+  --ds-warning: #e5c07b;
+  --ds-warning-bg: rgba(229, 192, 123, 0.12);
+  --ds-warning-border: rgba(229, 192, 123, 0.38);
+  --ds-info: var(--od-blue);
+  --ds-info-bg: rgba(97, 175, 239, 0.12);
+  --ds-info-border: rgba(97, 175, 239, 0.38);
+
+  /* sintaxe One Dark Pro */
+  --tk-fg:      #abb2bf;
+  --tk-comment: #8b93a1;
+  --tk-str:     #98c379;
+  --tk-num:     #d19a66;
+  --tk-kw:      #c678dd;
+  --tk-ctrl:    #c678dd;
+  --tk-fn:      #61afef;
+  --tk-var:     #e5808a;
+  --tk-type:    #e5c07b;
+
+  /* superfícies */
+  --bg-primary: var(--ds-bg-canvas);
+  --bg-secondary: var(--ds-bg-surface);
+  --bg-surface: var(--ds-bg-surface);
+  --bg-editor: var(--ds-bg-canvas);
+  --bg-elevated: var(--ds-bg-raised);
+  --bg-hover: var(--ds-bg-hover);
+  --bg-canvas: var(--ds-bg-canvas);
+  --bg-track: var(--ds-border);
+  --bg-chrome: var(--ds-bg-surface);
+  --bg-inset: transparent;
+  --overlay-soft: rgba(255, 255, 255, 0.055);
+  --grid-dot: var(--ds-grid-line);
+  --grid-line: var(--ds-grid-line);
+  --grid-line-major: var(--ds-grid-line-major);
+  --ambient-warm: transparent;
+  --ambient-warm-soft: transparent;
+  --edge-line: var(--od-border-strong);
+  --node-visited: var(--od-overlay);
+  --node-active: var(--ds-accent-soft);
+  --selection: var(--ds-selection);
+  --backdrop: var(--ds-backdrop);
+  --scrollbar-thumb: var(--od-border);
+  --scrollbar-thumb-hover: var(--od-border-strong);
+
+  /* bordas */
+  --border: var(--ds-border);
+  --border-strong: var(--ds-border-strong);
+  --border-soft: var(--ds-border-soft);
+  --border-warm: var(--ds-accent-border);
+
+  /* texto */
+  --text-primary: var(--ds-text-primary);
+  --text-secondary: var(--ds-text-secondary);
+  --text-muted: var(--ds-text-muted);
+  --text-faint: var(--ds-text-muted);
+
+  /* acento do Visualizador (azul One Dark) */
+  --accent: var(--ds-accent);
+  --accent-hover: var(--ds-accent-hover);
+  --accent-light: var(--od-blue-hover);
+  --accent-deep: var(--ds-accent-active);
+  --accent-edge: var(--ds-accent-border);
+  --accent-track: var(--ds-accent);
+  --accent-soft: var(--ds-accent-wash);
+  --accent-muted: var(--ds-accent-border);
+  --accent-text: var(--ds-accent-soft-text);
+  --accent-fill: rgba(97, 175, 239, 0.19);
+  --accent-line: var(--ds-accent-border);
+  --accent-glow: transparent;
+  --accent-contrast: var(--ds-text-on-accent);
+
+  /* estados funcionais */
+  --danger: var(--ds-error);
+  --danger-soft: var(--ds-error-bg);
+  --danger-border: var(--ds-error-border);
+  --success: var(--ds-success);
+  --warn: var(--ds-warning);
+  --warn-soft: var(--ds-warning-bg);
+  --warn-border: var(--ds-warning-border);
+
+  /* tokens do visualizador herdados pelos renderizadores */
+  --viz-bg: var(--ds-bg-canvas);
+  --viz-panel: var(--ds-bg-surface);
+  --viz-chrome: var(--ds-bg-surface);
+  --viz-editor: var(--ds-bg-canvas);
+  --viz-canvas: var(--ds-bg-canvas);
+  --viz-raised: var(--ds-bg-raised);
+  --viz-hover: var(--ds-bg-hover);
+  --viz-border: var(--ds-border);
+  --viz-border-strong: var(--ds-border-strong);
+  --viz-edge: var(--od-border-strong);
+  --viz-node: var(--ds-bg-raised);
+  --viz-node-edge: var(--ds-border);
+  --viz-node-visited: var(--od-overlay);
+  --viz-node-visited-edge: var(--ds-border-strong);
+  --viz-node-visited-ink: var(--ds-text-secondary);
+  --viz-node-active: var(--ds-accent-soft);
+  --viz-node-new: var(--od-blue-deep);
+  --viz-node-new-edge: var(--ds-accent-border);
+  --viz-edge-new: var(--ds-accent-border);
+  --viz-edge-pending: var(--od-text-secondary);
+  --viz-grid: var(--ds-grid-line);
+  --viz-grid-major: var(--ds-grid-line-major);
+  --viz-head-h: 58px;
+
+  /* tipografia */
+  --font-ui: var(--ds-font-sans);
+  --font-display: var(--ds-font-sans);
+  --font-mono: var(--ds-font-mono);
+  --code-font: 13px;
+  --text-stage: 17px;
+  --text-stage-sm: 15px;
+  --text-micro: 11px;
+
+  /* raio, espaçamento e medidas */
+  --radius-xs: var(--ds-radius-xs);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-xl: var(--ds-radius-lg);
+  --header-h: 46px;
+  --transport-h: 52px;
+  --split-w: 4px;
+  --line-h: 22px;
+  --dock-h: 0px;
+
+  /* profundidade */
+  --shadow-pop: var(--ds-shadow-2);
+  --shadow-tip: var(--ds-shadow-1);
+  --shadow-float: var(--ds-shadow-3);
+  --shadow-accent: none;
+  --highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --highlight-warm: none;
+
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: 13px/1.5 var(--font-ui);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+
+::selection { background: var(--selection); color: var(--text-primary); }
+
+
+/* scrollbars finas */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-lg);
+}
+
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+
+.ico {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ico.fill { fill: currentColor; stroke: none; }
+
+
+/* ------------------------------------------------------------------ */
+/* Barra superior                                                      */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  height: var(--header-h);
+  flex: none;
+  padding: 0 12px 0 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-soft);
+  position: relative;
+  z-index: 10;
+}
+
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; text-decoration: none; }
+
+
+a.brand, a.btn { text-decoration: none; }
+
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--accent);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+
+.brand-mark svg { width: 18px; height: 18px; }
+
+
+.brand-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+
+.topbar-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+
+
+/* A barra é uma régua: marca, contexto e ações. Os controles de layout são
+ * ícones com nome acessível; ajuda e Guia vivem no menu "Mais". */
+.topbar .select { height: 28px; padding: 0 22px 0 8px; font-size: 11px; }
+
+
+.topbar .btn.toggle {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+
+.topbar .btn.toggle .btn-label { display: none; }
+
+
+/* O painel aberto já é o estado visível: o toggle só confirma a escolha com
+ * um degrau tonal, sem borda nem preenchimento Ocean. */
+.topbar .btn.toggle.active,
+.topbar .btn.toggle.active:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ds-bg-raised);
+  color: var(--text-primary);
+}
+
+
+.topbar .btn.toggle.active:hover:not(:disabled) { background: var(--bg-hover); }
+
+
+/* disclosure nativo: o "Mais" não é um menu ARIA complexo, é um agrupamento
+ * de duas ações secundárias (Guia e Como usar) */
+.top-menu { position: relative; flex: none; }
+
+
+.top-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+
+.top-menu > summary::-webkit-details-marker { display: none; }
+
+
+.top-menu > summary:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+
+.top-menu[open] > summary { background: var(--ds-bg-raised); color: var(--text-primary); }
+
+
+.top-menu > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+
+.top-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 204px;
+  padding: var(--sp-1);
+  background: var(--ds-bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 12px var(--font-ui);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+.menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+
+.menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+
+.menu-item .ico { width: 14px; height: 14px; color: var(--text-muted); }
+
+
+/* ------------------------------------------------------------------ */
+/* Banner de erro                                                      */
+
+.banner {
+  padding: var(--sp-2) var(--sp-3);
+  font: 12px var(--font-mono);
+  color: var(--danger-text);
+  background: var(--danger-soft);
+  border-bottom: 1px solid var(--danger-border);
+}
+
+
+.banner.hidden { display: none; }
+
+.banner code { color: var(--danger-text); }
+
+
+/* ------------------------------------------------------------------ */
+/* Layout — Caderno de Execução (Etapa 4C)                            */
+/* O Roteiro é uma coluna permanente em >=1024px; abaixo disso, ele    */
+/* continua sendo a gaveta contextual das etapas anteriores. A Margem  */
+/* mantém a coluna >=1200 e a sobreposição no recorte compacto.        */
+
+.layout {
+  --side-w: clamp(300px, 34vw, 372px);
+  /* Movimento do Caderno: a folha entra com desaceleração e sai mais curta,
+   * para devolver a Prancha ao aluno sem fazê-lo esperar. */
+  --sheet-open: 240ms;
+  --sheet-close: 200ms;
+  --sheet-exit: cubic-bezier(0.4, 0, 1, 1);
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    var(--code-w, 480px)
+    var(--split-w)
+    minmax(0, 1fr)
+    var(--side-w);
+  gap: 0;
+  background: var(--bg-canvas);
+  /* As folhas recolhidas saem pela borda com transform; sem o recorte, o
+   * retângulo deslocado da Margem aumenta o scrollWidth da página. */
+  overflow: hidden;
+}
+
+
+/* posições fixas: recolher um painel não desloca os demais na grade */
+.code-panel { grid-column: 1; }
+
+#splitLeft { grid-column: 2; }
+
+.viz-panel { grid-column: 3; }
+
+.side-panel { grid-column: 4; }
+
+
+.layout.code-collapsed { grid-template-columns: 0 0 minmax(0, 1fr) var(--side-w); }
+
+.layout.side-collapsed { grid-template-columns: var(--code-w, 480px) var(--split-w) minmax(0, 1fr) 0; }
+
+.layout.code-collapsed.side-collapsed { grid-template-columns: 0 0 minmax(0, 1fr) 0; }
+
+
+/* painéis recolhidos (Código/Inspetor na barra superior ou nas abas laterais) */
+.panel.collapsed,
+.splitter.collapsed { display: none; }
+
+
+.panel {
+  min-width: 0;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+
+/* A folha recolhida continua no fluxo para o movimento conseguir desenhá-la
+ * saindo; `visibility` a retira da tela, do foco e da árvore de acessibilidade
+ * sem apagar a transição. */
+.layout.is-motion-ready .panel {
+  visibility: visible;
+  transition: visibility 0s linear 0s;
+}
+
+
+.layout.is-motion-ready .panel.collapsed {
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear var(--sheet-close);
+}
+
+
+/* A grade é o próprio trilho do Caderno: ao abrir, a Prancha cede largura na
+ * mesma batida em que a folha entra. Só a ação de abrir/recolher arma o
+ * movimento; arrastar a divisória e redimensionar a janela continuam diretos. */
+.layout.is-sheet-moving {
+  transition: grid-template-columns var(--sheet-open) var(--ease-out);
+}
+
+
+.layout.is-sheet-moving.is-sheet-closing {
+  transition: grid-template-columns var(--sheet-close) var(--sheet-exit);
+}
+
+
+@media (min-width: 1024px) {
+  /* A largura do código é a da coluna, não a do recorte que ela atravessa:
+   * o texto não reflui durante a abertura. Ancorado à borda externa, o
+   * Roteiro é descoberto da esquerda para a direita — o seletor e as abas
+   * permanecem inteiros, e a Prancha cede espaço na mesma batida. */
+  .layout.is-motion-ready .code-panel > * {
+    width: var(--code-w, 480px);
+    align-self: flex-start;
+  }
+}
+
+
+@media (min-width: 1200px) {
+  .layout.is-motion-ready .side-panel > * {
+    width: var(--side-w);
+    align-self: flex-start;
+  }
+}
+
+
+.code-panel {
+  background: var(--bg-canvas);
+  border-right: 0;
+  /* O rodapé consulta a largura do painel; o cabeçalho tem o próprio
+   * container para as abas não refluírem durante o movimento da folha. */
+  container-type: inline-size;
+}
+
+
+.side-panel {
+  background: var(--bg-surface);
+}
+
+
+/* O fio da Margem pertence à folha e viaja com ela; como pseudo-elemento,
+ * não ocupa 1px na coluna recolhida — o painel fecha em zero de verdade. */
+.side-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+
+/* Abaixo de 1200 a Margem flutua sobre a Prancha: ela desliza da borda em
+ * vez de espremer o desenho, e o conteúdo acompanha a folha inteira. */
+@media (max-width: 1199px) {
+  .layout.is-motion-ready .side-panel.collapsed {
+    transform: translateX(100%);
+  }
+
+  .layout.is-sheet-moving .side-panel {
+    transition: transform var(--sheet-open) var(--ease-out), visibility 0s linear 0s;
+  }
+
+  .layout.is-sheet-moving .side-panel.collapsed {
+    transition: transform var(--sheet-close) var(--sheet-exit), visibility 0s linear var(--sheet-close);
+  }
+}
+
+
+.viz-panel {
+  background: var(--bg-canvas);
+  overflow: hidden;
+  /* A Régua vive dentro da Prancha: o stacking context mantém o histórico
+   * acima do desenho sem deixar os controles cobrirem as gavetas. */
+  z-index: 0;
+}
+
+
+.viz-panel > .structure { flex: 1; min-height: 0; }
+
+
+/* divisória discreta de 1px, com área de arrasto mais generosa */
+.splitter {
+  position: relative;
+  z-index: 5;
+  min-width: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+
+/* A divisória existe para o gesto, não para desenhar uma parede: em repouso
+ * é um fio quase invisível; a linha aparece no hover/foco e no arraste. */
+.splitter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--split-w) / 2 - 0.5px);
+  width: 1px;
+  background: var(--border-soft);
+  transition: background var(--dur-fast), width var(--dur-fast);
+}
+
+
+/* a área de agarre cresce para o lado da Prancha, sem cobrir a barra de
+ * rolagem vertical do editor, que fica na borda direita do Roteiro */
+.splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: -6px;
+  cursor: col-resize;
+}
+
+
+.splitter:hover::before,
+.splitter.dragging::before {
+  background: var(--accent-muted);
+}
+
+
+.splitter.dragging::before {
+  width: 2px;
+  left: calc(var(--split-w) / 2 - 1px);
+  background: var(--accent);
+}
+
+
+.splitter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+
+.layout.is-resizing { cursor: col-resize; user-select: none; }
+
+
+.layout.is-resizing .viz-panel { pointer-events: none; }
+
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  height: var(--viz-head-h);
+  flex: none;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+
+/* Chrome do canvas: título grande o bastante para ser a identidade do palco,
+ * acompanhado do que está acontecendo. Vive na mesma superfície do desenho,
+ * separado apenas por uma hairline — não é uma barra de ferramentas de IDE. */
+.viz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  height: var(--viz-head-h);
+  flex: none;
+  padding: 0 14px 0 22px;
+  background: var(--bg-canvas);
+}
+
+
+.viz-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+
+.canvas-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font: 600 var(--text-stage)/1.2 var(--font-ui);
+  letter-spacing: -0.012em;
+}
+
+
+.canvas-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font: 11.5px var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
+
+.canvas-sub.is-empty { display: none; }
+
+
+.canvas-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent-text);
+  font: 11.5px var(--font-mono);
+}
+
+
+.canvas-badge::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+
+.canvas-badge.is-empty { display: none; }
+
+
+.viz-tools { display: flex; align-items: center; gap: 10px; flex: none; }
+
+
+.viz-tools-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 1px;
+  background: var(--border);
+  flex: none;
+}
+
+
+.viz-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: 11px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur-fast);
+}
+
+
+.viz-state-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+  transition: background var(--dur-fast);
+}
+
+
+.viz-state[data-state="running"] { color: var(--accent-text); }
+
+
+.viz-state[data-state="running"] .viz-state-dot {
+  background: var(--accent);
+  animation: viz-pulse 1.3s ease-in-out infinite;
+}
+
+
+.viz-state[data-state="paused"] { color: var(--text-secondary); }
+
+.viz-state[data-state="paused"] .viz-state-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent-muted);
+}
+
+
+/* primeiro contato: há conteúdo no palco, mas nada foi reproduzido ainda */
+.viz-state[data-state="preview"] { color: var(--text-muted); }
+
+.viz-state[data-state="preview"] .viz-state-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+
+.viz-state[data-state="debug"] { color: var(--accent-text); }
+
+
+.viz-state[data-state="debug"] .viz-state-dot { background: var(--accent); }
+
+
+.viz-state[data-state="stale"] { color: var(--warn); }
+
+
+.viz-state[data-state="stale"] .viz-state-dot { background: var(--warn); }
+
+
+.viz-state[data-state="error"] { color: var(--danger); }
+
+
+.viz-state[data-state="error"] .viz-state-dot { background: var(--danger); }
+
+
+@keyframes viz-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+
+/* Abas laterais: a única presença permanente de Código e Inspetor quando as
+ * gavetas estão fechadas. Ficam sobre o palco, abaixo do título, e não
+ * consomem largura do desenho. */
+.stage-rail {
+  position: absolute;
+  top: var(--viz-head-h);
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 30px;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.stage-rail span {
+  writing-mode: vertical-rl;
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+
+.stage-rail .ico { width: 13px; height: 13px; }
+
+
+.stage-rail:hover { background: rgba(255, 255, 255, 0.022); color: var(--text-primary); }
+
+.stage-rail:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+
+.rail-left { left: 0; }
+
+.rail-right { right: 0; }
+
+
+.layout:not(.code-collapsed) .rail-left { display: none; }
+
+.layout:not(.side-collapsed) .rail-right { display: none; }
+
+
+.row { display: flex; align-items: center; gap: var(--sp-2); }
+
+
+/* ------------------------------------------------------------------ */
+/* Botões e selects                                                    */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font: 500 12px var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+
+.btn:active:not(:disabled) { background: var(--bg-elevated); }
+
+
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-contrast);
+}
+
+
+.btn.ghost { border-color: transparent; background: transparent; box-shadow: none; }
+
+
+.topbar .btn.ghost { border-color: transparent; background: transparent; }
+
+
+.btn.small { min-height: 28px; padding: 0 9px; font-size: 12px; }
+
+
+.topbar .btn.small { min-height: 28px; }
+
+.topbar .btn.primary.small { min-height: 30px; padding: 0 12px; }
+
+
+/* botões de chrome dos painéis: recolher, fechar, voltar */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  flex: none;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+
+.icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+.icon-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+.icon-btn .ico { width: 13px; height: 13px; }
+
+
+.btn.debug.active {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: none;
+}
+
+
+/* Recolher/expandir painel não é estado de execução: o toggle pressionado
+ * usa o mesmo tom neutro do layout-switch. Ocean fica reservado a estados
+ * ativos e à ação que coloca o mecanismo em marcha. */
+.btn.toggle.active {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+
+.btn.toggle.active:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+
+.select {
+  appearance: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238b94a3' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 24px 3px 8px;
+  font: 11px var(--font-mono);
+  max-width: 230px;
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+}
+
+
+.select:hover { color: var(--text-primary); border-color: transparent; background-color: var(--bg-hover); }
+
+
+.select:focus-visible,
+.btn:focus-visible,
+.brand:focus-visible,
+.tbtn:focus-visible,
+.zbtn:focus-visible,
+.zoom-label:focus-visible,
+.tab-name:focus-visible,
+.tab-close:focus-visible,
+.command:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+
+/* Em controles de preenchimento Ocean, o anel deslocado para fora é o único
+ * que aparece: o anel interno se confunde com o próprio fundo do botão. */
+.btn.primary:focus-visible,
+.tbtn-play:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+
+.select-compact {
+  /* o seletor de exemplo nunca come a largura inteira do cabeçalho: a aba
+   * ativa precisa mostrar ao menos o nome do arquivo */
+  max-width: 220px;
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+
+.select-compact:hover {
+  background-color: var(--bg-hover);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+
+.select-compact:focus-visible { border-color: var(--accent); }
+
+
+/* lista suspensa no padrão do tema (customizable select; nos navegadores
+   sem suporte, o select nativo continua como está — degradação suave) */
+@supports (appearance: base-select) {
+  select.select,
+  select.select::picker(select) { appearance: base-select; }
+
+  /* o chevron deixa de ser background e passa a ser o ::picker-icon */
+  select.select,
+  .topbar select.select {
+    align-items: center;
+    padding-right: var(--sp-2);
+    background-image: none;
+  }
+
+  select.select::picker-icon {
+    content: "";
+    width: 10px;
+    height: 10px;
+    margin-left: var(--sp-2);
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+  }
+
+  select.select:open { color: var(--text-primary); border-color: var(--accent-muted); }
+
+  /* o rótulo selecionado encolhe com truncamento em vez de empurrar o layout */
+  select.select > button > selectedcontent,
+  select.select selectedcontent {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* a lista: superfície elevada, borda, raio e sombra dos painéis do tema */
+  select.select::picker(select) {
+    max-width: min(420px, calc(100vw - 16px));
+    /* sem altura fixa: a lista aparece inteira, sem barra de rolagem; só rola
+     * quando não couber mesmo na janela (aí a barra discreta acompanha o tema) */
+    max-height: calc(100vh - 80px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    margin-top: var(--sp-1);
+    padding: var(--sp-1);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+  }
+
+  select.select option {
+    padding: 4px var(--sp-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font: 12px var(--font-ui);
+    white-space: nowrap;
+  }
+
+  select.select option:hover,
+  select.select option:focus-visible { background: var(--bg-hover); }
+
+  /* a lista aberta é uma superfície do tema: o anel branco do navegador
+   * destoa; o foco vira um contorno Ocean discreto, como o resto do chrome */
+  select.select option:focus-visible {
+    outline: 1px solid var(--accent-muted);
+    outline-offset: -1px;
+  }
+
+  select.select option:checked {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  select.select option::checkmark { color: var(--accent); }
+}
+
+
+kbd {
+  font: 600 11px var(--font-mono);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  padding: 0 5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Roteiro — cabeçalho, abas e ações                                  */
+
+/* O cabeçalho é uma folha de rosto, não uma barra de ferramentas: 58px que
+ * alinham o topo do código ao cabeçalho da Prancha. Documento, abas e ações
+ * convivem nesse plano; em colunas estreitas, as abas descem para uma segunda
+ * linha dentro dos mesmos 58px, sem empurrar o código. */
+.code-head {
+  flex: none;
+  height: var(--viz-head-h);
+  background: var(--bg-canvas);
+  /* O cabeçalho é o contêiner das próprias consultas: a largura dele já é a
+   * largura final do Roteiro durante a abertura, então as abas não trocam de
+   * linha no meio do movimento. */
+  container-type: inline-size;
+}
+
+.code-head-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 8px 0 14px;
+}
+
+
+.code-head-top .select-compact {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 340px;
+  min-width: 0;
+  height: 30px;
+  margin-right: 2px;
+  padding: 0 20px 0 6px;
+  font: 12px var(--font-ui);
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+}
+
+
+.roteiro-run-slot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+
+.roteiro-run-slot:empty { display: none; }
+
+
+.roteiro-run-slot .btn.small { min-height: 26px; }
+
+
+.roteiro-run-slot .btn.primary.small { padding: 0 11px; }
+
+
+/* O conjunto de ações é uma unidade: Executar/Depurar, ampliar e recolher.
+ * O margin-left automático mantém o cluster à direita mesmo quando a barra
+ * de abas está vazia (um único documento aberto). */
+.code-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  margin-left: auto;
+}
+
+
+/* O controle de largura é o gesto explícito de ampliar a folha; a divisória
+ * continua atendendo ao ajuste fino. */
+.code-expand { flex: none; }
+
+
+.code-expand.active { color: var(--accent-text); background: var(--accent-soft); }
+
+
+/* Depurar é ação de apoio: o ícone carrega o controle, o nome acessível e o
+ * tooltip preservam o significado. O rótulo só aparece na topbar estreita,
+ * quando Executar/Depurar voltam para lá. */
+.roteiro-run-slot #btnDebug {
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+
+
+.roteiro-run-slot #btnDebug .btn-label { display: none; }
+
+
+.code-head-top .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+
+/* As abas são parte da folha de rosto: nomes discretos no mesmo plano do
+ * seletor, sem uma faixa própria. A ativa sobe um degrau de contraste; o
+ * resto permanece texto, não chip. */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tabs[hidden] { display: none; }
+
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 160px;
+  height: 26px;
+  padding: 0 8px;
+  color: var(--text-muted);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.tab:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.028); }
+
+
+.tab.active {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+
+.tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px var(--font-ui);
+  line-height: inherit;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+.tab-close {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+
+.tab:hover .tab-close,
+.tab:focus-within .tab-close { opacity: 1; }
+
+
+/* Em telas de toque não existe hover: a aba ativa expõe o fechar para que
+ * o gesto de fechar continue descobrível. */
+@media (hover: none) {
+  .tab.active .tab-close { opacity: 1; }
+}
+
+
+.tab-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+
+/* Em colunas estreitas — ou quando há mais de um arquivo aberto em uma
+ * coluna média — o documento ocupa a primeira linha; as abas e as ações
+ * dividem a segunda. O cabeçalho continua com 58px: nada disto rouba espaço
+ * do código. */
+@container (max-width: 560px) {
+  .code-panel.has-multiple-tabs .code-head-top {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 2px 6px;
+    padding: 2px 8px 2px 12px;
+  }
+
+  .code-panel.has-multiple-tabs .code-head-top .select-compact {
+    order: 1;
+    flex: 1 0 100%;
+    max-width: none;
+    height: 26px;
+    margin-right: 0;
+  }
+
+  /* base 0: a linha é calculada pelo espaço disponível, não pelo
+   * max-content das abas — sem isso as ações caem para uma terceira linha
+   * e o cluster vaza os 58px do cabeçalho */
+  .code-panel.has-multiple-tabs .tabs { order: 2; flex: 1 1 0; height: 22px; }
+
+  .code-panel.has-multiple-tabs .code-actions { order: 3; }
+
+  .code-panel.has-multiple-tabs .tab { height: 22px; max-width: 150px; }
+}
+
+
+@container (min-width: 561px) and (max-width: 820px) {
+  .code-panel.has-multiple-tabs .code-head-top {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 2px 6px;
+    padding: 2px 8px 2px 12px;
+  }
+
+  .code-panel.has-multiple-tabs .code-head-top .select-compact {
+    order: 1;
+    flex: 1 0 100%;
+    max-width: none;
+    height: 26px;
+    margin-right: 0;
+  }
+
+  /* base 0: a linha é calculada pelo espaço disponível, não pelo
+   * max-content das abas — sem isso as ações caem para uma terceira linha
+   * e o cluster vaza os 58px do cabeçalho */
+  .code-panel.has-multiple-tabs .tabs { order: 2; flex: 1 1 0; height: 22px; }
+
+  .code-panel.has-multiple-tabs .code-actions { order: 3; }
+
+  .code-panel.has-multiple-tabs .tab { height: 22px; max-width: 150px; }
+}
+
+
+/* foco do Roteiro: anel Ocean de 2px nos controles; o editor tem um anel
+ * mais contido porque o caret já indica onde a edição acontece */
+.code-panel .btn:focus-visible,
+.code-panel .icon-btn:focus-visible,
+.code-panel .select:focus-visible,
+.code-panel .tab-name:focus-visible,
+.code-panel .tab-close:focus-visible,
+.code-panel .status-overflow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+
+.code-panel .btn.primary:focus-visible { outline-offset: 2px; }
+
+
+/* a topbar recebe Executar/Depurar abaixo de 1024 e quando o Roteiro
+ * está recolhido; os mesmos nós são movidos para cá pelo app.js */
+.topbar-run-slot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+
+.topbar-run-slot:empty { display: none; }
+
+
+/* ------------------------------------------------------------------ */
+/* Editor                                                              */
+
+.editor {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-canvas);
+}
+
+
+.gutter {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 44px;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  border-right: 0;
+}
+
+
+#gutterInner { padding-top: 14px; will-change: transform; }
+
+
+.gline {
+  height: var(--line-h);
+  line-height: var(--line-h);
+  text-align: right;
+  padding-right: 10px;
+  font: 10.5px var(--font-mono);
+  color: var(--text-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+
+
+/* A linha atual é uma pista, não um holofote: o número sobe um degrau de
+ * contraste e a lavagem fica no chão do editor. */
+.gline.cur {
+  color: var(--text-secondary);
+  font-weight: 500;
+  background: transparent;
+}
+
+
+.gline.err { color: var(--danger); font-weight: 500; }
+
+
+.code-viewport {
+  position: absolute;
+  left: 44px; right: 0; top: 0; bottom: 0;
+  overflow: hidden;
+}
+
+
+.code-highlight,
+.code-input {
+  margin: 0;
+  padding: 14px 24px 18px 16px;
+  font: var(--code-font, 13px)/var(--line-h) var(--font-mono);
+  tab-size: 2;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+
+.code-highlight {
+  position: absolute;
+  left: 0; top: 0;
+  z-index: 1;
+  min-width: 100%;
+  min-height: 100%;
+  pointer-events: none;
+  color: var(--tk-fg);
+  will-change: transform;
+}
+
+
+.code-input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent-text);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+
+/* scrollbars do editor: mais discretas que as do chrome */
+.code-input::-webkit-scrollbar { width: 9px; height: 9px; }
+
+.code-input::-webkit-scrollbar-thumb {
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+}
+
+
+.code-input:focus-visible {
+  /* O caret já marca o foco dentro do texto; o anel confirma a área ativa
+   * sem virar uma moldura Ocean de 2px em volta de todo o editor. */
+  outline: 1px solid var(--accent-muted);
+  outline-offset: -1px;
+}
+
+
+.code-input::selection { background: var(--selection); }
+
+
+/* linha mais longa que a coluna: o botão no status resolve a rolagem. O
+ * degradê de borda foi removido — ele escurecia o fim de toda linha longa
+ * sem acrescentar informação. */
+.code-viewport.is-overflowing::after { content: none; }
+
+
+/* a scrollbar horizontal do textarea é overlay em vários navegadores; sem
+ * um controle explícito, a cauda da linha parecia simplesmente cortada.
+ * O botão vive no status do editor e rola o código sem cobrir o texto. */
+.status-overflow {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: 11px var(--font-mono);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+.status-overflow:hover { color: var(--text-primary); }
+
+
+.status-overflow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+
+.status-overflow[hidden] { display: none; }
+
+
+.code-input.readonly { cursor: default; }
+
+
+.code-input.readonly::selection { background: transparent; }
+
+
+.line-hilite {
+  position: absolute;
+  left: 0; right: 0;
+  z-index: 0;
+  height: var(--line-h);
+  background: rgba(97, 175, 239, 0.075);
+  border-left: 2px solid rgba(97, 175, 239, 0.62);
+  box-shadow: none;
+  pointer-events: none;
+  will-change: transform;
+}
+
+
+.line-hilite.err {
+  background: rgba(224, 108, 117, 0.10);
+  border-left-color: rgba(224, 108, 117, 0.75);
+  box-shadow: none;
+}
+
+
+/* medidor invisível: largura de um caractere na fonte do editor */
+.code-measure {
+  position: absolute;
+  left: 0; top: 0;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+
+/* dica de variável: aparece ao segurar o mouse sobre um identificador */
+.var-tip {
+  position: absolute;
+  z-index: 4;
+  max-width: 340px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-tip);
+  font: 12px/1.55 var(--font-mono);
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+
+.var-tip.hidden { display: none; }
+
+
+.var-tip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 2px;
+}
+
+
+.var-tip-name { font-weight: 600; color: var(--tk-var); }
+
+
+.var-tip-scope { flex: none; font: 11px var(--font-ui); color: var(--text-muted); }
+
+
+.var-tip-val {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+/* tokens do código */
+.tok-comment { color: var(--tk-comment); }
+
+.tok-string  { color: var(--tk-str); }
+
+.tok-num     { color: var(--tk-num); }
+
+.tok-kw      { color: var(--tk-kw); }
+
+.tok-ctrl    { color: var(--tk-ctrl); }
+
+.tok-fn      { color: var(--tk-fn); }
+
+.tok-var     { color: var(--tk-var); }
+
+.tok-type    { color: var(--tk-type); }
+
+
+.statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 12px;
+  flex: none;
+  min-height: 26px;
+  padding: 3px 12px 3px 14px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-canvas);
+}
+
+
+/* a linha em execução pode quebrar e precisa da largura toda: a barra
+ * mantém o texto inteiro e os metadados descem alinhados à direita quando
+ * não houver espaço, em vez de espremer a linha */
+.status-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 11px/1.5 var(--font-mono);
+  color: var(--text-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+
+.status-meta { display: flex; align-items: center; gap: 12px; flex: none; margin-left: auto; }
+
+
+/* O atalho é contexto de edição: aparece quando o cursor entra no editor e
+ * recolhe quando o aluno volta a ler o código. A coluna precisa ter largura
+ * para os dois grupos; em colunas compactas ele continua no título de
+ * Executar e no diálogo de ajuda, sem empurrar a linha para outra faixa. */
+.status-hint {
+  display: none;
+  font: 11px var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+
+@container (min-width: 470px) {
+  .code-panel.is-editing .status-hint { display: inline; }
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Modo debug                                                          */
+
+.debug-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-elevated);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+
+.debug-bar.hidden { display: none; }
+
+
+.debug-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+
+.debug-bar.waiting .debug-dot { animation: pulse 1.15s ease-in-out infinite; }
+
+
+.debug-info { flex: 1; min-width: 0; }
+
+.debug-info b { color: var(--text-primary); }
+
+.debug-info .debug-next { color: var(--text-muted); }
+
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+
+/* O cabeçalho do canvas é do workspace (.viz-head); o renderizador entrega
+ * apenas viewport + stage. A superfície é contínua, sem card. */
+
+.canvas-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.zbtn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.zbtn:hover { background: var(--bg-hover); border-color: transparent; color: var(--text-primary); }
+
+
+.zbtn:disabled { opacity: 0.4; cursor: default; }
+
+
+.zbtn.is-off { color: var(--text-faint); opacity: 0.72; }
+
+
+.zbtn[aria-pressed="true"]:not(.is-off) { color: var(--text-secondary); }
+
+
+.zoom-label {
+  min-width: 42px;
+  height: 24px;
+  padding: 0 var(--sp-1);
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  font: 500 11px var(--font-mono);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.zoom-label:hover { background: var(--bg-hover); border-color: transparent; color: var(--text-primary); }
+
+
+/* ------------------------------------------------------------------ */
+/* Régua — a base da Prancha                                           */
+/* A explicação é uma legenda compacta do passo; o transporte mantém os */
+/* três grupos (navegação, progresso e configurações). O histórico sobe  */
+/* sobre o desenho, dentro da mesma largura da Prancha.                  */
+
+.step-explainer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: none;
+  padding: 7px 14px 5px;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+
+.step-explainer.hidden { display: none; }
+
+
+.step-op {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-width: 84px;
+  padding-top: 1px;
+  font: 600 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+
+.step-op::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+
+/* o passo em que a execução falhou: coral, que o DESIGN reserva a erro real */
+.step-explainer.is-error .step-op { color: var(--danger); }
+
+
+/* Duas linhas no máximo: a legenda acompanha mensagens longas sem virar
+ * um painel permanente. O texto completo continua no title. */
+.step-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+}
+
+
+/* A contagem já vive no transporte; repetir aqui só adiciona chrome. */
+.step-count { display: none; }
+
+
+/* ------------------------------------------------------------------ */
+/* Dock inferior — Régua de reprodução + histórico                     */
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+  position: relative;
+  z-index: 30;
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border-soft);
+}
+
+
+/* O histórico é uma gaveta que sobe sobre a Prancha: o desenho não muda de
+ * tamanho quando o aluno consulta comandos, eventos ou saída. A altura
+ * acompanha o conteúdo; o teto evita que uma lista longa esconda o desenho. */
+.dock-history {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  max-height: min(260px, 42vh);
+  min-height: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  z-index: 2;
+}
+
+
+.dock-history[hidden] { display: none; }
+
+
+.dock-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: none;
+  height: 44px;
+  padding: 0 10px 0 18px;
+}
+
+
+.dock-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: none;
+}
+
+
+.dock-title {
+  font: 600 13px var(--font-ui);
+  color: var(--text-primary);
+}
+
+
+.dock-sub {
+  font: 11px var(--font-mono);
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+
+.dock-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+
+.dock-tabs::-webkit-scrollbar { display: none; }
+
+
+.dock-tab {
+  position: relative;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font: 500 11px var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--dur-fast);
+}
+
+
+.dock-tab:hover { color: var(--text-primary); }
+
+
+.dock-tab.active { color: var(--text-primary); }
+
+
+.dock-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--accent);
+}
+
+
+.dock-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+
+
+.dock-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border-top: 1px solid var(--border-soft);
+}
+
+
+.dock-page {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+
+.dock-page.active { display: flex; }
+
+
+.dock-page .side-content {
+  flex: 1;
+  max-height: none;
+  padding: 10px 18px 16px;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Transporte — navegação à esquerda, progresso flexível ao centro,    */
+/* velocidade e histórico discretos à direita                          */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: 48px;
+  padding: 0 12px 0 14px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+
+.transport-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.tbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.tbtn:hover:not(:disabled) { background: var(--bg-hover); border-color: transparent; color: var(--text-primary); }
+
+.tbtn:active:not(:disabled) { background: var(--bg-elevated); }
+
+
+.tbtn:disabled { opacity: 0.3; cursor: default; }
+
+
+.tbtn .ico { width: 14px; height: 14px; }
+
+
+.tbtn-play {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  margin: 0 2px;
+  background: var(--accent);
+  border-color: var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent-contrast);
+  font-size: 0; /* o glifo ▶/❚❚ é apenas estado; o ícone é desenhado abaixo */
+  line-height: 0;
+  box-shadow: none;
+}
+
+
+.tbtn-play:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-contrast);
+  box-shadow: none;
+}
+
+
+.tbtn-play:disabled { background: var(--bg-hover); border-color: transparent; color: var(--text-muted); box-shadow: none; }
+
+
+.tbtn-play::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M8 5.5v13l10.5-6.5z' fill='%23fff'/></svg>") center/contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M8 5.5v13l10.5-6.5z' fill='%23fff'/></svg>") center/contain no-repeat;
+}
+
+
+.tbtn-play.playing::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7.5 5h3.4v14H7.5zM13.1 5h3.4v14h-3.4z' fill='%23fff'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7.5 5h3.4v14H7.5zM13.1 5h3.4v14h-3.4z' fill='%23fff'/></svg>");
+}
+
+
+/* O progresso é o elemento mais flexível da Régua: a contagem fica ao lado
+ * do trilho, não acima dele, para a faixa caber em 48px. */
+.timeline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: stretch;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+
+.timeline-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: none;
+  min-width: 58px;
+}
+
+
+.transport-end { display: flex; align-items: center; gap: 4px; flex: none; }
+
+
+.speed {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: 26px;
+  padding: 0 18px 0 6px;
+  font: 11px var(--font-mono);
+  color: var(--text-muted);
+  background-color: transparent;
+}
+
+
+.dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font: 500 11px var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+
+
+.dock-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.dock-toggle.is-open { background: var(--bg-elevated); color: var(--text-primary); }
+
+.dock-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+.dock-toggle .ico { width: 12px; height: 12px; }
+
+.dock-toggle-chev {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-fast);
+}
+
+.dock-toggle.is-open .dock-toggle-chev { transform: rotate(180deg); }
+
+
+/* a timeline ocupa todo o espaço restante da barra */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+
+input[type="range"]:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--radius-xs);
+  background:
+    linear-gradient(to right,
+      var(--accent) 0, var(--accent) var(--fill, 0%),
+      var(--bg-track) var(--fill, 0%), var(--bg-track) 100%);
+  box-shadow: none;
+}
+
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border: 2px solid var(--bg-canvas);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: none;
+  transition: background var(--dur-fast);
+}
+
+
+input[type="range"]:hover::-webkit-slider-thumb { background: var(--accent-hover); }
+
+
+input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: var(--radius-xs);
+  background:
+    linear-gradient(to right,
+      var(--accent) 0, var(--accent) var(--fill, 0%),
+      var(--bg-track) var(--fill, 0%), var(--bg-track) 100%);
+  box-shadow: none;
+}
+
+
+input[type="range"]::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--bg-canvas);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: none;
+}
+
+
+.step-label {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: right;
+  font: 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Inspetor — uma seção por vez, não um debugger empilhado.             */
+
+.side-panel { overflow: hidden; background: var(--bg-surface); }
+
+
+.inspector-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex: none;
+  height: var(--viz-head-h);
+  padding: 0 10px 0 18px;
+  background: var(--bg-surface);
+}
+
+
+.inspector-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-soft);
+}
+
+
+.inspector-title {
+  font: 600 13px var(--font-ui);
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+}
+
+
+/* primeira abertura da Margem: explica o nome editorial sem virar um
+ * tutorial permanente. Dismissível e lembrado no workspace. */
+.side-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  flex: none;
+  padding: 9px 8px 9px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font: 11px/1.5 var(--font-ui);
+}
+
+.side-hint[hidden] { display: none; }
+
+.side-hint > span { flex: 1; min-width: 0; }
+
+.side-hint b { color: var(--text-primary); font-weight: 600; }
+
+.side-hint-close {
+  margin-top: -3px;
+  color: var(--text-muted);
+  font: 16px/1 var(--font-ui);
+}
+
+
+.inspector-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: none;
+  height: 38px;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+
+.inspector-tabs::-webkit-scrollbar { display: none; }
+
+
+.insp-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font: 500 11px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+
+
+.insp-tab:first-child { padding-left: 8px; }
+
+
+.insp-tab:hover { color: var(--text-primary); }
+
+
+.insp-tab[aria-selected="true"] { color: var(--text-primary); }
+
+
+.insp-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 1px;
+  background: var(--accent);
+}
+
+
+.insp-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+
+
+.insp-count {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 12px;
+  font: 11px var(--font-mono);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+
+.insp-tab[aria-selected="true"] .insp-count { color: var(--accent-text); }
+
+
+.inspector-panes {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+
+
+.inspector-pane {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 20px;
+  scrollbar-gutter: stable;
+}
+
+
+.inspector-pane.is-active { display: block; }
+
+
+.inspector-pane:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+
+
+/* Estrutura/Estado: pares chave–valor compactos, com leitura mono. */
+.kv-list { display: flex; flex-direction: column; gap: 0; }
+
+
+.kv-row {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+
+.kv-key {
+  font: 11px var(--font-ui);
+  color: var(--text-muted);
+}
+
+
+.kv-val {
+  min-width: 0;
+  font: 11px/1.5 var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+
+/* Conteúdo de comandos/saída/eventos dentro do dock. */
+.side-content {
+  padding: 8px 14px 14px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  font-size: 12px;
+}
+
+
+/* comandos (operações da execução) */
+.command {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 26px;
+  padding: 5px 8px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  font: 11px/1.6 var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+
+.command:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+
+.command-num {
+  flex: none;
+  width: 18px;
+  text-align: right;
+  font: 500 11px/1.6 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+
+.command-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.command.current {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 1px 0 0 var(--accent);
+}
+
+
+.command.current .command-num { color: var(--accent-text); }
+
+
+.command.future { opacity: 0.42; }
+
+.command.future:hover { opacity: 0.75; }
+
+
+/* variáveis — nome e valor na mesma linha; objetos e arrays são linhas
+ * expansíveis, com o nome recuando e o valor mantendo a leitura. A coluna
+ * do valor quebra em vez de esconder o conteúdo atrás da borda. */
+.var-line {
+  display: grid;
+  grid-template-columns: 12px minmax(48px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 5px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+
+.var-line.var-child {
+  border-bottom: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+
+.var-node:has(.var-toggle:hover) { background: var(--bg-elevated); }
+
+
+.var-toggle {
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: 12px minmax(0, auto);
+  align-items: start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+.var-toggle:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+
+.var-line > .var-val { grid-column: 3; }
+
+
+.var-name {
+  min-width: 0;
+  font: 600 11px/1.5 var(--font-mono);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+
+.var-child .var-name {
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+
+.var-node.is-open .var-toggle .var-name { color: var(--text-primary); }
+
+
+.var-val {
+  min-width: 0;
+  font: 11px/1.5 var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.var-val.is-meta { color: var(--text-muted); }
+
+
+.var-chev {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 17px;
+  color: var(--text-muted);
+}
+
+
+.var-chev svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-fast), color var(--dur-fast);
+}
+
+
+.var-toggle:hover .var-chev,
+.var-node.is-open .var-chev { color: var(--text-secondary); }
+
+
+.var-node.is-open .var-chev svg { transform: rotate(90deg); }
+
+
+.var-children {
+  margin-left: 10px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border-soft);
+}
+
+
+.var-more .var-name { color: var(--text-faint); font-weight: 500; }
+
+
+/* chamadas */
+.frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+
+.frame:last-child { border-bottom: 0; }
+
+
+.frame .frame-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 11px var(--font-mono);
+  color: var(--text-primary);
+}
+
+
+.frame .frame-line {
+  font: 11px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+
+.frame.active {
+  background: var(--accent-soft);
+  border-radius: var(--radius-xs);
+  box-shadow: inset 1px 0 0 var(--accent);
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+
+.frame.active .frame-name { color: var(--accent-text); }
+
+
+.scope-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 3px;
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+
+.scope-title:first-child { margin-top: 0; }
+
+
+.scope-title::before {
+  content: "";
+  width: 12px;
+  height: 1px;
+  background: var(--border-strong);
+  flex: none;
+}
+
+
+.scope-count {
+  margin-left: auto;
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+
+.side-empty { padding: 5px 0 2px; font-size: 11.5px; }
+
+
+/* saída */
+.console { font: 11px/1.55 var(--font-mono); }
+
+
+.console-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 4px 6px;
+  border-radius: var(--radius-xs);
+}
+
+
+.console-line:hover { background: rgba(255, 255, 255, 0.022); }
+
+
+.console-line .console-step {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+
+.console-line .console-step:hover { color: var(--accent-text); text-decoration: underline; }
+
+
+.console-line > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.console-line.warn { color: var(--warn); }
+
+.console-line.error { color: var(--danger); }
+
+
+.muted { color: var(--text-muted); font-style: italic; }
+
+
+/* ------------------------------------------------------------------ */
+/* Diálogo de ajuda                                                    */
+
+dialog.help {
+  display: block;
+  width: min(620px, calc(100vw - 2 * var(--sp-4)));
+  max-width: 620px;
+  max-height: calc(100vh - 2 * var(--sp-4));
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  box-shadow: var(--shadow-pop);
+}
+
+
+dialog.help::backdrop { background: var(--backdrop); }
+
+
+/* o display do layout não pode ressuscitar o diálogo fechado */
+dialog.help:not([open]) { display: none; }
+
+
+.help-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-5) var(--sp-3);
+  background: var(--bg-surface);
+}
+
+
+.help-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px -6px 0 0;
+  padding: 0;
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: 400 18px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+
+.help-close:hover { background: var(--bg-elevated); border-color: var(--border); color: var(--text-primary); }
+
+.help-close:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+
+.help-body {
+  padding: 0 var(--sp-5) var(--sp-2);
+}
+
+
+dialog.help h2 { margin: 0; font-size: 14px; color: var(--text-primary); }
+
+
+dialog.help h3 { margin: var(--sp-4) 0 var(--sp-1); font-size: 12px; color: var(--text-primary); }
+
+
+dialog.help code {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 var(--sp-1);
+  font: 11.5px var(--font-mono);
+  color: var(--tk-str);
+}
+
+
+dialog.help b { color: var(--text-primary); }
+
+
+dialog.help form.help-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Responsivo                                                          */
+
+/* No desktop estreito a mono cede meio ponto; as abas do registro mantêm
+ * a leitura sem apertar os controles. */
+@media (max-width: 1366px) {
+  body.viz-app { --code-font: 12.5px; }
+  .dock-tab { padding: 0 1px; }
+}
+
+
+/* 1024–1279: o Roteiro é coluna, mas a Margem ainda se sobrepõe ao palco —
+ * o mesmo comportamento da etapa anterior. A coluna compacta fica entre
+ * 340 e 400px; o teto é aplicado pelo controlador. */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .layout,
+  .layout.code-collapsed,
+  .layout.side-collapsed,
+  .layout.code-collapsed.side-collapsed {
+    display: grid;
+    grid-template-columns: var(--code-w, 360px) var(--split-w) minmax(0, 1fr) 0;
+  }
+
+  .layout.code-collapsed {
+    grid-template-columns: 0 0 minmax(0, 1fr) 0;
+  }
+
+  .viz-panel { position: relative; }
+
+  .side-panel {
+    position: absolute;
+    top: var(--viz-head-h);
+    bottom: var(--regua-h, 0px);
+    right: 0;
+    z-index: 13;
+    width: min(var(--side-w), 90vw);
+  }
+
+  .side-panel.collapsed { display: none; }
+}
+
+
+/* ≤1023: o palco deixa de dividir espaço com as gavetas. Código e Inspetor
+ * passam a flutuar sobre o desenho; fechá-los devolve o palco inteiro sem
+ * reflow e sem mexer no estado da execução. É o recorte de tablet. */
+@media (max-width: 1023px) {
+  .layout,
+  .layout.code-collapsed,
+  .layout.side-collapsed,
+  .layout.code-collapsed.side-collapsed {
+    display: block;
+  }
+
+  .viz-panel { position: absolute; inset: 0; }
+
+  .code-panel,
+  .side-panel {
+    position: absolute;
+  }
+
+  .code-panel {
+    top: 0;
+    /* A folha para no topo da Régua: o transporte continua visível e
+     * clicável enquanto o aluno lê ou edita o código. */
+    bottom: var(--regua-h, 0px);
+    left: 0;
+    z-index: 14;
+    width: min(var(--code-w, 448px), 92vw);
+    border-right: 1px solid var(--border-soft);
+  }
+
+  /* A folha do Roteiro entra pela esquerda e volta para lá ao fechar. */
+  .layout.is-motion-ready .code-panel.collapsed {
+    transform: translateX(-100%);
+  }
+
+  .layout.is-sheet-moving .code-panel {
+    transition: transform var(--sheet-open) var(--ease-out), visibility 0s linear 0s;
+  }
+
+  .layout.is-sheet-moving .code-panel.collapsed {
+    transition: transform var(--sheet-close) var(--sheet-exit), visibility 0s linear var(--sheet-close);
+  }
+
+  .side-panel {
+    top: var(--viz-head-h);
+    /* Mesma regra da folha de Código: a Régua fica descoberta. */
+    bottom: var(--regua-h, 0px);
+    right: 0;
+    z-index: 13;
+    width: min(var(--side-w), 94vw);
+  }
+
+  #splitLeft { display: none; }
+
+  /* A folha flutua sobre o palco: ampliar não é um gesto de coluna. */
+  .code-expand { display: none; }
+
+  /* Uma gaveta aberta já é o foco: as duas abas laterais saem de cena. */
+  .layout:not(.code-collapsed) .stage-rail,
+  .layout:not(.side-collapsed) .stage-rail { display: none; }
+}
+
+
+/* 1024–1279: a coluna compacta ganha um cabeçalho mais econômico. Depurar
+ * já é um ícone em qualquer largura; o espaço extra fica para o documento. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .code-head-top { gap: 4px; padding: 0 6px 0 12px; }
+  .roteiro-run-slot { gap: 2px; }
+  .roteiro-run-slot #btnRun { padding: 0 9px; }
+}
+
+
+/* ≤1100: a barra superior compacta, mas o rótulo de Executar permanece —
+ * sem ele o botão vira o mesmo triângulo Ocean do play do transporte. */
+@media (max-width: 1100px) {
+  .topbar-actions .btn-label { display: none; }
+  .topbar-actions .btn { padding: var(--sp-1); min-width: 30px; }
+  #btnRun .btn-label { display: inline; }
+  #btnRun .ico { display: none; }
+  #btnRun { padding: 0 10px; min-width: 0; }
+  .select-compact { max-width: 190px; }
+  .canvas-badge { max-width: 38%; }
+  .viz-state { padding: 0; }
+
+  /* no Roteiro o Executar continua com o ícone e o rótulo; o ajuste acima
+   * existe para a topbar, onde o espaço é mais escasso */
+  .roteiro-run-slot #btnRun { padding: 0 10px; }
+  .roteiro-run-slot #btnRun .ico { display: inline; }
+
+  /* A Régua cede o rótulo secundário do histórico para o progresso: o ícone
+   * e o chevron continuam nomeando o controle. */
+  .dock-toggle-label { display: none; }
+  .dock-toggle { padding: 0 6px; }
+}
+
+
+/* ≤900: a gaveta vira uma folha focada, quase da largura da tela. O aluno
+ * fecha para voltar ao desenho; não faz sentido dividir 900px com ele. */
+@media (max-width: 900px) {
+  /* A folha focada cobre a largura toda: não sobra uma faixa de canvas
+   * clicável atrás dela. O fechar e o Histórico continuam no chrome. */
+  .code-panel { width: 100%; }
+  .side-panel { width: 100%; }
+
+  .layout:not(.code-collapsed) .viz-tools,
+  .layout:not(.side-collapsed) .viz-tools { visibility: hidden; }
+}
+
+
+/* ≤820: a marca fica só com o nome e o palco ganha uns pixels de volta. */
+@media (max-width: 820px) {
+  .topbar { padding: 0 10px; gap: var(--sp-2); }
+  .canvas-title { font-size: var(--text-stage-sm); }
+  .viz-head { padding: 0 8px 0 14px; gap: var(--sp-2); }
+  .viz-tools { gap: 6px; }
+  .viz-tools-sep { display: none; }
+  .stage-rail { width: 26px; }
+  .step-explainer { padding: 6px 12px 4px; gap: 8px; }
+  .step-op { min-width: 74px; }
+  .transport { padding: 0 10px 0 12px; gap: 8px; }
+  .dock-head { gap: 12px; padding-left: 14px; }
+  .dock-heading { display: none; }
+}
+
+
+/* ≤620: a barra continua em uma linha. A marca, o seletor e os três
+ * controles de chrome cabem sem empilhar; o transporte vira controles em
+ * cima e timeline embaixo, com a contagem acima do trilho. */
+@media (max-width: 620px) {
+  .topbar {
+    flex-wrap: nowrap;
+    height: var(--header-h);
+    min-height: 0;
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .topbar-left { width: auto; flex: none; justify-content: flex-start; }
+  .topbar .brand { height: auto; }
+  .topbar-actions { width: auto; flex: 1 1 auto; min-width: 0; gap: 2px; justify-content: flex-end; }
+  .topbar-actions .btn { min-width: 30px; min-height: 30px; }
+  .topbar .btn.toggle { width: 30px; height: 30px; }
+  .topbar .top-menu > summary { width: 30px; height: 30px; }
+  .topbar .select { flex: 1 1 auto; min-width: 0; max-width: none; height: 30px; padding-right: var(--sp-2); }
+  .select-compact { max-width: 120px; }
+
+  /* o atalho de teclado não paga o espaço que ocupa no rodapé estreito */
+  .code-panel.is-editing .status-hint { display: none; }
+
+  .transport {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: 36px 18px;
+    align-items: center;
+    height: auto;
+    min-height: 0;
+    padding: 4px 10px 6px;
+    gap: 2px 8px;
+  }
+  .transport-group { grid-column: 1; grid-row: 1; }
+  .transport-end { grid-column: 2 / -1; grid-row: 1; justify-self: end; }
+  .timeline { grid-column: 1 / -1; grid-row: 2; width: 100%; gap: 8px; }
+  .speed { height: 24px; }
+
+  .step-explainer {
+    flex-wrap: wrap;
+    align-items: baseline;
+    padding: 6px 12px 5px;
+    row-gap: 1px;
+  }
+  .step-text { white-space: normal; line-height: 1.45; }
+  .step-op { min-width: 0; }
+
+  .dock-history { height: auto; max-height: min(320px, 45vh); }
+  .dock-head { height: 42px; padding: 0 8px 0 14px; }
+  .dock-page .side-content { padding: 8px 14px 14px; }
+  .inspector-pane { padding: 12px 14px 18px; }
+  .inspector-tabs { padding: 0 6px; }
+  .insp-tab { padding: 0 8px; }
+  .canvas-sub { display: none; }
+}
+
+
+/* ≤420: controles de toque um pouco mais largos e chrome mínimo. */
+@media (max-width: 420px) {
+  /* A Prancha mantém as abas laterais CÓDIGO/MARGEM e as gavetas têm o
+   * próprio recolher: na topbar estreita, os dois toggles só disputariam
+   * espaço com o seletor de estrutura. Os nós continuam no DOM. */
+  .topbar #btnToggleCode,
+  .topbar #btnToggleSide { display: none; }
+
+  .brand-name { font-size: 12.5px; }
+  .transport { padding: 3px 8px 5px; }
+  .transport .tbtn:not(.tbtn-play) { width: 28px; height: 28px; }
+  .tbtn-play { width: 30px; height: 30px; margin: 0 2px; }
+  .timeline-meta { min-width: 52px; }
+  .canvas-title { max-width: 140px; }
+  .canvas-badge { display: none; }
+  .step-op { font-size: var(--text-micro); }
+  .dock-tab { padding: 0; }
+  .statusbar { padding: 3px var(--sp-3); }
+}
+
+
+/* O app ocupa a tela inteira em qualquer largura: nada de rolagem de página
+ * competindo com o canvas. */
+@supports (height: 100dvh) {
+  html, body { height: 100dvh; }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}

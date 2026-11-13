@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+  <title id="title">Wireframes mobile do novo visualizador ED Viz em 390px</title>
+  <desc id="desc">Três estados: prancha padrão, folha de código em tela cheia e folha inferior de leitura.</desc>
+  <style>
+    .bg { fill: #09090D; }
+    .surface { fill: #0D0D12; }
+    .raised { fill: #111118; }
+    .hair { stroke: #1E1E29; stroke-width: 1; fill: none; }
+    .hair-strong { stroke: #292936; stroke-width: 1; fill: none; }
+    .grid { stroke: #14141C; stroke-width: 1; }
+    .txt { fill: #E7E5ED; font-family: Geist, "Segoe UI", sans-serif; }
+    .sec { fill: #C4C3CF; font-family: Geist, "Segoe UI", sans-serif; }
+    .mut { fill: #9696A5; font-family: Geist, "Segoe UI", sans-serif; }
+    .mono { fill: #C4C3CF; font-family: "Geist Mono", Consolas, monospace; }
+    .mono-mut { fill: #9696A5; font-family: "Geist Mono", Consolas, monospace; }
+    .ocean { fill: #35B8C8; }
+    .ocean-txt { fill: #9CE6ED; }
+    .label { font-family: "Geist Mono", Consolas, monospace; font-size: 9px; letter-spacing: 1.2px; fill: #9696A5; }
+    .small { font-size: 9px; }
+    .body { font-size: 11px; }
+    .title { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    .code { font-family: "Geist Mono", Consolas, monospace; font-size: 10px; fill: #C4C3CF; }
+    .code-mut { font-family: "Geist Mono", Consolas, monospace; font-size: 10px; fill: #656575; }
+    .btn { fill: #35B8C8; }
+    .btn-txt { fill: #09090D; font-family: Geist, "Segoe UI", sans-serif; font-size: 10px; font-weight: 600; }
+    .ghost { fill: none; stroke: #292936; }
+    .cell { fill: #111118; stroke: #292936; }
+    .cell-active { fill: #12343A; stroke: #35B8C8; stroke-width: 1.4; }
+    .frame-label { font-family: "Geist Mono", Consolas, monospace; font-size: 11px; letter-spacing: 0.6px; fill: #9696A5; }
+    .frame { fill: #09090D; stroke: #292936; stroke-width: 1; }
+  </style>
+
+  <rect class="bg" width="1280" height="920"/>
+
+  <text class="frame-label" x="30" y="30">A · PRANCHA (PADRÃO)</text>
+  <text class="frame-label" x="450" y="30">B · CÓDIGO (FOLHA)</text>
+  <text class="frame-label" x="870" y="30">C · LEITURA (FOLHA INFERIOR)</text>
+
+  <!-- ============ A · default stage ============ -->
+  <g transform="translate(30,50)">
+    <rect class="frame" width="390" height="844" rx="8"/>
+
+    <!-- running head -->
+    <rect class="surface" x="0" y="0" width="390" height="44"/>
+    <line class="hair" x1="0" y1="44" x2="390" y2="44"/>
+    <circle cx="20" cy="22" r="6" fill="none" stroke="#35B8C8" stroke-width="1.3"/>
+    <circle cx="20" cy="22" r="2" fill="#35B8C8"/>
+    <text class="txt" x="32" y="26" font-size="12" font-weight="600">ED Viz</text>
+    <text class="mut small" x="330" y="26" text-anchor="middle">&lt;/&gt;</text>
+    <text class="mut small" x="360" y="26" text-anchor="middle">?</text>
+
+    <!-- plate caption -->
+    <text class="title txt" x="16" y="72">Pilha</text>
+    <text class="mono-mut small" x="58" y="72">3 itens</text>
+    <circle cx="112" cy="68" r="2.5" fill="#9696A5"/>
+    <text class="mono-mut small" x="120" y="72">pausado</text>
+    <text class="mut small" x="350" y="72" text-anchor="middle">⋯</text>
+    <line class="hair" x1="0" y1="92" x2="390" y2="92"/>
+
+    <!-- canvas -->
+    <g class="grid">
+      <line x1="65" y1="92" x2="65" y2="700"/><line x1="130" y1="92" x2="130" y2="700"/>
+      <line x1="195" y1="92" x2="195" y2="700"/><line x1="260" y1="92" x2="260" y2="700"/>
+      <line x1="325" y1="92" x2="325" y2="700"/>
+      <line x1="0" y1="170" x2="390" y2="170"/><line x1="0" y1="250" x2="390" y2="250"/>
+      <line x1="0" y1="330" x2="390" y2="330"/><line x1="0" y1="410" x2="390" y2="410"/>
+      <line x1="0" y1="490" x2="390" y2="490"/><line x1="0" y1="570" x2="390" y2="570"/>
+      <line x1="0" y1="650" x2="390" y2="650"/>
+    </g>
+
+    <rect class="cell-active" x="108" y="290" width="174" height="48" rx="4"/>
+    <text class="mono-mut" x="120" y="319" font-size="10">[2]</text>
+    <text class="mono ocean-txt" x="170" y="320" font-size="15" font-weight="600">30</text>
+    <text class="mono ocean-txt" x="208" y="319" font-size="9">← topo</text>
+
+    <rect class="cell" x="108" y="338" width="174" height="48" rx="4"/>
+    <text class="mono-mut" x="120" y="367" font-size="10">[1]</text>
+    <text class="mono" x="170" y="368" font-size="15" font-weight="600">20</text>
+
+    <rect class="cell" x="108" y="386" width="174" height="48" rx="4"/>
+    <text class="mono-mut" x="120" y="415" font-size="10">[0]</text>
+    <text class="mono" x="170" y="416" font-size="15" font-weight="600">10</text>
+
+    <text class="mono-mut" x="195" y="462" text-anchor="middle" font-size="9">BASE</text>
+
+    <!-- step caption -->
+    <line class="hair" x1="0" y1="700" x2="390" y2="700"/>
+    <rect class="surface" x="0" y="700" width="390" height="44"/>
+    <circle cx="18" cy="722" r="3" fill="#35B8C8"/>
+    <text class="label" x="28" y="726">PASSO</text>
+    <text class="sec body" x="76" y="726">push(30) · 30 entrou no topo.</text>
+    <text class="mut small" x="356" y="726" text-anchor="middle">›</text>
+
+    <!-- transport -->
+    <rect class="surface" x="0" y="744" width="390" height="100"/>
+    <line class="hair" x1="0" y1="744" x2="390" y2="744"/>
+    <text class="mut" x="24" y="774">⏮</text>
+    <text class="mut" x="48" y="774">◀</text>
+    <circle cx="82" cy="770" r="13" fill="#35B8C8"/>
+    <text x="82" y="775" text-anchor="middle" fill="#09090D" font-size="10">▶</text>
+    <text class="mut" x="110" y="774">▶</text>
+    <text class="mut" x="134" y="774">⏭</text>
+    <text class="mono-mut small" x="166" y="774">5/10</text>
+    <text class="mono-mut small" x="330" y="774">1×</text>
+    <text class="mut small" x="362" y="774" text-anchor="middle">⋯</text>
+    <line x1="20" y1="810" x2="370" y2="810" stroke="#292936" stroke-width="3" stroke-linecap="round"/>
+    <line x1="20" y1="810" x2="168" y2="810" stroke="#35B8C8" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="168" cy="810" r="5.5" fill="#35B8C8"/>
+  </g>
+
+  <!-- ============ B · code sheet ============ -->
+  <g transform="translate(450,50)">
+    <rect class="frame" width="390" height="844" rx="8"/>
+    <rect class="surface" x="0" y="0" width="390" height="844"/>
+
+    <!-- sheet header -->
+    <text class="mut small" x="16" y="28">×</text>
+    <text class="label" x="38" y="28">ROTEIRO</text>
+    <rect x="296" y="12" width="78" height="28" rx="6" class="btn"/>
+    <text class="btn-txt" x="335" y="30" text-anchor="middle">▶ Executar</text>
+    <line class="hair" x1="0" y1="48" x2="390" y2="48"/>
+
+    <!-- example row -->
+    <rect x="14" y="56" width="252" height="26" rx="5" class="raised"/>
+    <text class="sec small" x="24" y="73">Pilha com array (push/pop)</text>
+    <text class="mut small" x="252" y="73">▾</text>
+    <rect x="276" y="56" width="30" height="26" rx="5" class="ghost"/>
+    <text class="mut small" x="291" y="73" text-anchor="middle">⌁</text>
+    <rect x="316" y="56" width="58" height="26" rx="5" class="ghost"/>
+    <text class="mut small" x="345" y="73" text-anchor="middle">fechar</text>
+
+    <!-- tabs -->
+    <line class="hair" x1="0" y1="90" x2="390" y2="90"/>
+    <text class="txt small" x="14" y="110">pilha-array.js</text>
+    <line x1="12" y1="118" x2="100" y2="118" stroke="#35B8C8" stroke-width="2"/>
+    <text class="mut small" x="118" y="110">fila-array.js</text>
+    <text class="mut small" x="200" y="110">×</text>
+    <line class="hair" x1="0" y1="120" x2="390" y2="120"/>
+
+    <!-- gutter -->
+    <rect x="0" y="120" width="38" height="680" fill="#0A0A0F"/>
+    <line class="hair" x1="38" y1="120" x2="38" y2="800"/>
+    <text class="code-mut" x="30" y="142" text-anchor="end">1</text>
+    <text class="code-mut" x="30" y="164" text-anchor="end">2</text>
+    <text class="code-mut" x="30" y="186" text-anchor="end">3</text>
+    <text class="code-mut" x="30" y="208" text-anchor="end">4</text>
+    <text class="code-mut" x="30" y="230" text-anchor="end">5</text>
+    <text class="code-mut" x="30" y="252" text-anchor="end">6</text>
+    <text class="code-mut" x="30" y="274" text-anchor="end">7</text>
+    <text class="code-mut" x="30" y="296" text-anchor="end">8</text>
+    <text class="code-mut" x="30" y="318" text-anchor="end">9</text>
+
+    <text class="code-mut" x="50" y="142">// PILHA (stack) — LIFO</text>
+    <text class="code" x="50" y="164">const pilha = [];</text>
+    <text class="code-mut" x="50" y="208">// empilha</text>
+    <text class="code" x="50" y="230">pilha.push(10);</text>
+    <text class="code" x="50" y="252">pilha.push(20);</text>
+    <text class="code ocean-txt" x="50" y="274">pilha.push(30);</text>
+    <text class="code" x="50" y="318">const topo = pilha[pilha.length - 1];</text>
+
+    <rect x="38" y="258" width="352" height="22" fill="#12343A" opacity="0.55"/>
+    <rect x="38" y="258" width="2" height="22" fill="#35B8C8"/>
+    <text class="ocean-txt" x="30" y="274" text-anchor="end" font-family="Geist Mono, Consolas, monospace" font-size="10">9</text>
+
+    <!-- status -->
+    <line class="hair" x1="0" y1="800" x2="390" y2="800"/>
+    <rect class="surface" x="0" y="800" width="390" height="44"/>
+    <text class="mono-mut small" x="14" y="820">linha 9: pilha.push(30);</text>
+    <text class="mono-mut small" x="376" y="820" text-anchor="end">Ctrl+Enter</text>
+    <text class="mut small" x="14" y="836">Tab insere espaços · Esc sai</text>
+  </g>
+
+  <!-- ============ C · reading bottom sheet ============ -->
+  <g transform="translate(870,50)">
+    <rect class="frame" width="390" height="844" rx="8"/>
+
+    <!-- dimmed stage behind -->
+    <rect class="surface" x="0" y="0" width="390" height="44"/>
+    <circle cx="20" cy="22" r="6" fill="none" stroke="#35B8C8" stroke-width="1.3"/>
+    <text class="txt" x="32" y="26" font-size="12" font-weight="600">ED Viz</text>
+    <text class="title txt" x="16" y="72">Pilha</text>
+    <text class="mono-mut small" x="58" y="72">3 itens</text>
+    <line class="hair" x1="0" y1="92" x2="390" y2="92"/>
+    <rect class="cell-active" x="108" y="150" width="174" height="48" rx="4" opacity="0.6"/>
+    <text class="mono ocean-txt" x="170" y="180" font-size="15" font-weight="600" opacity="0.7">30</text>
+    <rect class="cell" x="108" y="198" width="174" height="48" rx="4" opacity="0.6"/>
+    <text class="mono" x="170" y="228" font-size="15" font-weight="600" opacity="0.7">20</text>
+    <rect x="0" y="0" width="390" height="300" fill="#09090D" opacity="0.55"/>
+
+    <!-- sheet -->
+    <rect x="0" y="300" width="390" height="544" rx="10" fill="#0D0D12"/>
+    <rect x="0" y="300" width="390" height="1" fill="#292936"/>
+    <rect x="184" y="312" width="22" height="4" rx="2" fill="#393947"/>
+
+    <text class="label" x="18" y="342">LEITURA</text>
+    <text class="mono-mut small" x="300" y="342">passo 5/10</text>
+    <text class="mut small" x="368" y="342" text-anchor="middle">×</text>
+    <line class="hair" x1="0" y1="356" x2="390" y2="356"/>
+
+    <text class="label" x="18" y="382">PASSO</text>
+    <text class="mono ocean-txt small" x="18" y="402">push(30)</text>
+    <text class="sec body" x="18" y="422">30 entrou no topo. A pilha passou</text>
+    <text class="sec body" x="18" y="438">de 2 para 3 itens.</text>
+    <rect x="18" y="454" width="354" height="28" rx="4" class="bg"/>
+    <text class="code-mut" x="28" y="472">9</text>
+    <text class="code" x="44" y="472">pilha.push(30);</text>
+
+    <!-- context tabs -->
+    <line class="hair" x1="0" y1="500" x2="390" y2="500"/>
+    <text class="txt small" x="18" y="522">Variáveis</text>
+    <line x1="18" y1="530" x2="74" y2="530" stroke="#35B8C8" stroke-width="2"/>
+    <text class="mut small" x="100" y="522">Chamadas</text>
+    <text class="mut small" x="180" y="522">Estrutura</text>
+    <line class="hair" x1="0" y1="540" x2="390" y2="540"/>
+
+    <text class="label" x="18" y="564">VARIÁVEIS</text>
+    <text class="mono" x="18" y="590">▾ pilha</text>
+    <text class="mono-mut small" x="360" y="590" text-anchor="end">Array(3)</text>
+    <text class="mono-mut" x="36" y="612">0</text>
+    <text class="mono" x="68" y="612">10</text>
+    <text class="mono-mut" x="36" y="634">1</text>
+    <text class="mono" x="68" y="634">20</text>
+    <text class="mono-mut" x="36" y="656">2</text>
+    <text class="mono ocean-txt" x="68" y="656">30</text>
+    <text class="mono" x="18" y="686">▸ this</text>
+    <text class="mono-mut small" x="360" y="686" text-anchor="end">Pilha</text>
+
+    <line class="hair" x1="0" y1="792" x2="390" y2="792"/>
+    <text class="label" x="18" y="816">LEGENDA</text>
+    <circle cx="24" cy="834" r="4" fill="#12343A" stroke="#35B8C8" stroke-width="1.2"/>
+    <text class="mut small" x="34" y="838">ativo</text>
+    <circle cx="84" cy="834" r="4" fill="#111118" stroke="#393947" stroke-width="1.2"/>
+    <text class="mut small" x="94" y="838">visitado</text>
+    <circle cx="170" cy="834" r="4" fill="none" stroke="#393947" stroke-dasharray="2 2"/>
+    <text class="mut small" x="180" y="838">pendente</text>
+  </g>
+</svg>

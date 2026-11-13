@@ -1,0 +1,21 @@
+/* ==========================================================================
+   ED Viz — Geist local
+   Usado pelo UI Kit e, desde a Etapa 4B, pelo Visualizador.
+   CSP de produção: font-src 'self' (ver vercel.json).
+   ========================================================================== */
+
+@font-face {
+  font-family: "Geist";
+  src: url("../fonts/Geist-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../fonts/GeistMono-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}

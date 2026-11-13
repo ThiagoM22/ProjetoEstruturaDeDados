@@ -1,0 +1,926 @@
+/* ==========================================================================
+   ED Viz — Visualizador · estruturas (Etapa 4B)
+   --------------------------------------------------------------------------
+   Regras dos renderizadores de pilha, fila, lista, árvore e array.
+   Portadas de css/styles.css; geometria, classes e animações preservadas.
+   A paleta é resolvida pela ponte de tokens definida em visualizador.css.
+   ========================================================================== */
+
+
+/* ------------------------------------------------------------------ */
+/* Canvas — toolbar + viewport + stage                                 */
+
+.structure {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border-soft);
+}
+
+
+/* grade opcional: a classe vive no contêiner estável; o viewport é
+ * recriado pelos renderizadores a cada passo */
+.structure.no-grid .canvas-viewport { background-image: none; }
+
+
+.canvas-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  /* Malha de referência espacial do desenho (não é decoração de página):
+     duas escalas, contraste mínimo, some no estado vazio e no mobile. */
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(var(--grid-line-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-major) 1px, transparent 1px);
+  background-size:
+    max(16px, calc(24px * var(--canvas-zoom, 1))) max(16px, calc(24px * var(--canvas-zoom, 1))),
+    max(16px, calc(24px * var(--canvas-zoom, 1))) max(16px, calc(24px * var(--canvas-zoom, 1))),
+    max(78px, calc(120px * var(--canvas-zoom, 1))) max(78px, calc(120px * var(--canvas-zoom, 1))),
+    max(78px, calc(120px * var(--canvas-zoom, 1))) max(78px, calc(120px * var(--canvas-zoom, 1)));
+  background-position:
+    var(--canvas-x, 0px) var(--canvas-y, 0px),
+    var(--canvas-x, 0px) var(--canvas-y, 0px),
+    var(--canvas-x, 0px) var(--canvas-y, 0px),
+    var(--canvas-x, 0px) var(--canvas-y, 0px);
+}
+
+
+.structure.panning .canvas-viewport { cursor: grabbing; }
+
+
+/* Sem estrutura desenhada o grid não tem função: o palco fica limpo. */
+.canvas-viewport:has(.canvas-stage > .empty) { background-image: none; }
+
+
+.canvas-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: translate(var(--canvas-x, 0px), var(--canvas-y, 0px)) scale(var(--canvas-zoom, 1));
+  will-change: transform;
+}
+
+
+.empty {
+  max-width: 420px;
+  padding: var(--sp-4) var(--sp-5);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.75;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.empty code {
+  font: 11.5px var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 var(--sp-1);
+}
+
+
+.empty.error { color: var(--danger); }
+
+
+.empty-inline {
+  color: var(--text-muted);
+  font: calc(12.5px / var(--canvas-zoom, 1))/1.6 var(--font-ui);
+  text-align: center;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Linguagem visual das estruturas                                     */
+
+.cell {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+
+.cell-idx { font: 11px var(--font-mono); color: var(--text-faint); }
+
+.cell-val { font: 600 13.5px var(--font-mono); color: var(--text-primary); }
+
+.cell-flag { font: 11px var(--font-mono); color: var(--accent-text); white-space: nowrap; }
+
+
+/* pilha */
+.stack-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+
+.stack-side {
+  font: 11px var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+
+.stack-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: calc(140px * var(--stack-scale, 1));
+}
+
+
+.stack-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(40px * var(--stack-scale, 1));
+  padding: 0 calc(var(--sp-3) * var(--stack-scale, 1));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  box-shadow: none;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+
+
+/* pilha curta desenha maior (--stack-scale definido no render) */
+.stack-cell .cell-val { font-size: calc(13.5px * var(--stack-scale, 1)); }
+
+.stack-cell .cell-idx,
+.stack-cell .cell-flag { font-size: calc(11px * var(--stack-scale, 1)); }
+
+
+.stack-cell .cell-idx { position: absolute; left: calc(var(--sp-3) * var(--stack-scale, 1)); }
+
+
+.stack-cell .cell-flag { position: absolute; right: calc(var(--sp-3) * var(--stack-scale, 1)); }
+
+
+.stack-cell.top {
+  background: var(--node-active);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+
+.stack-cell.top .cell-val { color: var(--accent-text); }
+
+
+/* fila — horizontal, sem quebra: filas extensas são exploradas pelo canvas */
+.queue-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+
+.queue-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+
+.queue-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+
+.queue-ptrs {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 15px;
+}
+
+
+.queue-ptr {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11px/15px var(--font-mono);
+  letter-spacing: 0.09em;
+  white-space: nowrap;
+}
+
+
+.queue-ptr::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+
+.queue-ptr.ptr-front { color: var(--accent-text); }
+
+
+.queue-ptr.ptr-rear { color: var(--text-faint); }
+
+
+.queue-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(72px * var(--queue-scale, 1));
+  height: calc(40px * var(--queue-scale, 1));
+  padding: 0 calc(var(--sp-3) * var(--queue-scale, 1));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  box-shadow: none;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+
+
+/* fila curta desenha maior (--queue-scale definido no render) */
+.queue-cell .cell-val { font-size: calc(13.5px * var(--queue-scale, 1)); }
+
+.queue-wrap .queue-idx { font-size: calc(11px * var(--queue-scale, 1)); }
+
+.queue-wrap .queue-ptrs { min-height: calc(15px * var(--queue-scale, 1)); }
+
+.queue-wrap .queue-ptr {
+  font-size: calc(11px * var(--queue-scale, 1));
+  line-height: calc(15px * var(--queue-scale, 1));
+}
+
+
+.queue-idx { font: 11px var(--font-mono); color: var(--text-faint); }
+
+
+.queue-cell.front {
+  background: var(--node-active);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+
+.queue-cell.front .cell-val { color: var(--accent-text); }
+
+
+/* lista encadeada — cada nó tem duas regiões: VALUE (o valor) e NEXT (a
+ * referência); a conexão parte da região NEXT e a linha é navegada por
+ * zoom/pan quando cresce (sem quebrar a corrente nem comprimir os nós).
+ * A escala acompanha o tamanho da lista (--list-scale, definido no render):
+ * listas curtas desenham maior; longas mantêm o tamanho-base.
+ * O alinhamento vertical é central: as unidades de nó têm a mesma altura e
+ * o terminador, menor, fica centrado em relação ao nó. */
+.list-wrap {
+  --list-scale: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: calc(var(--sp-2) * var(--list-scale));
+  padding: calc(var(--sp-3) * var(--list-scale)) calc(var(--sp-2) * var(--list-scale));
+}
+
+
+.list-empty-note { margin-top: var(--sp-1); }
+
+
+.list-unit { flex: none; display: flex; }
+
+
+.list-node-wrap { display: flex; flex-direction: column; align-items: center; }
+
+
+/* faixa reservada das etiquetas (HEAD, ponteiros e visitas): altura fixa
+ * para o nó não pular quando as etiquetas aparecem. A faixa é centrada no
+ * NÓ (e não na unidade, que inclui o bloco de setas à direita): sem a
+ * compensação, a etiqueta do HEAD/TAIL fica meia largura das setas à
+ * direita do nó. O deslocamento é metade do bloco de setas
+ * (30px de trilha + 2 × 4px de margem), na escala da lista. */
+.list-ptrs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: calc(28px * var(--list-scale));
+  padding-bottom: calc(8px * var(--list-scale));
+  transform: translateX(calc(-19px * var(--list-scale)));
+}
+
+
+/* nó pendente da lista simples (ainda sem setas): a faixa já está centrada */
+.list-ptrs.no-arrows { transform: none; }
+
+
+.list-box-row { display: flex; align-items: center; }
+
+
+.list-node {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  box-shadow: none;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+
+
+.list-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(44px * var(--list-scale));
+  padding: calc(9px * var(--list-scale)) calc(11px * var(--list-scale));
+  font: 600 calc(13.5px * var(--list-scale)) var(--font-mono);
+  color: var(--text-primary);
+}
+
+
+/* referência discretamente menor que o valor; o ponto é a origem da
+ * conexão que sai para o próximo nó (sem seta dentro da região) */
+.list-next {
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--list-scale));
+  padding: 0 calc(7px * var(--list-scale));
+  border-left: 1px solid var(--border);
+  font: 600 calc(11px * var(--list-scale))/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+
+/* lista dupla: região PREV antes do valor, espelhando a NEXT */
+.list-prev {
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--list-scale));
+  padding: 0 calc(7px * var(--list-scale));
+  border-right: 1px solid var(--border);
+  font: 600 calc(11px * var(--list-scale))/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+
+.list-prev-dot {
+  width: calc(4px * var(--list-scale));
+  height: calc(4px * var(--list-scale));
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+
+/* referência prev alterada nesta etapa */
+.list-prev.changed {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-right-color: var(--accent-muted);
+}
+
+
+.list-prev.changed .list-prev-dot { background: var(--accent); }
+
+
+.list-next-dot {
+  width: calc(4px * var(--list-scale));
+  height: calc(4px * var(--list-scale));
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+
+/* referência alterada nesta etapa */
+.list-next.changed {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-left-color: var(--accent-muted);
+}
+
+
+.list-next.changed .list-next-dot { background: var(--accent); }
+
+
+/* nó recém-inserido (destaque discreto na etapa em que entra) */
+.list-node.new {
+  background: var(--viz-node-new);
+  border-color: var(--viz-node-new-edge);
+}
+
+
+/* visitado na operação atual: pouso morno, sem competir com o ativo */
+.list-node.visited {
+  background: var(--node-visited);
+  border-color: var(--viz-node-visited-edge);
+}
+
+.list-node.visited .list-value { color: var(--viz-node-visited-ink); }
+
+
+/* nó da operação atual: realce principal */
+.list-node.active {
+  background: var(--node-active);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.list-node.active .list-value { color: var(--accent-text); }
+
+
+/* nó criado e ainda não ligado: tracejado, fora da corrente */
+.list-node.pending {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+}
+
+
+/* nó identificado pela comparação, que o próximo passo vai remover */
+.list-node.target {
+  background: rgba(224, 108, 117, 0.09);
+  border-color: var(--ds-error-border);
+  box-shadow: none;
+}
+
+
+.list-pending-note {
+  font: 11px var(--font-mono);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+
+/* HEAD/TAIL e ponteiros: rótulos técnicos, sem caixa */
+.list-head-tag,
+.list-tail-tag {
+  position: relative;
+  font: 600 11px/18px var(--font-mono);
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+
+/* lista vazia (etiquetas fora da faixa .list-ptrs, junto do terminador):
+ * mantém a seta discreta voltada para baixo, como no diagrama atual */
+.list-head-tag::after,
+.list-tail-tag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  transform: translateX(-50%);
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  /* impeccable-disable-next-line border-accent-on-rounded -- triângulo de 4px é o ponteiro da etiqueta HEAD/TAIL, não borda de card */
+  border-top: 4px solid var(--border-strong);
+}
+
+
+/* etiqueta sobre um nó: uma linha fina liga a base da etiqueta à borda
+ * superior do nó, centralizada nos dois */
+.list-ptrs .list-head-tag::after,
+.list-ptrs .list-tail-tag::after {
+  top: calc(100% + 1px);
+  bottom: auto;
+  width: 1px;
+  height: calc(8px * var(--list-scale) + 1px);
+  border: 0;
+  background: var(--border-strong);
+}
+
+
+.list-head-tag.changed,
+.list-tail-tag.changed {
+  color: var(--accent-text);
+  background: transparent;
+  border-color: transparent;
+}
+
+
+.list-head-tag.changed::after,
+.list-tail-tag.changed::after { border-top-color: var(--accent); }
+
+
+/* o indicador mudou de nó: a linha-guia acompanha o destaque Ocean */
+.list-ptrs .list-head-tag.changed::after,
+.list-ptrs .list-tail-tag.changed::after { background: var(--accent); }
+
+
+/* conexão entre a região NEXT e o próximo nó (ou o terminador); na lista
+ * dupla a volta (PREV) usa a pista de baixo, espelhada, para as duas
+ * direções nunca se sobreporem */
+.list-link {
+  flex: none;
+  display: block;
+  width: calc(30px * var(--list-scale));
+  height: calc(14px * var(--list-scale));
+  margin: 0 calc(var(--sp-1) * var(--list-scale));
+}
+
+
+.list-arrows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6px * var(--list-scale));
+}
+
+
+.list-lane {
+  display: block;
+  flex: none;
+  width: calc(30px * var(--list-scale));
+  height: calc(14px * var(--list-scale));
+  margin: 0 calc(var(--sp-1) * var(--list-scale));
+}
+
+
+.list-link-shape {
+  fill: var(--edge-line);
+  stroke: var(--edge-line);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: fill var(--dur-fast), stroke var(--dur-fast);
+}
+
+
+.list-link.start .list-link-shape { fill: var(--text-faint); stroke: var(--text-faint); }
+
+
+.list-link.new .list-link-shape { fill: var(--accent-muted); stroke: var(--accent-muted); }
+
+
+.list-link.active .list-link-shape {
+  fill: var(--accent);
+  stroke: var(--accent);
+  filter: none;
+}
+
+
+/* terminador: não é um nó, é o fim da lista (next === undefined/null);
+ * indicador compacto com o símbolo ∅ desenhado — some quando a referência
+ * passa a apontar para outro nó */
+.list-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(30px * var(--list-scale));
+  height: calc(30px * var(--list-scale));
+  color: var(--text-faint);
+}
+
+
+.list-end svg { display: block; width: 100%; height: 100%; }
+
+
+/* valor não-nulo na referência (ex.: next apontando para um primitivo):
+ * mantém o valor à mostra, como um chip discreto */
+.list-null {
+  padding: 5px 9px;
+  color: var(--text-muted);
+  font: 600 11px var(--font-mono);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  white-space: nowrap;
+}
+
+
+.list-null.cycle {
+  color: var(--warn);
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+
+.ptr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11px/18px var(--font-mono);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
+
+.ptr-chip::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-muted);
+  flex: none;
+}
+
+
+/* array com tamanho manual (MeuArray) — células retangulares adjacentes,
+ * índices numa faixa própria (estável) e valores que deslizam de posição
+ * quando o algoritmo desloca o array interno; a escala acompanha o tamanho
+ * (--array-scale, definido no render): arrays curtos desenham maiores,
+ * longos mantêm o tamanho-base e são navegados por zoom/pan. */
+.array-wrap {
+  --array-scale: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: calc(var(--sp-4) * var(--array-scale)) calc(var(--sp-3) * var(--array-scale));
+}
+
+
+.array-board { display: flex; flex-direction: column; padding-top: calc(24px * var(--array-scale)); }
+
+
+.array-idx-row,
+.array-cells-row { display: flex; align-items: stretch; }
+
+
+.array-idx {
+  width: calc(62px * var(--array-scale));
+  padding-bottom: calc(5px * var(--array-scale));
+  text-align: center;
+  font: 11px var(--font-mono);
+  color: var(--text-faint);
+}
+
+
+.array-idx.beyond { opacity: 0.55; }
+
+
+.array-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(62px * var(--array-scale));
+  height: calc(48px * var(--array-scale));
+  margin-left: -1px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+
+.array-cell:first-child { margin-left: 0; border-top-left-radius: var(--radius-xs); border-bottom-left-radius: var(--radius-xs); }
+
+.array-cell:last-child { border-top-right-radius: var(--radius-xs); border-bottom-right-radius: var(--radius-xs); }
+
+
+.array-cell.beyond { border-style: dashed; background: transparent; opacity: 0.72; }
+
+.array-idx.beyond { opacity: 0.55; }
+
+
+.array-cell.hole { background: transparent; border-style: dashed; }
+
+.array-cell.hole::after {
+  content: '';
+  width: 38%;
+  height: 1px;
+  background: var(--border-strong);
+  opacity: 0.7;
+}
+
+
+/* impeccable-disable-next-line side-tab -- faixa interna marca o limite lógico do array, não aba de card */
+.array-cell.at-boundary { box-shadow: inset 1px 0 0 var(--accent-muted); }
+
+
+.array-val {
+  font: 600 calc(13.5px * var(--array-scale)) var(--font-mono);
+  color: var(--text-primary);
+  transition: color 0.15s ease;
+}
+
+
+.array-cell.active {
+  background: var(--node-active);
+  border-color: var(--accent);
+  z-index: 2;
+  box-shadow: none;
+}
+
+.array-cell.active .array-val { color: var(--accent-text); }
+
+
+.array-cell.visited {
+  background: var(--node-visited);
+  border-color: var(--viz-node-visited-edge);
+}
+
+.array-cell.visited .array-val { color: var(--viz-node-visited-ink); }
+
+
+.array-cell.match {
+  background: var(--node-active);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.array-cell.match .array-val { color: var(--accent-text); }
+
+
+.array-cell.changed .array-val { color: var(--accent-text); }
+
+.array-cell.shift-src { background: var(--accent-soft); border-color: var(--accent-muted); }
+
+.array-cell.shift-dst {
+  background: var(--node-active);
+  border-color: var(--accent);
+  z-index: 2;
+  box-shadow: none;
+}
+
+
+.array-shift-flag {
+  position: absolute;
+  /* A etiqueta do deslocamento vive na faixa acima dos índices; em -20px
+   * ela caía sobre os próprios números e os dois textos se sobrepunham. */
+  top: calc(-36px * var(--array-scale));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0;
+  font: 11px/1.4 var(--font-mono);
+  color: var(--accent-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+
+.array-size-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: calc(10px * var(--array-scale));
+}
+
+
+.array-size-tag {
+  padding: 0;
+  font: 600 11px var(--font-mono);
+  color: var(--accent-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+
+.array-internal { font: 11px var(--font-mono); color: var(--text-faint); white-space: nowrap; }
+
+
+/* árvore */
+.tree-wrap { position: relative; overflow: visible; padding-bottom: var(--sp-1); }
+
+
+.tree-svg { display: block; }
+
+
+/* conexões: linha fina do pai ao filho, com ponta pequena e nítida,
+ * desenhada por um marcador SVG orientado pela tangente da curva */
+.tree-edge {
+  stroke: var(--edge-line);
+  stroke-width: 1.1;
+  fill: none;
+  marker-end: url(#tree-marker);
+  transition: stroke var(--dur-fast);
+}
+
+
+/* conexão recém-criada ou alterada: destaque temporário e revelação
+ * progressiva (a ponta avança com o traçado até o filho) */
+.tree-edge.new { stroke: var(--viz-edge-new); marker-end: url(#tree-marker-new); }
+
+
+/* conexão percorrida pelo passo atual: destaque principal. A ponta desta
+ * etapa é o próprio indicador que percorre a curva (uma única direção
+ * visível) — por isso a conexão ativa não repete o marcador estático */
+.tree-edge.active {
+  stroke: var(--accent);
+  stroke-width: 1.3;
+  marker-end: none;
+}
+
+
+/* conexão que a próxima etapa vai refazer (remoção/promoção): aviso
+ * tracejado discreto, some quando a nova relação é estabelecida */
+.tree-edge.changing { stroke: var(--viz-edge-pending); stroke-dasharray: 5 5; }
+
+
+/* ponta triangular: um desenho por estado visual (mesma proporção sempre) */
+.tree-tip-base { fill: var(--edge-line); }
+
+.tree-tip-new { fill: var(--viz-edge-new); }
+
+
+.tree-node {
+  fill: var(--viz-node);
+  stroke: var(--viz-node-edge);
+  stroke-width: 1.05;
+  filter: none;
+  transition: fill var(--dur-fast), stroke var(--dur-fast);
+}
+
+
+/* nó recém-inserido: pouso morno, mais claro que o visitado */
+.tree-node.new { fill: var(--viz-node-new); stroke: var(--viz-node-new-edge); }
+
+
+/* visitado na operação atual: pouso morno discreto */
+.tree-node.visited { fill: var(--node-visited); stroke: var(--viz-node-visited-edge); }
+
+
+/* nó da operação atual: realce principal, sem halo */
+.tree-node.active {
+  fill: var(--node-active);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  filter: none;
+}
+
+
+/* seta contextual: transição real do ponteiro ativo em uma etapa (discreta,
+ * só durante a operação; some ao avançar/retroceder) */
+.tree-arrow {
+  fill: var(--accent);
+  stroke: var(--accent);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+
+.tree-val { fill: var(--text-primary); font: 600 13px var(--font-mono); text-anchor: middle; }
+
+
+.tree-node.visited + .tree-val { fill: var(--viz-node-visited-ink); }
+
+.tree-node.active + .tree-val { fill: var(--accent-text); }
+
+
+/* vaga que a inserção vai preencher: aparece só enquanto é relevante */
+.tree-preview-edge {
+  stroke: var(--accent-muted);
+  stroke-width: 1.1;
+  stroke-dasharray: 3 4;
+  fill: none;
+}
+
+
+.tree-preview-slot {
+  fill: none;
+  stroke: var(--accent-muted);
+  stroke-width: 1.15;
+  stroke-dasharray: 3 4;
+}
+
+
+/* realce breve do elemento que acabou de entrar na estrutura */
+@keyframes enter-flash {
+  from { background-color: var(--accent-fill); border-color: var(--accent); }
+}
+
+
+.anim-enter { animation: enter-flash 0.5s ease-out; }
