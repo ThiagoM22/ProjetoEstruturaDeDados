@@ -3,71 +3,93 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#121418">
+<meta name="theme-color" content="#21252B">
 <meta name="description" content="Visualize pilha, fila, lista encadeada, árvore binária e array passo a passo a partir do seu código JavaScript, com linha atual, ponteiros e pilha de chamadas.">
 <title>ED Viz — Visualizador de Estruturas de Dados</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="preload" href="fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/visualizador.css">
+<link rel="stylesheet" href="css/estruturas.css">
 </head>
-<body>
+<body class="viz-app">
 
-<header class="topbar">
-  <a class="brand" href="index.html" title="Página inicial do ED Viz" aria-label="ED Viz — página inicial">
-    <span class="brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 84 84" width="18" height="18">
-        <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
-          <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
-          <circle cx="21" cy="29" r="8.1"/>
-          <circle cx="62" cy="29" r="8.1"/>
-          <circle cx="43" cy="15" r="8.1"/>
-          <circle cx="43" cy="65" r="8.1"/>
-        </g>
-      </svg>
-    </span>
-    <h1 class="brand-name">ED Viz</h1>
-    <span class="brand-sep" aria-hidden="true"></span>
-    <span class="brand-sub">Visualizador de Estruturas de Dados</span>
-  </a>
-  <div class="topbar-actions">
-    <a id="linkGuia" class="btn ghost small" href="guia/index.html" title="Guia de estruturas de dados">
-      <svg class="ico" aria-hidden="true"><use href="#i-book"></use></svg>
-      <span class="btn-label">Guia</span>
+<header class="topbar" data-zone="cabecalho">
+  <div class="topbar-left">
+    <a class="brand" href="index.html" title="Página inicial do ED Viz" aria-label="ED Viz — página inicial">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 84 84" width="18" height="18">
+          <g fill="currentColor" stroke="currentColor" stroke-width="7.6" stroke-linecap="round">
+            <path d="M21 29h41M43 15 21 29M62 29 43 65"/>
+            <circle cx="21" cy="29" r="8.1"/>
+            <circle cx="62" cy="29" r="8.1"/>
+            <circle cx="43" cy="15" r="8.1"/>
+            <circle cx="43" cy="65" r="8.1"/>
+          </g>
+        </svg>
+      </span>
+      <h1 class="brand-name">ED Viz</h1>
     </a>
-    <button id="btnRun" class="btn primary small" title="Executar (Ctrl+Enter)">
-      <svg class="ico fill" aria-hidden="true"><use href="#i-play"></use></svg>
-      <span class="btn-label">Executar</span>
-    </button>
-    <button id="btnDebug" class="btn ghost small debug" title="Execução passo a passo com tecla (F10)">
-      <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
-      <span class="btn-label">Depurar</span>
-    </button>
+  </div>
+  <div class="topbar-actions">
     <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
-    <button id="btnToggleCode" class="btn ghost small toggle" title="Recolher/expandir o editor de código" aria-pressed="false">
+    <div id="topbarRunSlot" class="topbar-run-slot"></div>
+    <button id="btnToggleCode" class="btn ghost small toggle" title="Abrir o editor de código" aria-label="Abrir o editor de código" aria-controls="codePanel" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="btn-label">Código</span>
     </button>
-    <button id="btnToggleSide" class="btn ghost small toggle" title="Recolher/expandir os painéis laterais" aria-pressed="false">
+    <button id="btnToggleSide" class="btn ghost small toggle" title="Abrir a margem: variáveis, chamadas e estado" aria-label="Abrir a margem: variáveis, chamadas e estado" aria-controls="sidePanel" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-panel"></use></svg>
-      <span class="btn-label">Painéis</span>
+      <span class="btn-label">Margem</span>
     </button>
-    <button id="btnHelp" class="btn ghost small" title="Como usar">
-      <svg class="ico" aria-hidden="true"><use href="#i-help"></use></svg>
-      <span class="btn-label">Como usar</span>
-    </button>
+    <details id="topMenu" class="top-menu">
+      <summary id="btnTopMenu" title="Mais opções: como usar e guia de estruturas" aria-label="Mais opções: como usar e guia de estruturas">
+        <svg class="ico" aria-hidden="true"><use href="#i-more"></use></svg>
+      </summary>
+      <div class="top-menu-panel">
+        <a id="linkGuia" class="menu-item" href="guia/index.html" title="Guia de estruturas de dados">
+          <svg class="ico" aria-hidden="true"><use href="#i-book"></use></svg>
+          <span>Guia de estruturas</span>
+        </a>
+        <button id="btnHelp" class="menu-item" type="button" title="Como usar" aria-label="Como usar">
+          <svg class="ico" aria-hidden="true"><use href="#i-help"></use></svg>
+          <span>Como usar</span>
+        </button>
+      </div>
+    </details>
   </div>
 </header>
 
-<div id="banner" class="banner hidden"></div>
+<div id="banner" class="banner hidden" role="alert" aria-live="assertive"></div>
 
-<main id="layout" class="layout">
+<main id="layout" class="layout code-collapsed side-collapsed" data-zone="caderno" aria-label="Caderno de Execução">
 
-  <section id="codePanel" class="panel code-panel">
-    <div class="panel-head code-head">
-      <div id="tabs" class="tabs" role="toolbar" aria-label="Arquivos abertos"></div>
-      <div class="row code-actions">
+  <section id="codePanel" class="panel code-panel" data-zone="roteiro" aria-label="Roteiro de código">
+    <div class="code-head">
+      <div class="code-head-top">
         <select id="exampleSelect" class="select select-compact" title="Abrir exemplo" aria-label="Abrir exemplo"><button><selectedcontent></selectedcontent></button></select>
+        <div class="tabs" id="tabs" role="toolbar" aria-label="Arquivos abertos"></div>
+        <div class="code-actions">
+          <div id="roteiroRunSlot" class="roteiro-run-slot">
+            <button id="btnRun" class="btn primary small" title="Executar (Ctrl+Enter)" aria-label="Executar">
+              <svg class="ico fill" aria-hidden="true"><use href="#i-play"></use></svg>
+              <span class="btn-label">Executar</span>
+            </button>
+            <button id="btnDebug" class="btn ghost small debug" title="Execução passo a passo com tecla (F10)" aria-label="Depurar">
+              <svg class="ico" aria-hidden="true"><use href="#i-bug"></use></svg>
+              <span class="btn-label">Depurar</span>
+            </button>
+          </div>
+          <button id="btnExpandCode" class="icon-btn code-expand" type="button" title="Ampliar editor" aria-label="Ampliar editor" aria-controls="codePanel" aria-pressed="false">
+            <svg class="ico" aria-hidden="true"><use href="#i-expand"></use></svg>
+          </button>
+          <button id="btnCollapseCode" class="icon-btn" type="button" title="Recolher roteiro" aria-label="Recolher roteiro">
+            <svg class="ico" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="editor" id="editor">
@@ -75,32 +97,53 @@
       <div class="code-viewport" id="codeViewport">
         <pre id="highlight" class="code-highlight" aria-hidden="true"></pre>
         <div id="lineHilite" class="line-hilite"></div>
-        <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" aria-label="Editor de código JavaScript"></textarea>
+        <textarea id="code" class="code-input" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" aria-label="Editor de código JavaScript" aria-describedby="statusHint"></textarea>
         <div id="varTip" class="var-tip hidden" role="tooltip" aria-hidden="true"></div>
       </div>
     </div>
     <div class="statusbar">
       <span id="statusLine" class="status-line">linha —</span>
-      <span class="status-lang">JavaScript</span>
+      <span class="status-meta">
+        <button id="statusOverflow" class="status-overflow" type="button" hidden>ver o resto →</button>
+        <span id="statusHint" class="status-hint">Ctrl+Enter executa</span>
+      </span>
     </div>
   </section>
 
-  <div id="splitLeft" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor e visualização" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25" tabindex="0"></div>
+  <div id="splitLeft" class="splitter collapsed" role="separator" aria-orientation="vertical" aria-label="Redimensionar o roteiro e a prancha" aria-valuemin="0" aria-valuemax="100" aria-valuenow="30" title="Arraste para ajustar a largura do roteiro; setas também ajustam" tabindex="0"></div>
 
-  <section id="vizPanel" class="panel viz-panel">
-    <div class="panel-head">
-      <h2>Visualização</h2>
-      <div class="canvas-controls">
-        <button id="btnZoomOut" class="zbtn" title="Diminuir zoom" aria-label="Diminuir zoom">
-          <svg class="ico" aria-hidden="true"><use href="#i-minus"></use></svg>
-        </button>
-        <button id="btnZoomReset" class="zoom-label" title="Redefinir zoom para 100%">100%</button>
-        <button id="btnZoomIn" class="zbtn" title="Aumentar zoom" aria-label="Aumentar zoom">
-          <svg class="ico" aria-hidden="true"><use href="#i-plus"></use></svg>
-        </button>
-        <button id="btnZoomFit" class="zbtn" title="Ajustar à tela" aria-label="Ajustar à tela">
-          <svg class="ico" aria-hidden="true"><use href="#i-fit"></use></svg>
-        </button>
+  <section id="vizPanel" class="panel viz-panel" data-zone="prancha" aria-label="Prancha da estrutura">
+    <div class="viz-head">
+      <div class="viz-identity">
+        <span id="canvasTitle" class="canvas-title">automático</span>
+        <span id="canvasSub" class="canvas-sub"></span>
+        <span id="canvasBadge" class="canvas-badge"></span>
+      </div>
+      <div class="viz-tools">
+        <span id="vizRunState" class="viz-state" data-state="idle" role="status" aria-live="polite" title="Estado da execução">
+          <span class="viz-state-dot" aria-hidden="true"></span>
+          <span id="vizRunStateText">pronto</span>
+        </span>
+        <span class="viz-tools-sep" aria-hidden="true"></span>
+        <div class="canvas-controls">
+          <button id="btnZoomOut" class="zbtn" title="Diminuir zoom" aria-label="Diminuir zoom">
+            <svg class="ico" aria-hidden="true"><use href="#i-minus"></use></svg>
+          </button>
+          <button id="btnZoomReset" class="zoom-label" title="Redefinir zoom para 100%" aria-label="Zoom 100%, redefinir para 100%">100%</button>
+          <button id="btnZoomIn" class="zbtn" title="Aumentar zoom" aria-label="Aumentar zoom">
+            <svg class="ico" aria-hidden="true"><use href="#i-plus"></use></svg>
+          </button>
+          <span class="viz-tools-sep" aria-hidden="true"></span>
+          <button id="btnZoomFit" class="zbtn" title="Ajustar à tela" aria-label="Ajustar à tela">
+            <svg class="ico" aria-hidden="true"><use href="#i-fit"></use></svg>
+          </button>
+          <button id="btnCanvasCenter" class="zbtn" title="Centralizar estrutura" aria-label="Centralizar estrutura">
+            <svg class="ico" aria-hidden="true"><use href="#i-center"></use></svg>
+          </button>
+          <button id="btnGrid" class="zbtn" title="Mostrar/ocultar grade" aria-label="Mostrar ou ocultar grade" aria-pressed="true">
+            <svg class="ico" aria-hidden="true"><use href="#i-grid"></use></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div id="debugBar" class="debug-bar hidden">
@@ -109,67 +152,125 @@
       <button id="btnExitDebug" class="btn ghost small">Sair (Esc)</button>
     </div>
     <div id="structure" class="structure"></div>
+
+    <footer id="dock" class="dock regua" data-zone="regua" aria-label="Régua de reprodução">
+      <div id="dockHistory" class="dock-history" hidden>
+        <div class="dock-head">
+          <div class="dock-heading">
+            <span class="dock-title">Registro</span>
+            <span class="dock-sub">da execução</span>
+          </div>
+          <div id="dockTabs" class="dock-tabs" role="tablist" aria-label="Histórico da execução">
+            <button id="tabCommands" type="button" class="dock-tab active" role="tab" data-dock="commands" aria-controls="pageCommands" aria-selected="true" tabindex="0" title="Histórico de operações da estrutura">Comandos</button>
+            <button id="tabEvents" type="button" class="dock-tab" role="tab" data-dock="events" aria-controls="pageEvents" aria-selected="false" tabindex="-1" title="Eventos emitidos pelo código">Eventos</button>
+            <button id="tabConsole" type="button" class="dock-tab" role="tab" data-dock="output" aria-controls="pageConsole" aria-selected="false" tabindex="-1" title="Saída do console.log">Saída</button>
+          </div>
+          <button id="btnDockClose" class="icon-btn" type="button" title="Recolher histórico" aria-label="Recolher histórico">
+            <svg class="ico" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+          </button>
+        </div>
+        <div class="dock-body">
+          <div id="pageCommands" class="dock-page active" role="tabpanel" aria-labelledby="tabCommands" tabindex="0" data-dock="commands">
+            <div id="commands" class="side-content"></div>
+          </div>
+          <div id="pageEvents" class="dock-page" role="tabpanel" aria-labelledby="tabEvents" tabindex="0" data-dock="events">
+            <div id="events" class="side-content"></div>
+          </div>
+          <div id="pageConsole" class="dock-page" role="tabpanel" aria-labelledby="tabConsole" tabindex="0" data-dock="output">
+            <div id="console" class="side-content console"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="stepExplainer" class="step-explainer hidden" aria-live="polite">
+        <span id="stepOp" class="step-op">Execução</span>
+        <span id="stepText" class="step-text"></span>
+        <span id="stepCount" class="step-count"></span>
+      </div>
+
+      <div class="transport">
+        <div class="transport-group">
+          <button id="btnFirst" class="tbtn" title="Primeiro passo (Home)" aria-label="Primeiro passo">
+            <svg class="ico" aria-hidden="true"><use href="#i-first"></use></svg>
+          </button>
+          <button id="btnPrev" class="tbtn" title="Passo anterior (←)" aria-label="Passo anterior">
+            <svg class="ico" aria-hidden="true"><use href="#i-prev"></use></svg>
+          </button>
+          <button id="btnPlay" class="tbtn tbtn-play" title="Reproduzir/Pausar (Espaço)" aria-label="Reproduzir">▶</button>
+          <button id="btnNext" class="tbtn" title="Próximo passo (→)" aria-label="Próximo passo">
+            <svg class="ico" aria-hidden="true"><use href="#i-next"></use></svg>
+          </button>
+          <button id="btnLast" class="tbtn" title="Último passo (End)" aria-label="Último passo">
+            <svg class="ico" aria-hidden="true"><use href="#i-last"></use></svg>
+          </button>
+        </div>
+        <div class="timeline">
+          <div class="timeline-meta">
+            <span id="stepLabel" class="step-label">0 / 0</span>
+          </div>
+          <input type="range" id="slider" min="0" max="0" value="0" aria-label="Progresso da execução">
+        </div>
+        <div class="transport-end">
+          <select id="speedSelect" class="select speed" title="Velocidade de reprodução" aria-label="Velocidade de reprodução">
+            <button><selectedcontent></selectedcontent></button>
+            <option value="0.5">0,5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+          </select>
+          <button id="btnDockToggle" class="dock-toggle" type="button" aria-expanded="false" aria-controls="dockHistory" title="Expandir histórico da execução">
+            <svg class="ico" aria-hidden="true"><use href="#i-history"></use></svg>
+            <span class="dock-toggle-label">Histórico</span>
+            <svg class="dock-toggle-chev" aria-hidden="true"><use href="#i-chevron-up"></use></svg>
+          </button>
+        </div>
+      </div>
+    </footer>
+
+    <button id="railCode" class="stage-rail rail-left" type="button" aria-controls="codePanel" aria-expanded="false" title="Abrir o editor de código">
+      <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
+      <span>Código</span>
+    </button>
+    <button id="railInspector" class="stage-rail rail-right" type="button" aria-controls="sidePanel" aria-expanded="false" title="Abrir a margem: variáveis, chamadas e estado">
+      <span>Margem</span>
+      <svg class="ico" aria-hidden="true"><use href="#i-panel"></use></svg>
+    </button>
   </section>
 
-  <div id="splitRight" class="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar visualização e painel lateral" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75" tabindex="0"></div>
-
-  <section id="sidePanel" class="panel side-panel">
-    <div id="sideTabs" class="side-tabs" role="tablist" aria-label="Painéis de depuração">
-      <button id="tabCommands" type="button" class="side-tab" role="tab" data-side="commands" title="Operações da execução">Comandos</button>
-      <button id="tabVars" type="button" class="side-tab active" role="tab" data-side="vars" title="Variáveis do escopo atual">Variáveis</button>
-      <button id="tabCallstack" type="button" class="side-tab" role="tab" data-side="callstack" title="Pilha de execução">Chamadas</button>
-      <button id="tabConsole" type="button" class="side-tab" role="tab" data-side="console" title="Saída do console.log">Saída</button>
+  <aside id="sidePanel" class="panel side-panel collapsed" data-zone="margem" aria-label="Margem de leitura" aria-hidden="true">
+    <div class="inspector-head">
+      <span class="inspector-title">Margem</span>
+      <button id="btnCollapseSide" class="icon-btn" type="button" title="Recolher a margem" aria-label="Recolher a margem">
+        <svg class="ico" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+      </button>
     </div>
-    <div class="side-body">
-      <div id="pageCommands" class="side-page" data-side="commands">
-        <div id="commands" class="side-content"></div>
+    <div id="sideHint" class="side-hint" role="note" hidden>
+      <span><b>Margem</b> reúne as variáveis, as chamadas e o estado deste passo.</span>
+      <button id="btnSideHintClose" class="icon-btn side-hint-close" type="button" title="Dispensar dica" aria-label="Dispensar dica da Margem">×</button>
+    </div>
+    <div class="inspector-tabs" role="tablist" aria-label="Seções da margem">
+      <button id="inspTabStructure" class="insp-tab" type="button" role="tab" data-insp="structure" aria-controls="pageStructure" aria-selected="false" tabindex="-1">Estrutura</button>
+      <button id="inspTabVars" class="insp-tab" type="button" role="tab" data-insp="vars" aria-controls="pageVars" aria-selected="true" tabindex="0">Variáveis<span id="varsCount" class="insp-count"></span></button>
+      <button id="inspTabCalls" class="insp-tab" type="button" role="tab" data-insp="calls" aria-controls="pageCallstack" aria-selected="false" tabindex="-1">Chamadas<span id="callsCount" class="insp-count"></span></button>
+      <button id="inspTabState" class="insp-tab" type="button" role="tab" data-insp="state" aria-controls="pageState" aria-selected="false" tabindex="-1">Estado</button>
+    </div>
+    <div class="inspector-panes">
+      <div id="pageStructure" class="inspector-pane" role="tabpanel" aria-labelledby="inspTabStructure" tabindex="0" data-pane="structure">
+        <div id="structureInfo" class="kv-list"></div>
       </div>
-      <div id="pageVars" class="side-page active" data-side="vars">
-        <div id="vars" class="side-content"></div>
+      <div id="pageVars" class="inspector-pane is-active" role="tabpanel" aria-labelledby="inspTabVars" tabindex="0" data-pane="vars">
+        <div id="vars"></div>
       </div>
-      <div id="pageCallstack" class="side-page" data-side="callstack">
-        <div id="callstack" class="side-content"></div>
+      <div id="pageCallstack" class="inspector-pane" role="tabpanel" aria-labelledby="inspTabCalls" tabindex="0" data-pane="calls">
+        <div id="callstack"></div>
       </div>
-      <div id="pageConsole" class="side-page" data-side="console">
-        <div id="console" class="side-content console"></div>
+      <div id="pageState" class="inspector-pane" role="tabpanel" aria-labelledby="inspTabState" tabindex="0" data-pane="state">
+        <div id="stateInfo" class="kv-list"></div>
       </div>
     </div>
-  </section>
+  </aside>
 
 </main>
-
-<div id="stepExplainer" class="step-explainer hidden" aria-live="polite">
-  <span id="stepOp" class="step-op">Execução</span>
-  <span id="stepText" class="step-text"></span>
-  <span id="stepCount" class="step-count"></span>
-</div>
-
-<footer class="transport">
-  <div class="transport-group">
-    <button id="btnFirst" class="tbtn" title="Primeiro passo (Home)" aria-label="Primeiro passo">
-      <svg class="ico" aria-hidden="true"><use href="#i-first"></use></svg>
-    </button>
-    <button id="btnPrev" class="tbtn" title="Passo anterior (←)" aria-label="Passo anterior">
-      <svg class="ico" aria-hidden="true"><use href="#i-prev"></use></svg>
-    </button>
-    <button id="btnPlay" class="tbtn tbtn-play" title="Play/Pause (espaço)" aria-label="Reproduzir">▶</button>
-    <button id="btnNext" class="tbtn" title="Próximo passo (→)" aria-label="Próximo passo">
-      <svg class="ico" aria-hidden="true"><use href="#i-next"></use></svg>
-    </button>
-    <button id="btnLast" class="tbtn" title="Último passo (End)" aria-label="Último passo">
-      <svg class="ico" aria-hidden="true"><use href="#i-last"></use></svg>
-    </button>
-  </div>
-  <select id="speedSelect" class="select speed" title="Velocidade de reprodução" aria-label="Velocidade de reprodução">
-    <button><selectedcontent></selectedcontent></button>
-    <option value="0.5">0,5×</option>
-    <option value="1" selected>1×</option>
-    <option value="2">2×</option>
-    <option value="4">4×</option>
-  </select>
-  <span id="stepLabel" class="step-label">passo 0/0</span>
-  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Progresso da execução">
-</footer>
 
 <svg class="sprite" aria-hidden="true" focusable="false">
   <symbol id="i-play" viewBox="0 0 16 16"><path d="M5.2 3.4 12.4 8l-7.2 4.6Z"/></symbol>
@@ -183,6 +284,11 @@
     <path d="M6.4 6.4a1.8 1.8 0 1 1 2.4 1.8c-.5.3-.7.6-.7 1.1v.3"/>
     <path d="M8 12h.01"/>
   </symbol>
+  <symbol id="i-more" viewBox="0 0 16 16">
+    <circle cx="3.3" cy="8" r="1.05" fill="currentColor" stroke="none"/>
+    <circle cx="8" cy="8" r="1.05" fill="currentColor" stroke="none"/>
+    <circle cx="12.7" cy="8" r="1.05" fill="currentColor" stroke="none"/>
+  </symbol>
   <symbol id="i-code" viewBox="0 0 16 16"><path d="M5.6 4.4 2 8l3.6 3.6M10.4 4.4 14 8l-3.6 3.6"/></symbol>
   <symbol id="i-panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M10 3v10"/></symbol>
   <symbol id="i-first" viewBox="0 0 16 16"><path d="M4.4 4v8"/><path d="M12.6 4.6 7 8l5.6 3.4Z"/></symbol>
@@ -192,39 +298,55 @@
   <symbol id="i-minus" viewBox="0 0 16 16"><path d="M4 8h8"/></symbol>
   <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 4v8M4 8h8"/></symbol>
   <symbol id="i-fit" viewBox="0 0 16 16"><path d="M3.5 6.5V3.5h3M9.5 3.5h3v3M12.5 9.5v3h-3M6.5 12.5h-3v-3"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 16 16"><path d="M2.8 6V2.8H6M10 2.8h3.2V6M13.2 10v3.2H10M6 13.2H2.8V10"/></symbol>
+  <symbol id="i-center" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.1"/><path d="M8 2v2.2M8 11.8V14M2 8h2.2M11.8 8H14"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.4" height="4.4" rx=".6"/><rect x="9.1" y="2.5" width="4.4" height="4.4" rx=".6"/><rect x="2.5" y="9.1" width="4.4" height="4.4" rx=".6"/><rect x="9.1" y="9.1" width="4.4" height="4.4" rx=".6"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 16 16"><path d="M9.8 4.2 6 8l3.8 3.8"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 16 16"><path d="M6.2 4.2 10 8l-3.8 3.8"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 16 16"><path d="M4.2 6.2 8 10l3.8-3.8"/></symbol>
+  <symbol id="i-chevron-up" viewBox="0 0 16 16"><path d="M4.2 9.8 8 6l3.8 3.8"/></symbol>
+  <symbol id="i-history" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 3.2V6h2.8"/><path d="M8 5.4V8l1.8 1.1"/></symbol>
 </svg>
 
 <dialog id="helpDialog" class="help" aria-labelledby="helpTitle">
-  <h2 id="helpTitle" tabindex="-1" autofocus>Como usar o ED Viz</h2>
-  <ol>
-    <li>Escolha um exemplo ou escreva seu código JavaScript na área à esquerda.</li>
-    <li>Clique em <b>Executar</b> (ou <b>Ctrl+Enter</b>) — a execução começa a tocar do primeiro passo; pause quando quiser.</li>
-    <li>Navegue com play/pausa, passo a passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura. A faixa acima dos controles explica a operação do passo atual. Segure o mouse sobre uma variável do código para ver o valor dela naquele passo.</li>
-    <li>Na visualização, <b>arraste</b> para mover o desenho e use a <b>roda do mouse</b> para dar zoom — ou os controles no topo do painel (100% e ajustar à tela).</li>
-    <li>Precisa de mais espaço? Use <b>Código</b> e <b>Painéis</b> na barra superior para recolher o editor e o painel lateral; as abas mostram comandos, variáveis, chamadas ou saída quando você precisar.</li>
-  </ol>
+  <div class="help-head">
+    <h2 id="helpTitle" tabindex="-1" autofocus>Como usar o ED Viz</h2>
+    <button type="button" class="help-close" id="btnHelpClose" aria-label="Fechar ajuda">×</button>
+  </div>
+  <div class="help-body">
+    <ol>
+      <li>Escolha um exemplo ou abra o <b>Código</b> — no topo ou na aba lateral do desenho — e escreva seu JavaScript. No desktop, o código fica ao lado do desenho; em telas estreitas, abre como uma folha sobre ele e fecha pelo mesmo botão.</li>
+      <li>Clique em <b>Executar</b> (ou <b>Ctrl+Enter</b>) — a execução começa no primeiro passo e avança sozinha; pause quando quiser. Na primeira visita, o portal abre em prévia no terceiro passo com conteúdo; Executar reinicia do começo.</li>
+      <li>Navegue com os controles de reprodução, os botões de passo e a barra de progresso — a linha em execução fica destacada no código e os valores aparecem na estrutura. A legenda acima dos controles explica a operação do passo atual. Passe o mouse sobre uma variável do código para ver o valor dela naquele passo.</li>
+      <li>Na visualização, <b>arraste</b> para mover o desenho e use a <b>roda do mouse</b> para dar zoom — ou os controles no topo do painel (100%, ajustar à tela, centralizar e grade).</li>
+      <li>Precisa de contexto? Abra a <b>Margem</b> pela barra superior ou pela aba lateral direita. Ela abre uma seção por vez — estrutura, variáveis, chamadas ou estado — e recolhe quando você termina, devolvendo a área ao desenho. O botão <b>Histórico</b>, na base da prancha, abre comandos, eventos e saída.</li>
+    </ol>
 
-  <p><b>Depurar (F10):</b> execução passo a passo como em um debugger. O código pausa na primeira
-  linha e, a cada <b>tecla</b> pressionada, ele executa a próxima linha e atualiza o desenho na hora
-  (com animações). <kbd>←</kbd> volta uma linha, <kbd>Esc</kbd> sai e libera o editor.</p>
+    <p><b>Depurar (F10):</b> execução passo a passo como em um depurador. O código pausa na primeira
+    linha e, a cada <b>tecla</b> pressionada, ele executa a próxima linha e atualiza o desenho na hora
+    (com animações). <kbd>←</kbd> volta uma linha, <kbd>Esc</kbd> sai e libera o editor.</p>
 
-  <h3>O que é detectado automaticamente</h3>
-  <ul>
-    <li><b>Pilha</b> — array com <code>push/pop</code>, ou classe <code>Pilha</code>/<code>Stack</code> com um array interno.</li>
-    <li><b>Fila</b> — array com <code>push/shift</code> (ou <code>unshift/pop</code>), ou classe <code>Fila</code>/<code>Queue</code>. Desenho horizontal com indicadores <b>FRONT</b>/<b>REAR</b>.</li>
-    <li><b>Lista encadeada</b> — nós com <code>proximo</code>/<code>next</code>; início em <code>inicio</code>/<code>head</code> (inclusive <code>#head</code>). Cada nó mostra <b>VALUE</b> e <b>NEXT</b>, com <b>HEAD</b> no primeiro nó e o terminador no fim.</li>
-    <li><b>Árvore binária</b> — nós com <code>esquerda</code>/<code>direita</code> (ou <code>left/right</code>); raiz em <code>raiz</code>/<code>root</code> (inclusive <code>#root</code>/<code>#raiz</code>).</li>
-    <li><b>Array com tamanho manual</b> — objeto com array interno e um campo de tamanho (<code>#items</code>/<code>#tamanho</code>, como a classe <code>MeuArray</code>). Mostra os índices, o tamanho lógico, as posições fora do tamanho, os buracos do <code>delete</code> e os deslocamentos feitos à mão.</li>
-    <li><b>Array por índice</b> — array global comum (<code>const v = [1, 2, 3]</code>) usado por posição: mostra as células, o comprimento e a posição escrita (<code>v[0] = 9</code>) em destaque.</li>
-  </ul>
+    <p><b>Teclado no editor:</b> <b>Tab</b> insere dois espaços e <b>Esc</b> sai do editor para os controles.
+    Para navegar sem inserir espaços, use <b>Ctrl+M</b> para alternar o modo em que <b>Tab</b> move o foco.</p>
 
-  <h3>Ponteiros e visita</h3>
-  <p>Na <b>árvore</b>, o indicador é a cor: o nó da operação em andamento fica com o <b>realce principal</b> (âmbar forte) e os já visitados na mesma operação em âmbar suave — sem texto sobre os nós. Na <b>lista encadeada</b>, ponteiros como <code>atual</code> e <code>current</code> continuam aparecendo como etiquetas; a referência alterada e o HEAD que mudou de nó também ficam em destaque na etapa correspondente.</p>
+    <h3>O que é detectado automaticamente</h3>
+    <ul>
+      <li><b>Pilha</b> — array com <code>push/pop</code>, ou classe <code>Pilha</code>/<code>Stack</code> com um array interno.</li>
+      <li><b>Fila</b> — array com <code>push/shift</code> (ou <code>unshift/pop</code>), ou classe <code>Fila</code>/<code>Queue</code>. Desenho horizontal com indicadores <b>FRONT</b>/<b>REAR</b>.</li>
+      <li><b>Lista encadeada</b> — nós com <code>proximo</code>/<code>next</code>; início em <code>inicio</code>/<code>head</code> (inclusive <code>#head</code>). Cada nó mostra <b>VALUE</b> e <b>NEXT</b>, com <b>HEAD</b> no primeiro nó e o terminador no fim.</li>
+      <li><b>Árvore binária</b> — nós com <code>esquerda</code>/<code>direita</code> (ou <code>left/right</code>); raiz em <code>raiz</code>/<code>root</code> (inclusive <code>#root</code>/<code>#raiz</code>).</li>
+      <li><b>Array com tamanho manual</b> — objeto com array interno e um campo de tamanho (<code>#items</code>/<code>#tamanho</code>, como a classe <code>MeuArray</code>). Mostra os índices, o tamanho lógico, as posições fora do tamanho, os buracos do <code>delete</code> e os deslocamentos feitos à mão.</li>
+      <li><b>Array por índice</b> — array global comum (<code>const v = [1, 2, 3]</code>) usado por posição: mostra as células, o comprimento e a posição escrita (<code>v[0] = 9</code>) em destaque.</li>
+    </ul>
 
-  <h3>Limites (subconjunto didático de JS)</h3>
-  <p>Sem herança de classes, regex, async/await, try/catch e parâmetros com valor padrão (<code>function f(x = 1)</code>). Proteções: 20.000 passos e 500 chamadas aninhadas — se estourar, provavelmente há laço ou recursão sem fim.</p>
+    <h3>Ponteiros e visita</h3>
+    <p>Na <b>árvore</b>, o indicador é a cor: o nó da operação em andamento fica com o <b>realce principal</b> (o azul do visualizador) e os já visitados na mesma operação ficam com o realce suave — sem texto sobre os nós. Na <b>lista encadeada</b>, ponteiros como <code>atual</code> e <code>current</code> continuam aparecendo como etiquetas; a referência alterada e o HEAD que mudou de nó também ficam em destaque na etapa correspondente.</p>
 
-  <form method="dialog"><button class="btn primary">Entendi</button></form>
+    <h3>Limites (subconjunto didático de JavaScript)</h3>
+    <p>Sem herança de classes, regex, async/await, try/catch e parâmetros com valor padrão (<code>function f(x = 1)</code>). Proteções: 20.000 passos e 500 chamadas aninhadas. Se o limite for atingido, provavelmente há laço ou recursão sem fim.</p>
+  </div>
+
+  <form method="dialog" class="help-foot"><button class="btn primary">Entendi</button></form>
 </dialog>
 
 <script type="module" src="js/main.js"></script>
