@@ -35,7 +35,7 @@
     </a>
   </div>
   <div class="topbar-actions">
-    <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
+    <div id="topbarStructureSlot" class="topbar-structure-slot"></div>
     <div id="topbarRunSlot" class="topbar-run-slot"></div>
     <button id="btnToggleCode" class="btn ghost small toggle" title="Abrir o editor de código" aria-label="Abrir o editor de código" aria-controls="codePanel" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
@@ -62,8 +62,6 @@
     </details>
   </div>
 </header>
-
-<div id="banner" class="banner hidden" role="alert" aria-live="assertive"></div>
 
 <main id="layout" class="layout code-collapsed side-collapsed" data-zone="caderno" aria-label="Caderno de Execução">
 
@@ -120,6 +118,9 @@
         <span id="canvasBadge" class="canvas-badge"></span>
       </div>
       <div class="viz-tools">
+        <div id="vizStructureSlot" class="viz-structure-slot">
+          <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
+        </div>
         <span id="vizRunState" class="viz-state" data-state="idle" role="status" aria-live="polite" title="Estado da execução">
           <span class="viz-state-dot" aria-hidden="true"></span>
           <span id="vizRunStateText">pronto</span>
@@ -151,6 +152,7 @@
       <span id="debugInfo" class="debug-info"></span>
       <button id="btnExitDebug" class="btn ghost small">Sair (Esc)</button>
     </div>
+    <div id="banner" class="banner hidden" role="alert" aria-live="assertive"></div>
     <div id="structure" class="structure"></div>
 
     <footer id="dock" class="dock regua" data-zone="regua" aria-label="Régua de reprodução">

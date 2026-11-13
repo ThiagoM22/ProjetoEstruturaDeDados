@@ -775,6 +775,38 @@ test('390: as folhas cobrem a largura e terminam no topo da Régua', async ({ pa
   expect(margem.base).toBeLessThanOrEqual(margem.topoRegua + 1);
 });
 
+test('4D: seletor e banner pertencem à Prancha; erro preserva o desenho', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/visualizador.html');
+  await expect(page.locator('#vizStructureSlot #structureSelect')).toHaveCount(1);
+  expect(await page.evaluate(() => document.getElementById('banner').parentElement.id)).toBe('vizPanel');
+
+  await page.evaluate(() => {
+    document.getElementById('code').value = 'const pilha = [];\npilha.push(1);\nnaoExiste();';
+    document.getElementById('btnRun').click();
+  });
+  await expect(page.locator('#banner')).toBeVisible();
+  await expect(page.locator('#structure .stack-cell')).toHaveCount(1);
+  await expect(page.locator('#structure')).not.toContainText('Corrija o erro');
+});
+
+test('390: executar pela folha fecha o código e mostra o banner na Prancha', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/visualizador.html');
+  await expect(page.locator('#topbarStructureSlot #structureSelect')).toHaveCount(1);
+
+  await page.click('#railCode');
+  await expect(page.locator('#codePanel')).toBeVisible();
+  await page.evaluate(() => {
+    document.getElementById('code').value = 'const pilha = [];\npilha.push(1);\nnaoExiste();';
+    document.getElementById('btnRun').click();
+  });
+  await expect(page.locator('#codePanel')).toBeHidden();
+  await expect(page.locator('#banner')).toBeVisible();
+  await expect(page.locator('#banner')).toContainText('naoExiste');
+  await expect(page.locator('#structure .stack-cell')).toHaveCount(1);
+});
+
 test('390: folhas recolhidas não criam rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/visualizador.html');

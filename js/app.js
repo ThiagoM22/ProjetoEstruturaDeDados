@@ -24,6 +24,8 @@
     btnExitDebug: $('btnExitDebug'),
     structure: $('structure'),
     structureSelect: $('structureSelect'),
+    topbarStructureSlot: $('topbarStructureSlot'),
+    vizStructureSlot: $('vizStructureSlot'),
     btnFirst: $('btnFirst'),
     btnPrev: $('btnPrev'),
     btnPlay: $('btnPlay'),
@@ -727,6 +729,9 @@
    * Em caso de erro não toca — o banner e o passo do erro já explicam. */
   function runAndPlay() {
     run();
+    /* Executar a partir da folha de código devolve o palco: no mobile a folha
+     * cobriria o banner de erro e o próprio desenho. */
+    if (viewportWidth() < 1024 && !collapsed.code) togglePanel('code');
     if (!state.trace.error && steps().length > 1) play();
     revealVizOnNarrow();
   }
@@ -1392,6 +1397,7 @@
   var codeFit = 0;                /* largura medida da linha mais longa, transitória */
   var codeUserResized = false;    /* o usuário arrastou: o ajuste automático para */
   var runPlacement = null;        /* 'code' | 'top' — onde Executar/Depurar vivem */
+  var structurePlacement = null;  /* 'viz' | 'top' — onde o seletor de estrutura vive */
   var reguaObserver = null;       /* altura real da Régua para a Margem em folha */
   var vizObserver = null;         /* largura real do palco durante as transições */
   var codeObserver = null;        /* largura real do editor após o reflow */
@@ -1519,6 +1525,24 @@
     slot.appendChild(els.btnRun);
     slot.appendChild(els.btnDebug);
     runPlacement = where;
+  }
+
+  /* O seletor de estrutura pertence à legenda da Prancha no desktop. Abaixo
+   * de 1024 ele volta para a topbar: a legenda não deve competir com o
+   * desenho em uma Prancha estreita. O nó e o listener são os mesmos. */
+  function syncStructurePlacement() {
+    var vizW = els.vizPanel && typeof els.vizPanel.getBoundingClientRect === 'function'
+      ? (els.vizPanel.getBoundingClientRect().width || 0)
+      : 0;
+    /* A legenda precisa de espaço para título, contagem, operação, seletor,
+     * estado e câmera. Com a Prancha em 480px (1200 com Margem aberta), o
+     * seletor volta à topbar para não esmagar a identificação. */
+    var useViz = viewportWidth() >= 1024 && (!vizW || vizW >= 600);
+    var slot = useViz ? els.vizStructureSlot : els.topbarStructureSlot;
+    var where = useViz ? 'viz' : 'top';
+    if (!slot || !els.structureSelect || structurePlacement === where) return;
+    slot.appendChild(els.structureSelect);
+    structurePlacement = where;
   }
 
   /* A Margem em folha (1024–1199) termina no topo da Régua. A altura é
@@ -1657,6 +1681,7 @@
     if (els.railInspector) els.railInspector.setAttribute('aria-expanded', sideOpen ? 'true' : 'false');
     if (els.sidePanel) els.sidePanel.setAttribute('aria-hidden', sideOpen ? 'false' : 'true');
     syncRunPlacement();
+    syncStructurePlacement();
     /* A largura da coluna pode mudar sem que o textarea role: o controle
      * "ver o resto" e a classe de overflow pertencem ao novo recorte. */
     updateCodeOverflow();
@@ -1685,6 +1710,7 @@
       : 0;
     var changed = !vizW || Math.abs(vizW - lastVizWidth) > 1;
     lastVizWidth = vizW;
+    syncStructurePlacement();
 
     var overlayMode = !codeColumnMode();
     var sideOverlay = viewportWidth() < 1200;

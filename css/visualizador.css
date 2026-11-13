@@ -445,6 +445,7 @@ a.brand, a.btn { text-decoration: none; }
 /* Banner de erro                                                      */
 
 .banner {
+  flex: none;
   padding: var(--sp-2) var(--sp-3);
   font: 12px var(--font-mono);
   color: var(--danger-text);
@@ -791,6 +792,26 @@ a.brand, a.btn { text-decoration: none; }
 
 
 .viz-tools { display: flex; align-items: center; gap: 10px; flex: none; }
+
+
+/* O seletor de estrutura vive na legenda da Prancha a partir de 1024px.
+ * Abaixo disso, o mesmo nó volta à topbar pelo controlador. */
+.topbar-structure-slot,
+.viz-structure-slot {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+}
+
+
+.viz-structure-slot .select {
+  max-width: 170px;
+  height: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 11px;
+}
 
 
 .viz-tools-sep {
@@ -3097,6 +3118,7 @@ dialog.help form.help-foot {
   .select-compact { max-width: 190px; }
   .canvas-badge { max-width: 38%; }
   .viz-state { padding: 0; }
+  .viz-structure-slot .select { max-width: 130px; }
 
   /* no Roteiro o Executar continua com o ícone e o rótulo; o ajuste acima
    * existe para a topbar, onde o espaço é mais escasso */
