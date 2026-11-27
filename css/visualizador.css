@@ -3187,6 +3187,18 @@ dialog.help form.help-foot {
 }
 
 
+/* Ampliar o Roteiro: a coluna ocupa a grade inteira e a Prancha sai de cena.
+ * A Margem e a divisória também ficam ocultas; o estado das gavetas é
+ * preservado para quando o gesto for desfeito. */
+.layout.code-expanded {
+  grid-template-columns: minmax(0, 1fr) 0 0 0;
+}
+
+.layout.code-expanded > .viz-panel,
+.layout.code-expanded > .side-panel,
+.layout.code-expanded > #splitLeft { display: none; }
+
+
 /* O app ocupa a tela inteira em qualquer largura: nada de rolagem de página
  * competindo com o canvas. */
 @supports (height: 100dvh) {

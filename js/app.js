@@ -1512,11 +1512,9 @@
   var SPLIT_MAX_CODE_RATIO = 0.44;
   var SPLIT_FIT_MAX = 600;
   var CODE_MIN_WIDE = 420;
-  var CODE_MAX_WIDE = 900;        /* teto do gesto de ampliar; a Prancha fica com >=480 */
-  var CODE_MIN_COMPACT = 340;
-  var CODE_MAX_COMPACT = 560;
+  var CODE_MAX_WIDE = 900;        /* fallback quando a grade ainda não tem largura */
+  var CODE_MIN_FREE = 160;        /* piso do arrasto livre; a Prancha pode ir a zero */
   var CODE_DEFAULT_COMPACT = 360;
-  var PRANCHA_MIN = 480;
   var splitDrag = null;
   var codeFit = 0;                /* largura medida da linha mais longa, transitória */
   var codeUserResized = false;    /* o usuário arrastou: o ajuste automático para */
@@ -1585,24 +1583,17 @@
     return Math.round(Math.min(372, Math.max(300, width)));
   }
 
-  /* Limites da coluna. O padrão fica entre 420 e 620px; o gesto de ampliar
-   * chega a 900px, mas nunca come a área mínima da Prancha (480px). Com a
-   * Margem aberta, o desenho continua sendo a maior superfície. */
+  /* Limites da coluna. O aluno decide o tamanho: o arrasto vai do piso
+   * operacional até toda a área livre da grade, sem reservar uma largura
+   * mínima para a Prancha. Com a Margem aberta, o teto é a área restante
+   * depois dela; ampliar (botão) é outro gesto e ocupa a tela inteira. */
   function codeBounds(total) {
-    var compact = codeCompactMode();
-    var min = compact ? CODE_MIN_COMPACT : CODE_MIN_WIDE;
-    var max = compact ? CODE_MAX_COMPACT : CODE_MAX_WIDE;
-    if (total > 0) max = Math.min(max, total - 4 - PRANCHA_MIN);
+    var min = CODE_MIN_FREE;
+    var max = total > 0 ? Math.max(min, total - 4) : CODE_MAX_WIDE;
     if (!collapsed.side && viewportWidth() >= 1200 && total > 0) {
       var sideW = sideColumnWidth(total);
-      var free = total - sideW - 4;
-      max = Math.min(max, free - PRANCHA_MIN);
-      max = Math.min(max, Math.floor(free / 2) - 8);
-      /* Com a Margem aberta, o Roteiro recua para 430px: a Prancha continua
-       * sendo a maior superfície mesmo quando as duas gavetas dividem a tela. */
-      max = Math.min(max, 430);
+      max = Math.max(min, total - sideW - 4);
     }
-    if (max < min) max = min;
     return { min: min, max: max };
   }
 
@@ -1631,7 +1622,9 @@
     }
 
     var bounds = codeBounds(total);
-    if (workspace.codeExpanded) return bounds.max;
+    /* Modo ampliado: o Roteiro ocupa a grade inteira e a Prancha sai de cena
+     * pelo CSS. A divisória anterior volta quando o gesto é desfeito. */
+    if (workspace.codeExpanded) return total > 0 ? Math.round(total) : bounds.max;
     var width = codeUserResized
       ? workspace.codeRatio * total
       : defaultCodeWidth(total);
@@ -1749,9 +1742,11 @@
      * antiga por um instante (o Chromium expõe essa transição ao Playwright). */
     var layout = layoutEl();
     var codeWidth = targetCodeWidth();
+    var expandOn = !!workspace.codeExpanded && !collapsed.code && codeColumnMode();
     if (layout) {
       layout.classList.toggle('code-collapsed', collapsed.code);
       layout.classList.toggle('side-collapsed', collapsed.side);
+      layout.classList.toggle('code-expanded', expandOn);
       if (layout.style && typeof layout.style.setProperty === 'function') {
         layout.style.setProperty('--code-w', codeWidth + 'px');
       }
@@ -1771,20 +1766,15 @@
     }
 
     if (els.btnExpandCode) {
-      var expandOn = !!workspace.codeExpanded && !collapsed.code && codeColumnMode();
-      var totalWidth = layout && typeof layout.getBoundingClientRect === 'function'
-        ? (layout.getBoundingClientRect().width || 0)
-        : 0;
-      var atMax = !expandOn && totalWidth > 0 && codeWidth >= codeBounds(totalWidth).max - 1;
-      els.btnExpandCode.disabled = atMax;
+      els.btnExpandCode.disabled = false;
       els.btnExpandCode.classList.toggle('active', expandOn);
       els.btnExpandCode.setAttribute('aria-pressed', expandOn ? 'true' : 'false');
       els.btnExpandCode.title = expandOn
         ? 'Restaurar largura do editor'
-        : (atMax ? 'O editor já está na largura máxima' : 'Ampliar editor');
+        : 'Ampliar editor';
       els.btnExpandCode.setAttribute('aria-label', expandOn
         ? 'Restaurar largura do editor'
-        : (atMax ? 'Editor na largura máxima' : 'Ampliar editor'));
+        : 'Ampliar editor');
     }
 
     var codeOpen = !collapsed.code;
@@ -1806,7 +1796,8 @@
     }
     if (els.railCode) els.railCode.setAttribute('aria-expanded', codeOpen ? 'true' : 'false');
     if (els.railInspector) els.railInspector.setAttribute('aria-expanded', sideOpen ? 'true' : 'false');
-    if (els.sidePanel) els.sidePanel.setAttribute('aria-hidden', sideOpen ? 'false' : 'true');
+    if (els.sidePanel) els.sidePanel.setAttribute('aria-hidden', sideOpen && !expandOn ? 'false' : 'true');
+    if (els.vizPanel) els.vizPanel.setAttribute('aria-hidden', expandOn ? 'true' : 'false');
     syncRunPlacement();
     syncStructurePlacement();
     /* A largura da coluna pode mudar sem que o textarea role: o controle
@@ -1904,6 +1895,12 @@
 
   function togglePanel(which, opts) {
     var opening = collapsed[which];
+    /* Abrir a Margem desfaz o modo ampliado: o editor volta à largura anterior
+     * para o canvas e a Margem voltarem a ocupar a grade. */
+    if (opening && which === 'side' && workspace.codeExpanded) {
+      workspace.codeExpanded = false;
+      workspace.codeRatioBeforeExpand = null;
+    }
     /* Abaixo de 1200 a Margem ainda é folha sobre o palco (o Roteiro já é
      * coluna a partir de 1024): abrir uma fecha a outra, para o desenho não
      * ficar imprensado entre duas superfícies. Acima disso as duas são
@@ -1967,8 +1964,9 @@
     applyLayout();
   }
 
-  /* Ampliar é um gesto explícito, não um acidente de arrasto: a folha vai ao
-   * teto que ainda deixa a Prancha respirar e volta à largura anterior. */
+  /* Ampliar é um gesto explícito, não um acidente de arrasto: a folha cobre
+   * a tela inteira (a Prancha sai de cena pelo CSS) e volta à largura
+   * anterior quando o gesto é desfeito. */
   function toggleCodeExpand() {
     if (collapsed.code || !codeColumnMode()) return;
     var layout = layoutEl();
@@ -1983,12 +1981,10 @@
       workspace.codeUserResized = true;
       codeUserResized = true;
     } else {
-      var bounds = codeBounds(total);
       workspace.codeRatioBeforeExpand = codeUserResized
         ? workspace.codeRatio
         : defaultCodeWidth(total) / total;
       workspace.codeExpanded = true;
-      workspace.codeRatio = bounds.max / total;
       workspace.codeUserResized = true;
       codeUserResized = true;
     }
