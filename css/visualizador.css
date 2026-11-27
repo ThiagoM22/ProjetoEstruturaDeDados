@@ -31,6 +31,9 @@ body.viz-app {
      conteúdo mantêm Ocean, por isso a troca fica escopada aqui. */
   --od-chrome:        #21252b;
   --od-editor:        #282c34;
+  /* A Prancha desenha sobre um degrau abaixo do editor, para o código ser
+     a superfície de leitura e o canvas o fundo do instrumento. */
+  --od-stage:         #1e2227;
   --od-raised:        #333842;
   --od-hover:         #3a404b;
   --od-active:        #434a57;
@@ -54,6 +57,7 @@ body.viz-app {
 
   /* semânticos locais: os componentes consultam --ds-* em toda parte */
   --ds-bg-canvas: var(--od-editor);
+  --ds-bg-stage: var(--od-stage);
   --ds-bg-surface: var(--od-chrome);
   --ds-bg-raised: var(--od-raised);
   --ds-bg-overlay: var(--od-overlay);
@@ -117,6 +121,7 @@ body.viz-app {
   --bg-elevated: var(--ds-bg-raised);
   --bg-hover: var(--ds-bg-hover);
   --bg-canvas: var(--ds-bg-canvas);
+  --bg-stage: var(--ds-bg-stage);
   --bg-track: var(--ds-border);
   --bg-chrome: var(--ds-bg-surface);
   --bg-inset: transparent;
@@ -619,7 +624,7 @@ a.brand, a.btn { text-decoration: none; }
 
 
 .viz-panel {
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
   overflow: hidden;
   /* A Régua vive dentro da Prancha: o stacking context mantém o histórico
    * acima do desenho sem deixar os controles cobrirem as gavetas. */
@@ -726,7 +731,7 @@ a.brand, a.btn { text-decoration: none; }
   height: var(--viz-head-h);
   flex: none;
   padding: 0 14px 0 22px;
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
 }
 
 
@@ -1981,7 +1986,7 @@ kbd {
   min-height: 0;
   position: relative;
   z-index: 30;
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
   border-top: 1px solid var(--border-soft);
 }
 
