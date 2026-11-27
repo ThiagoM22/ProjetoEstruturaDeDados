@@ -3695,14 +3695,14 @@
     ctx = ctx || {};
     if (!step) {
       var stopped = !!ctx.traceError;
-      renderMessage(container, stopped ? 'Corrija o erro e execute de novo.' : 'Execute o código para começar.', stopped ? 'error' : '', ctx, { title: 'automático', sub: '', badge: '' });
+      renderMessage(container, stopped ? 'Corrija o erro e execute de novo.' : 'Execute o código para começar.', stopped ? 'error' : '', ctx, { title: '', sub: '', badge: '' });
       return;
     }
     if (!sel || sel.type === 'none') {
       /* Trace válido, mas a estrutura ainda não foi criada neste passo. Não
        * recomende outra estrutura para quem abriu um exemplo oficial. */
       if (ctx.traceError) {
-        renderMessage(container, 'Corrija o erro e execute de novo.', 'error', ctx, { title: 'automático', sub: '', badge: '' });
+        renderMessage(container, 'Corrija o erro e execute de novo.', 'error', ctx, { title: '', sub: '', badge: '' });
         return;
       }
       var expected = ctx.expectedStructure;
@@ -3717,7 +3717,7 @@
         renderMessage(container, waiting, '', ctx, { title: DSV.typeLabel(expected.type), sub: 'aguardando a estrutura', badge: '' });
         return;
       }
-      renderMessage(container, 'Nenhuma estrutura compatível foi detectada neste código. Use uma pilha ou fila (array com <code>push/pop</code> ou <code>push/shift</code>), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).', '', ctx, { title: 'automático', sub: '', badge: '' });
+      renderMessage(container, 'Nenhuma estrutura compatível foi detectada neste código. Use uma pilha ou fila (array com <code>push/pop</code> ou <code>push/shift</code>), nós com <code>proximo</code> (lista) ou nós com <code>esquerda/direita</code> (árvore).', '', ctx, { title: '', sub: '', badge: '' });
       return;
     }
     /* carimba o passo atual: renderizadores dependem dele para visitas,

@@ -113,7 +113,7 @@
   <section id="vizPanel" class="panel viz-panel" data-zone="prancha" aria-label="Prancha da estrutura">
     <div class="viz-head">
       <div class="viz-identity">
-        <span id="canvasTitle" class="canvas-title">automático</span>
+        <span id="canvasTitle" class="canvas-title"></span>
         <span id="canvasSub" class="canvas-sub"></span>
         <span id="canvasBadge" class="canvas-badge"></span>
       </div>
@@ -121,11 +121,10 @@
         <div id="vizStructureSlot" class="viz-structure-slot">
           <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
         </div>
-        <span id="vizRunState" class="viz-state" data-state="idle" role="status" aria-live="polite" title="Estado da execução">
-          <span class="viz-state-dot" aria-hidden="true"></span>
+        <span id="vizRunState" class="viz-sr-only" data-state="idle" role="status" aria-live="polite">
           <span id="vizRunStateText">pronto</span>
         </span>
-        <span class="viz-tools-sep" aria-hidden="true"></span>
+        <span id="vizToolsSep" class="viz-tools-sep" aria-hidden="true"></span>
         <div class="canvas-controls">
           <button id="btnZoomOut" class="zbtn" title="Diminuir zoom" aria-label="Diminuir zoom">
             <svg class="ico" aria-hidden="true"><use href="#i-minus"></use></svg>

@@ -26,6 +26,7 @@
     structureSelect: $('structureSelect'),
     topbarStructureSlot: $('topbarStructureSlot'),
     vizStructureSlot: $('vizStructureSlot'),
+    vizToolsSep: $('vizToolsSep'),
     btnFirst: $('btnFirst'),
     btnPrev: $('btnPrev'),
     btnPlay: $('btnPlay'),
@@ -272,7 +273,9 @@
 
   function setCanvasMeta(meta) {
     meta = meta || {};
-    var title = meta.title || 'automático';
+    /* Sem estrutura detectada o título fica vazio: a mensagem do palco já
+     * explica o estado, e "automático" como título lia como status de IA. */
+    var title = meta.title || '';
     var sub = meta.sub || '';
     var badge = meta.badge || '';
     state.canvasMeta = { title: title, sub: sub, badge: badge };
@@ -820,6 +823,28 @@
     return DSV.typeLabel(c.type);
   }
 
+  /* O seletor é uma saída de emergência, não um status: só ocupa o chrome
+   * quando há mais de uma estrutura detectada ou uma escolha manual ativa.
+   * Sozinho, "Automático" parecia o estado da execução — e não um controle. */
+  function structureSelectionRelevant() {
+    return state.candidates.length > 1 || !!state.forced;
+  }
+
+  function syncStructureVisibility() {
+    var relevant = structureSelectionRelevant();
+    [els.topbarStructureSlot, els.vizStructureSlot].forEach(function (slot) {
+      if (slot && slot.classList) slot.classList.toggle('is-contextual-hidden', !relevant);
+    });
+    syncVizToolsSep();
+  }
+
+  /* O separador pertence ao seletor: sem ele na Prancha, some também para não
+   * deixar uma régua solta antes da câmera. */
+  function syncVizToolsSep() {
+    if (!els.vizToolsSep) return;
+    els.vizToolsSep.hidden = !(structureSelectionRelevant() && structurePlacement === 'viz');
+  }
+
   function buildStructureOptions() {
     var html = '<button><selectedcontent></selectedcontent></button>' +
       '<option value="auto">Automático</option>';
@@ -834,6 +859,7 @@
     });
     els.structureSelect.innerHTML = html;
     els.structureSelect.value = 'auto';
+    syncStructureVisibility();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1534,15 +1560,18 @@
     var vizW = els.vizPanel && typeof els.vizPanel.getBoundingClientRect === 'function'
       ? (els.vizPanel.getBoundingClientRect().width || 0)
       : 0;
-    /* A legenda precisa de espaço para título, contagem, operação, seletor,
-     * estado e câmera. Com a Prancha em 480px (1200 com Margem aberta), o
-     * seletor volta à topbar para não esmagar a identificação. */
+    /* A legenda precisa de espaço para título, contagem, operação, seletor
+     * (quando visível) e câmera. Com a Prancha em 480px (1200 com Margem
+     * aberta), o seletor volta à topbar para não esmagar a identificação. */
     var useViz = viewportWidth() >= 1024 && (!vizW || vizW >= 600);
     var slot = useViz ? els.vizStructureSlot : els.topbarStructureSlot;
     var where = useViz ? 'viz' : 'top';
-    if (!slot || !els.structureSelect || structurePlacement === where) return;
-    slot.appendChild(els.structureSelect);
-    structurePlacement = where;
+    if (!slot || !els.structureSelect) return;
+    if (structurePlacement !== where) {
+      slot.appendChild(els.structureSelect);
+      structurePlacement = where;
+    }
+    syncVizToolsSep();
   }
 
   /* A Margem em folha (1024–1199) termina no topo da Régua. A altura é
@@ -2517,7 +2546,7 @@
       return;
     }
     var meta = state.canvasMeta || {};
-    var title = meta.title || (sel && sel.type !== 'none' ? (sel.label || DSV.typeLabel(sel.type)) : 'automático');
+    var title = meta.title || (sel && sel.type !== 'none' ? (sel.label || DSV.typeLabel(sel.type)) : '');
     var sub = meta.sub || '';
     var op = els.stepOp ? els.stepOp.textContent : '';
     var html = '';
@@ -2943,6 +2972,7 @@
       }
       state.forced = cand;
     }
+    syncStructureVisibility();
     if (steps().length) {
       var s = renderStructurePanel(steps()[state.index]);
       renderEvents(s);

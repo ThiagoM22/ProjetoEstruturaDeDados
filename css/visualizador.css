@@ -755,6 +755,11 @@ a.brand, a.btn { text-decoration: none; }
 }
 
 
+/* Sem estrutura detectada não existe título: a mensagem do palco já
+ * explica o estado, e "automático" como título parecia status de agente. */
+.canvas-title:empty { display: none; }
+
+
 .canvas-sub {
   min-width: 0;
   overflow: hidden;
@@ -810,6 +815,12 @@ a.brand, a.btn { text-decoration: none; }
 }
 
 
+/* O seletor é uma saída de emergência, não um status permanente: só ocupa
+ * o chrome quando há mais de uma estrutura detectada ou uma escolha manual. */
+.topbar-structure-slot.is-contextual-hidden,
+.viz-structure-slot.is-contextual-hidden { display: none; }
+
+
 .viz-structure-slot .select {
   max-width: 170px;
   height: 24px;
@@ -828,81 +839,20 @@ a.brand, a.btn { text-decoration: none; }
 }
 
 
-.viz-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font: 11px var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* O estado da execução não ocupa chrome visível: play/pause, banner de erro,
+ * faixa de edição e Régua já o comunicam. O live region mantém o anúncio
+ * para leitores de tela sem repetir um status de agente na tela. */
+.viz-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-  transition: color var(--dur-fast);
-}
-
-
-.viz-state-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  flex: none;
-  transition: background var(--dur-fast);
-}
-
-
-.viz-state[data-state="running"] { color: var(--accent-text); }
-
-
-.viz-state[data-state="running"] .viz-state-dot {
-  background: var(--accent);
-  animation: viz-pulse 1.3s ease-in-out infinite;
-}
-
-
-.viz-state[data-state="paused"] { color: var(--text-secondary); }
-
-.viz-state[data-state="paused"] .viz-state-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--accent-muted);
-}
-
-
-/* primeiro contato: há conteúdo no palco, mas nada foi reproduzido ainda */
-.viz-state[data-state="preview"] { color: var(--text-muted); }
-
-.viz-state[data-state="preview"] .viz-state-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-
-
-.viz-state[data-state="debug"] { color: var(--accent-text); }
-
-
-.viz-state[data-state="debug"] .viz-state-dot { background: var(--accent); }
-
-
-.viz-state[data-state="stale"] { color: var(--warn); }
-
-
-.viz-state[data-state="stale"] .viz-state-dot { background: var(--warn); }
-
-
-.viz-state[data-state="error"] { color: var(--danger); }
-
-
-.viz-state[data-state="error"] .viz-state-dot { background: var(--danger); }
-
-
-@keyframes viz-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  border: 0;
 }
 
 
@@ -3122,7 +3072,6 @@ dialog.help form.help-foot {
   #btnRun { padding: 0 10px; min-width: 0; }
   .select-compact { max-width: 190px; }
   .canvas-badge { max-width: 38%; }
-  .viz-state { padding: 0; }
   .viz-structure-slot .select { max-width: 130px; }
 
   /* no Roteiro o Executar continua com o ícone e o rótulo; o ajuste acima
