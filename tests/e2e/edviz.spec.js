@@ -448,8 +448,11 @@ test('Roteiro em coluna: abre no desktop, recolhe e dá lugar à Prancha', async
     const w = (id) => document.getElementById(id).getBoundingClientRect().width;
     return { code: w('codePanel'), viz: w('vizPanel'), side: w('sidePanel') };
   });
-  expect(ambos.viz).toBeGreaterThan(ambos.code);
-  expect(ambos.viz).toBeGreaterThan(ambos.side);
+  expect(ambos.side).toBeGreaterThan(0);
+  expect(ambos.viz).toBeGreaterThan(0);
+  /* A Margem aberta não trava mais o Roteiro em uma largura fixa: o aluno
+   * decide o tamanho pela divisória. */
+  expect(ambos.code).toBeGreaterThanOrEqual(420);
 
   await page.keyboard.press('Escape');
   await expect(page.locator('#sidePanel')).toBeHidden();
@@ -495,7 +498,79 @@ test('workspace persiste largura do Roteiro entre recargas', async ({ page }) =>
   }).toBeLessThan(12);
 });
 
-test('Ampliar o editor dá espaço ao código e restaura a largura anterior', async ({ page }) => {
+test('editor: sem moldura no clique e zoom por Ctrl+roda e Ctrl +/− persiste', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/visualizador.html');
+  await expect(page.locator('#codePanel')).toBeVisible();
+
+  const leitura = () => page.evaluate(() => {
+    const code = document.getElementById('code');
+    const cs = getComputedStyle(code);
+    const g = document.querySelector('.gline');
+    const gs = getComputedStyle(g);
+    return {
+      font: parseFloat(cs.fontSize),
+      line: parseFloat(cs.lineHeight),
+      outline: cs.outlineStyle,
+      gutterFont: parseFloat(gs.fontSize),
+      gutterHeight: parseFloat(gs.height)
+    };
+  });
+
+  const base = await leitura();
+  /* clicar no editor não desenha a moldura azul de foco */
+  await page.click('#code');
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('code')).outlineStyle)).toBe('none');
+  expect(base.gutterHeight).toBe(base.line);
+  expect(base.gutterFont).toBeGreaterThan(10.5);
+
+  /* Ctrl + roda do mouse sobre o editor aumenta a fonte do código */
+  await page.mouse.move(300, 400);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -120);
+  await page.keyboard.up('Control');
+  await expect.poll(async () => (await leitura()).font).toBeGreaterThan(base.font);
+
+  /* Ctrl + + continua ampliando; a altura de linha acompanha */
+  const antesTeclado = await leitura();
+  await page.keyboard.press('Control+=');
+  await expect.poll(async () => (await leitura()).font).toBeGreaterThan(antesTeclado.font);
+  const ampliado = await leitura();
+  expect(ampliado.line).toBeGreaterThan(base.line);
+  expect(ampliado.gutterHeight).toBeCloseTo(ampliado.line, 1);
+
+  /* o tamanho escolhido sobrevive à recarga */
+  await page.reload();
+  await expect.poll(async () => (await leitura()).font).toBeGreaterThan(base.font);
+
+  /* Ctrl+0 volta ao padrão e Ctrl+− diminui */
+  await page.click('#code');
+  await page.keyboard.press('Control+0');
+  await expect.poll(async () => (await leitura()).font).toBe(base.font);
+  await page.keyboard.press('Control+-');
+  await expect.poll(async () => (await leitura()).font).toBeLessThan(base.font);
+});
+
+test('a divisória libera o Roteiro além do antigo teto e encolhe a Prancha', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/visualizador.html');
+  await expect(page.locator('#codePanel')).toBeVisible();
+
+  const split = await page.locator('#splitLeft').boundingBox();
+  await page.mouse.move(split.x + 2, split.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(split.x + 502, split.y + 200, { steps: 10 });
+  await page.mouse.up();
+
+  const depois = await page.evaluate(() => {
+    const w = (id) => document.getElementById(id).getBoundingClientRect().width;
+    return { code: w('codePanel'), viz: w('vizPanel') };
+  });
+  expect(depois.code).toBeGreaterThan(900);
+  expect(depois.viz).toBeLessThan(480);
+});
+
+test('Ampliar o editor cobre a tela inteira e restaura a largura anterior', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/visualizador.html');
   await expect(page.locator('#codePanel')).toBeVisible();
@@ -507,19 +582,24 @@ test('Ampliar o editor dá espaço ao código e restaura a largura anterior', as
 
   await page.click('#btnExpandCode');
   await expect(page.locator('#btnExpandCode')).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(largura).toBeGreaterThan(antes + 200);
-  const ampliado = await largura();
-  expect(ampliado).toBeLessThanOrEqual(901);
-  expect(await page.evaluate(() => Math.round(document.getElementById('vizPanel').getBoundingClientRect().width)))
-    .toBeGreaterThanOrEqual(480);
+  await expect(page.locator('#layout')).toHaveClass(/code-expanded/);
+  /* o editor toma toda a largura horizontal e a Prancha sai de cena */
+  await expect.poll(largura).toBeGreaterThan(1400);
+  expect(await page.evaluate(() => Math.round(document.getElementById('layout').getBoundingClientRect().width)))
+    .toBe(await largura());
+  await expect(page.locator('#vizPanel')).toBeHidden();
 
   /* a preferência sobrevive à recarga */
   await page.reload();
   await expect(page.locator('#btnExpandCode')).toHaveAttribute('aria-pressed', 'true');
-  expect(await largura()).toBe(ampliado);
+  await expect(page.locator('#layout')).toHaveClass(/code-expanded/);
+  await expect.poll(largura).toBeGreaterThan(1400);
+  await expect(page.locator('#vizPanel')).toBeHidden();
 
   await page.click('#btnExpandCode');
   await expect(page.locator('#btnExpandCode')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#layout')).not.toHaveClass(/code-expanded/);
+  await expect(page.locator('#vizPanel')).toBeVisible();
   await expect.poll(largura).toBe(antes);
 });
 
@@ -790,6 +870,25 @@ test('4D: seletor e banner pertencem à Prancha; erro preserva o desenho', async
   await expect(page.locator('#structure')).not.toContainText('Corrija o erro');
 });
 
+test('seletor de estrutura é contextual: um candidato esconde, dois mostram', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/visualizador.html');
+  await expect(page.locator('#structureSelect')).toBeHidden();
+
+  await page.evaluate(() => {
+    document.getElementById('code').value = [
+      'const pilha = [];',
+      'pilha.push(1);',
+      'const fila = [];',
+      'fila.push(1); fila.shift();'
+    ].join('\n');
+    document.getElementById('btnRun').click();
+  });
+  if ((await page.locator('#btnPlay').textContent()) === '❚❚') await page.click('#btnPlay');
+  await expect(page.locator('#structureSelect')).toBeVisible();
+  await expect(page.locator('#vizToolsSep')).toBeVisible();
+});
+
 test('390: executar pela folha fecha o código e mostra o banner na Prancha', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/visualizador.html');
@@ -829,24 +928,36 @@ test('Roteiro: o atalho do rodapé reaparece quando o painel tem espaço', async
   await expect(page.locator('#statusHint')).toBeVisible();
 });
 
-test('Margem aberta: o Roteiro recua e o overflow do código aparece na hora', async ({ page }) => {
+test('Margem aberta não trava a largura do Roteiro e o overflow aparece na hora', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/visualizador.html');
   await expect(page.locator('#codePanel')).toBeVisible();
   const larguraCode = () => page.locator('#codePanel').evaluate((el) => Math.round(el.getBoundingClientRect().width));
-  expect(await larguraCode()).toBeGreaterThan(430);
+  const antes = await larguraCode();
+  expect(antes).toBeGreaterThan(430);
 
+  /* Abrir a Margem não recua mais o Roteiro para um teto fixo. */
   await page.click('#btnToggleSide');
   await expect(page.locator('#sidePanel')).toBeVisible();
-  await expect.poll(larguraCode).toBe(430);
+  await expect.poll(larguraCode).toBe(antes);
   const larguraViz = await page.locator('#vizPanel').evaluate((el) => Math.round(el.getBoundingClientRect().width));
-  expect(larguraViz).toBeGreaterThan(430);
+  expect(larguraViz).toBeGreaterThan(0);
+
+  /* O aluno decide o tamanho: ao estreitar pela divisória, o controle de
+   * overflow responde no mesmo layout, sem esperar a próxima execução. */
+  const split = await page.locator('#splitLeft').boundingBox();
+  await page.mouse.move(split.x + 2, split.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(split.x - 198, split.y + 200, { steps: 8 });
+  await page.mouse.up();
+  expect(await larguraCode()).toBeLessThan(antes - 100);
   await expect(page.locator('#statusOverflow')).toBeVisible();
   await expect(page.locator('#statusOverflow')).toContainText('ver o resto');
 
   await page.click('#btnToggleSide');
-  await expect.poll(larguraCode).toBeGreaterThan(430);
-  await expect(page.locator('#statusOverflow')).toBeHidden();
+  await expect(page.locator('#sidePanel')).toBeHidden();
+  const estreito = await larguraCode();
+  expect(estreito).toBeLessThan(antes);
 });
 
 test('1024: abrir a Margem fecha o Roteiro e a árvore cabe na área visível', async ({ page }) => {
@@ -944,7 +1055,7 @@ test('390: inserção na lista dupla mostra o nó pendente e parte da lista exis
 test('rótulos funcionais respeitam o piso de 11px', async ({ page }) => {
   await page.goto('/visualizador.html');
   const medir = () => page.evaluate(() => {
-    const sels = ['.stage-rail span', '.stack-side', '.viz-state', '.step-op', '.status-hint', '.dock-sub', '.insp-count',
+    const sels = ['.stage-rail span', '.stack-side', '.step-op', '.status-hint', '.dock-sub', '.insp-count',
       '.cell-idx', '.cell-flag', '.queue-ptr', '.queue-idx', '.list-head-tag', '.list-next', '.list-prev', '.ptr-chip',
       '.array-idx', '.array-size-tag'];
     const out = [];

@@ -1106,6 +1106,34 @@ test('seleção manual de estrutura não quebra', () => {
   }
 });
 
+test('seletor de estrutura: contextual, só ocupa o chrome quando há escolha real', () => {
+  const oculto = () => $('vizStructureSlot').classList.contains('is-contextual-hidden') &&
+    $('topbarStructureSlot').classList.contains('is-contextual-hidden');
+
+  $('exampleSelect').value = 'pilha-array';
+  fire('exampleSelect', 'change');
+  assert(oculto(), 'um único candidato não mostra o seletor');
+
+  $('code').value = [
+    'const pilha = [];',
+    'pilha.push(1);',
+    'const fila = [];',
+    'fila.push(1); fila.shift();'
+  ].join('\n');
+  fire('btnRun', 'click');
+  assert(!oculto(), 'dois candidatos mostram o seletor');
+
+  const valores = $('structureSelect').innerHTML.match(/value="([^"]+)"/g).map((s) => s.slice(7, -1));
+  const manual = valores.filter((v) => v !== 'auto')[0];
+  $('structureSelect').value = manual;
+  fire('structureSelect', 'change');
+  assert(!oculto(), 'escolha manual mantém o seletor visível');
+
+  $('structureSelect').value = 'auto';
+  fire('structureSelect', 'change');
+  assert(!oculto(), 'voltar ao automático com dois candidatos mantém o seletor visível');
+});
+
 /* ------------------------------------------------------------------ */
 console.log('\n[UI/UX: ordem dos seletores]');
 
