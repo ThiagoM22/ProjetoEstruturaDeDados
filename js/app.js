@@ -8,6 +8,7 @@
 
   var els = {
     code: $('code'),
+    editor: $('editor'),
     codeViewport: $('codeViewport'),
     varTip: $('varTip'),
     highlight: $('highlight'),
@@ -24,6 +25,9 @@
     btnExitDebug: $('btnExitDebug'),
     structure: $('structure'),
     structureSelect: $('structureSelect'),
+    topbarStructureSlot: $('topbarStructureSlot'),
+    vizStructureSlot: $('vizStructureSlot'),
+    vizToolsSep: $('vizToolsSep'),
     btnFirst: $('btnFirst'),
     btnPrev: $('btnPrev'),
     btnPlay: $('btnPlay'),
@@ -126,6 +130,14 @@
   var LINE_HEIGHT = 22;
   var PAD_TOP = 14;
   var CODE_PAD_LEFT = 16;   /* padding esquerdo do editor (.code-input) */
+  /* Zoom do editor: só a tipografia do código cresce (fonte e altura de
+   * linha), sem alterar a largura da coluna. O gutter acompanha pelo CSS. */
+  var CODE_FONT_BASE = 13;          /* mesma base de --code-font */
+  var CODE_FONT_BASE_SMALL = 12.5;  /* breakpoint de 1366 no CSS */
+  var CODE_LINE_BASE = 22;
+  var CODE_ZOOM_MIN = 0.8;
+  var CODE_ZOOM_MAX = 2;
+  var CODE_ZOOM_STEP = 0.1;
   var HOVER_DELAY = 350;    /* tempo com o mouse parado sobre a variável */
   var STORAGE_CODE = 'edviz.code';        /* legado: migrado para STORAGE_BUFFERS */
   var STORAGE_EX = 'edviz.example';
@@ -150,6 +162,7 @@
     codeUserResized: false,
     codeExpanded: false,
     codeRatioBeforeExpand: null,
+    codeZoom: 1,
     collapsed: { code: viewportWidth() < 1024, side: true },
     dockOpen: false,
     dockTab: 'commands',
@@ -199,6 +212,12 @@
     return isFinite(v) && v > 0 && v < 1 ? v : fallback;
   }
 
+  function clampCodeZoom(v, fallback) {
+    v = parseFloat(v);
+    if (!isFinite(v)) return fallback;
+    return Math.round(Math.min(CODE_ZOOM_MAX, Math.max(CODE_ZOOM_MIN, v)) * 100) / 100;
+  }
+
   function loadWorkspace() {
     var raw = null;
     try { raw = localStorage.getItem(STORAGE_WORKSPACE); } catch (e) { /* ignora */ }
@@ -218,6 +237,7 @@
       workspace.codeUserResized = typeof saved.codeRatio === 'number' && isFinite(saved.codeRatio);
       workspace.codeExpanded = false;
       workspace.codeRatioBeforeExpand = null;
+      workspace.codeZoom = 1;
       workspace.collapsed.code = viewportWidth() < 1024;
       workspace.grid = saved.grid !== false;
       if (saved.dockTab === 'commands' || saved.dockTab === 'events' || saved.dockTab === 'output') {
@@ -231,6 +251,7 @@
     workspace.codeRatio = clamp01(saved.codeRatio, DEFAULT_CODE_RATIO);
     workspace.codeUserResized = saved.codeUserResized === true;
     workspace.codeExpanded = saved.codeExpanded === true;
+    workspace.codeZoom = clampCodeZoom(saved.codeZoom, 1);
     var beforeExpand = parseFloat(saved.codeRatioBeforeExpand);
     workspace.codeRatioBeforeExpand = isFinite(beforeExpand) && beforeExpand > 0 && beforeExpand < 1
       ? beforeExpand
@@ -270,7 +291,9 @@
 
   function setCanvasMeta(meta) {
     meta = meta || {};
-    var title = meta.title || 'automático';
+    /* Sem estrutura detectada o título fica vazio: a mensagem do palco já
+     * explica o estado, e "automático" como título lia como status de IA. */
+    var title = meta.title || '';
     var sub = meta.sub || '';
     var badge = meta.badge || '';
     state.canvasMeta = { title: title, sub: sub, badge: badge };
@@ -419,6 +442,57 @@
     markCurrentLineInGutter(line);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Zoom do editor (Ctrl + roda, Ctrl + + / − / 0)                     */
+  /* ------------------------------------------------------------------ */
+
+  function codeBaseFont() {
+    return viewportWidth() > 0 && viewportWidth() <= 1366
+      ? CODE_FONT_BASE_SMALL
+      : CODE_FONT_BASE;
+  }
+
+  /* A tipografia do editor mora nas variáveis do painel: fonte e altura de
+   * linha crescem juntas para o texto não se sobrepor; a coluna não muda. */
+  function applyCodeZoom() {
+    var zoom = clampCodeZoom(workspace.codeZoom, 1);
+    workspace.codeZoom = zoom;
+    LINE_HEIGHT = Math.round(CODE_LINE_BASE * zoom * 100) / 100;
+    if (els.codePanel && els.codePanel.style && typeof els.codePanel.style.setProperty === 'function') {
+      els.codePanel.style.setProperty('--code-font', (Math.round(codeBaseFont() * zoom * 100) / 100) + 'px');
+      els.codePanel.style.setProperty('--line-h', LINE_HEIGHT + 'px');
+    }
+    codeCharW = 0; /* o hover remede a largura do caractere no novo tamanho */
+  }
+
+  function refreshLineHighlight() {
+    var step = steps()[state.index];
+    if (!step || state.stale || !state.trace) {
+      setCurrentLine(null);
+      return;
+    }
+    var isError = state.errorLine === step.line &&
+      state.index === steps().length - 1 && !!state.trace.error;
+    setCurrentLine(step.line, isError);
+  }
+
+  function setCodeZoom(next) {
+    var zoom = clampCodeZoom(next, workspace.codeZoom);
+    if (Math.abs(zoom - workspace.codeZoom) < 0.001) return;
+    workspace.codeZoom = zoom;
+    applyCodeZoom();
+    refreshLineHighlight();
+    updateCodeOverflow();
+    var step = steps()[state.index];
+    if (step) ensureLineVisible(step.line);
+    else syncScroll();
+    saveWorkspace();
+  }
+
+  function zoomCodeBy(dir) {
+    setCodeZoom(workspace.codeZoom + dir * CODE_ZOOM_STEP);
+  }
+
   function ensureLineVisible(line) {
     var top = (line - 1) * LINE_HEIGHT;
     var vh = els.code.clientHeight;
@@ -560,6 +634,35 @@
       }
     }
   });
+
+  /* Ctrl + roda do mouse sobre o editor: o texto cresce/diminui sem mexer
+   * na largura da coluna. O preventDefault impede o zoom da página. */
+  if (els.editor && typeof els.editor.addEventListener === 'function') {
+    els.editor.addEventListener('wheel', function (ev) {
+      if (!ev.ctrlKey && !ev.metaKey) return;
+      if (ev.preventDefault) ev.preventDefault();
+      zoomCodeBy((ev.deltaY || 0) < 0 ? 1 : -1);
+    }, { passive: false });
+  }
+
+  /* Ctrl + + / Ctrl + − no Roteiro. Também cobre o teclado numérico e o
+   * layout em que Ctrl+'+' chega como '='. Ctrl+0 volta ao tamanho padrão. */
+  if (els.codePanel && typeof els.codePanel.addEventListener === 'function') {
+    els.codePanel.addEventListener('keydown', function (ev) {
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+      var k = ev.key;
+      if (k === '+' || k === '=') {
+        ev.preventDefault();
+        zoomCodeBy(1);
+      } else if (k === '-' || k === '_') {
+        ev.preventDefault();
+        zoomCodeBy(-1);
+      } else if (k === '0') {
+        ev.preventDefault();
+        setCodeZoom(1);
+      }
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Dica de variável (segurar o mouse sobre um identificador)           */
@@ -727,6 +830,9 @@
    * Em caso de erro não toca — o banner e o passo do erro já explicam. */
   function runAndPlay() {
     run();
+    /* Executar a partir da folha de código devolve o palco: no mobile a folha
+     * cobriria o banner de erro e o próprio desenho. */
+    if (viewportWidth() < 1024 && !collapsed.code) togglePanel('code');
     if (!state.trace.error && steps().length > 1) play();
     revealVizOnNarrow();
   }
@@ -815,6 +921,28 @@
     return DSV.typeLabel(c.type);
   }
 
+  /* O seletor é uma saída de emergência, não um status: só ocupa o chrome
+   * quando há mais de uma estrutura detectada ou uma escolha manual ativa.
+   * Sozinho, "Automático" parecia o estado da execução — e não um controle. */
+  function structureSelectionRelevant() {
+    return state.candidates.length > 1 || !!state.forced;
+  }
+
+  function syncStructureVisibility() {
+    var relevant = structureSelectionRelevant();
+    [els.topbarStructureSlot, els.vizStructureSlot].forEach(function (slot) {
+      if (slot && slot.classList) slot.classList.toggle('is-contextual-hidden', !relevant);
+    });
+    syncVizToolsSep();
+  }
+
+  /* O separador pertence ao seletor: sem ele na Prancha, some também para não
+   * deixar uma régua solta antes da câmera. */
+  function syncVizToolsSep() {
+    if (!els.vizToolsSep) return;
+    els.vizToolsSep.hidden = !(structureSelectionRelevant() && structurePlacement === 'viz');
+  }
+
   function buildStructureOptions() {
     var html = '<button><selectedcontent></selectedcontent></button>' +
       '<option value="auto">Automático</option>';
@@ -829,6 +957,7 @@
     });
     els.structureSelect.innerHTML = html;
     els.structureSelect.value = 'auto';
+    syncStructureVisibility();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1383,15 +1512,14 @@
   var SPLIT_MAX_CODE_RATIO = 0.44;
   var SPLIT_FIT_MAX = 600;
   var CODE_MIN_WIDE = 420;
-  var CODE_MAX_WIDE = 900;        /* teto do gesto de ampliar; a Prancha fica com >=480 */
-  var CODE_MIN_COMPACT = 340;
-  var CODE_MAX_COMPACT = 560;
+  var CODE_MAX_WIDE = 900;        /* fallback quando a grade ainda não tem largura */
+  var CODE_MIN_FREE = 160;        /* piso do arrasto livre; a Prancha pode ir a zero */
   var CODE_DEFAULT_COMPACT = 360;
-  var PRANCHA_MIN = 480;
   var splitDrag = null;
   var codeFit = 0;                /* largura medida da linha mais longa, transitória */
   var codeUserResized = false;    /* o usuário arrastou: o ajuste automático para */
   var runPlacement = null;        /* 'code' | 'top' — onde Executar/Depurar vivem */
+  var structurePlacement = null;  /* 'viz' | 'top' — onde o seletor de estrutura vive */
   var reguaObserver = null;       /* altura real da Régua para a Margem em folha */
   var vizObserver = null;         /* largura real do palco durante as transições */
   var codeObserver = null;        /* largura real do editor após o reflow */
@@ -1455,24 +1583,17 @@
     return Math.round(Math.min(372, Math.max(300, width)));
   }
 
-  /* Limites da coluna. O padrão fica entre 420 e 620px; o gesto de ampliar
-   * chega a 900px, mas nunca come a área mínima da Prancha (480px). Com a
-   * Margem aberta, o desenho continua sendo a maior superfície. */
+  /* Limites da coluna. O aluno decide o tamanho: o arrasto vai do piso
+   * operacional até toda a área livre da grade, sem reservar uma largura
+   * mínima para a Prancha. Com a Margem aberta, o teto é a área restante
+   * depois dela; ampliar (botão) é outro gesto e ocupa a tela inteira. */
   function codeBounds(total) {
-    var compact = codeCompactMode();
-    var min = compact ? CODE_MIN_COMPACT : CODE_MIN_WIDE;
-    var max = compact ? CODE_MAX_COMPACT : CODE_MAX_WIDE;
-    if (total > 0) max = Math.min(max, total - 4 - PRANCHA_MIN);
+    var min = CODE_MIN_FREE;
+    var max = total > 0 ? Math.max(min, total - 4) : CODE_MAX_WIDE;
     if (!collapsed.side && viewportWidth() >= 1200 && total > 0) {
       var sideW = sideColumnWidth(total);
-      var free = total - sideW - 4;
-      max = Math.min(max, free - PRANCHA_MIN);
-      max = Math.min(max, Math.floor(free / 2) - 8);
-      /* Com a Margem aberta, o Roteiro recua para 430px: a Prancha continua
-       * sendo a maior superfície mesmo quando as duas gavetas dividem a tela. */
-      max = Math.min(max, 430);
+      max = Math.max(min, total - sideW - 4);
     }
-    if (max < min) max = min;
     return { min: min, max: max };
   }
 
@@ -1501,7 +1622,9 @@
     }
 
     var bounds = codeBounds(total);
-    if (workspace.codeExpanded) return bounds.max;
+    /* Modo ampliado: o Roteiro ocupa a grade inteira e a Prancha sai de cena
+     * pelo CSS. A divisória anterior volta quando o gesto é desfeito. */
+    if (workspace.codeExpanded) return total > 0 ? Math.round(total) : bounds.max;
     var width = codeUserResized
       ? workspace.codeRatio * total
       : defaultCodeWidth(total);
@@ -1519,6 +1642,27 @@
     slot.appendChild(els.btnRun);
     slot.appendChild(els.btnDebug);
     runPlacement = where;
+  }
+
+  /* O seletor de estrutura pertence à legenda da Prancha no desktop. Abaixo
+   * de 1024 ele volta para a topbar: a legenda não deve competir com o
+   * desenho em uma Prancha estreita. O nó e o listener são os mesmos. */
+  function syncStructurePlacement() {
+    var vizW = els.vizPanel && typeof els.vizPanel.getBoundingClientRect === 'function'
+      ? (els.vizPanel.getBoundingClientRect().width || 0)
+      : 0;
+    /* A legenda precisa de espaço para título, contagem, operação, seletor
+     * (quando visível) e câmera. Com a Prancha em 480px (1200 com Margem
+     * aberta), o seletor volta à topbar para não esmagar a identificação. */
+    var useViz = viewportWidth() >= 1024 && (!vizW || vizW >= 600);
+    var slot = useViz ? els.vizStructureSlot : els.topbarStructureSlot;
+    var where = useViz ? 'viz' : 'top';
+    if (!slot || !els.structureSelect) return;
+    if (structurePlacement !== where) {
+      slot.appendChild(els.structureSelect);
+      structurePlacement = where;
+    }
+    syncVizToolsSep();
   }
 
   /* A Margem em folha (1024–1199) termina no topo da Régua. A altura é
@@ -1598,9 +1742,11 @@
      * antiga por um instante (o Chromium expõe essa transição ao Playwright). */
     var layout = layoutEl();
     var codeWidth = targetCodeWidth();
+    var expandOn = !!workspace.codeExpanded && !collapsed.code && codeColumnMode();
     if (layout) {
       layout.classList.toggle('code-collapsed', collapsed.code);
       layout.classList.toggle('side-collapsed', collapsed.side);
+      layout.classList.toggle('code-expanded', expandOn);
       if (layout.style && typeof layout.style.setProperty === 'function') {
         layout.style.setProperty('--code-w', codeWidth + 'px');
       }
@@ -1620,20 +1766,15 @@
     }
 
     if (els.btnExpandCode) {
-      var expandOn = !!workspace.codeExpanded && !collapsed.code && codeColumnMode();
-      var totalWidth = layout && typeof layout.getBoundingClientRect === 'function'
-        ? (layout.getBoundingClientRect().width || 0)
-        : 0;
-      var atMax = !expandOn && totalWidth > 0 && codeWidth >= codeBounds(totalWidth).max - 1;
-      els.btnExpandCode.disabled = atMax;
+      els.btnExpandCode.disabled = false;
       els.btnExpandCode.classList.toggle('active', expandOn);
       els.btnExpandCode.setAttribute('aria-pressed', expandOn ? 'true' : 'false');
       els.btnExpandCode.title = expandOn
         ? 'Restaurar largura do editor'
-        : (atMax ? 'O editor já está na largura máxima' : 'Ampliar editor');
+        : 'Ampliar editor';
       els.btnExpandCode.setAttribute('aria-label', expandOn
         ? 'Restaurar largura do editor'
-        : (atMax ? 'Editor na largura máxima' : 'Ampliar editor'));
+        : 'Ampliar editor');
     }
 
     var codeOpen = !collapsed.code;
@@ -1655,8 +1796,10 @@
     }
     if (els.railCode) els.railCode.setAttribute('aria-expanded', codeOpen ? 'true' : 'false');
     if (els.railInspector) els.railInspector.setAttribute('aria-expanded', sideOpen ? 'true' : 'false');
-    if (els.sidePanel) els.sidePanel.setAttribute('aria-hidden', sideOpen ? 'false' : 'true');
+    if (els.sidePanel) els.sidePanel.setAttribute('aria-hidden', sideOpen && !expandOn ? 'false' : 'true');
+    if (els.vizPanel) els.vizPanel.setAttribute('aria-hidden', expandOn ? 'true' : 'false');
     syncRunPlacement();
+    syncStructurePlacement();
     /* A largura da coluna pode mudar sem que o textarea role: o controle
      * "ver o resto" e a classe de overflow pertencem ao novo recorte. */
     updateCodeOverflow();
@@ -1685,6 +1828,7 @@
       : 0;
     var changed = !vizW || Math.abs(vizW - lastVizWidth) > 1;
     lastVizWidth = vizW;
+    syncStructurePlacement();
 
     var overlayMode = !codeColumnMode();
     var sideOverlay = viewportWidth() < 1200;
@@ -1751,6 +1895,12 @@
 
   function togglePanel(which, opts) {
     var opening = collapsed[which];
+    /* Abrir a Margem desfaz o modo ampliado: o editor volta à largura anterior
+     * para o canvas e a Margem voltarem a ocupar a grade. */
+    if (opening && which === 'side' && workspace.codeExpanded) {
+      workspace.codeExpanded = false;
+      workspace.codeRatioBeforeExpand = null;
+    }
     /* Abaixo de 1200 a Margem ainda é folha sobre o palco (o Roteiro já é
      * coluna a partir de 1024): abrir uma fecha a outra, para o desenho não
      * ficar imprensado entre duas superfícies. Acima disso as duas são
@@ -1814,8 +1964,9 @@
     applyLayout();
   }
 
-  /* Ampliar é um gesto explícito, não um acidente de arrasto: a folha vai ao
-   * teto que ainda deixa a Prancha respirar e volta à largura anterior. */
+  /* Ampliar é um gesto explícito, não um acidente de arrasto: a folha cobre
+   * a tela inteira (a Prancha sai de cena pelo CSS) e volta à largura
+   * anterior quando o gesto é desfeito. */
   function toggleCodeExpand() {
     if (collapsed.code || !codeColumnMode()) return;
     var layout = layoutEl();
@@ -1830,12 +1981,10 @@
       workspace.codeUserResized = true;
       codeUserResized = true;
     } else {
-      var bounds = codeBounds(total);
       workspace.codeRatioBeforeExpand = codeUserResized
         ? workspace.codeRatio
         : defaultCodeWidth(total) / total;
       workspace.codeExpanded = true;
-      workspace.codeRatio = bounds.max / total;
       workspace.codeUserResized = true;
       codeUserResized = true;
     }
@@ -2491,7 +2640,7 @@
       return;
     }
     var meta = state.canvasMeta || {};
-    var title = meta.title || (sel && sel.type !== 'none' ? (sel.label || DSV.typeLabel(sel.type)) : 'automático');
+    var title = meta.title || (sel && sel.type !== 'none' ? (sel.label || DSV.typeLabel(sel.type)) : '');
     var sub = meta.sub || '';
     var op = els.stepOp ? els.stepOp.textContent : '';
     var html = '';
@@ -2917,6 +3066,7 @@
       }
       state.forced = cand;
     }
+    syncStructureVisibility();
     if (steps().length) {
       var s = renderStructurePanel(steps()[state.index]);
       renderEvents(s);
@@ -3026,12 +3176,14 @@
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('resize', function () {
       canvasFitKey = null;
+      applyCodeZoom(); /* a base muda em 1366 e o zoom salvo continua valendo */
       codeCharW = 0; /* remede a largura do caractere (zoom/fonte podem mudar) */
       /* reaplica a grade ao cruzar os breakpoints responsivos e reajusta a
        * coluna do editor ao código (a fonte muda em 1366, a largura muda) */
       fitCodeColumn();
       applyLayout();
       syncScroll();
+      refreshLineHighlight();
       if (!canvasSupported()) return;
       var narrow = typeof window.innerWidth === 'number' ? window.innerWidth <= 1100 : false;
       var crossed = narrow !== canvasNarrow;
@@ -3213,6 +3365,7 @@
     workspace.collapsed.code = collapsed.code;
     workspace.collapsed.side = collapsed.side;
     codeUserResized = workspace.codeUserResized === true;
+    applyCodeZoom();
 
     setupSplitters();
     setupLayoutControls();

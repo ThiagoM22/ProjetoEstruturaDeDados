@@ -31,6 +31,9 @@ body.viz-app {
      conteúdo mantêm Ocean, por isso a troca fica escopada aqui. */
   --od-chrome:        #21252b;
   --od-editor:        #282c34;
+  /* A Prancha desenha sobre um degrau abaixo do editor, para o código ser
+     a superfície de leitura e o canvas o fundo do instrumento. */
+  --od-stage:         #1e2227;
   --od-raised:        #333842;
   --od-hover:         #3a404b;
   --od-active:        #434a57;
@@ -54,6 +57,7 @@ body.viz-app {
 
   /* semânticos locais: os componentes consultam --ds-* em toda parte */
   --ds-bg-canvas: var(--od-editor);
+  --ds-bg-stage: var(--od-stage);
   --ds-bg-surface: var(--od-chrome);
   --ds-bg-raised: var(--od-raised);
   --ds-bg-overlay: var(--od-overlay);
@@ -117,6 +121,7 @@ body.viz-app {
   --bg-elevated: var(--ds-bg-raised);
   --bg-hover: var(--ds-bg-hover);
   --bg-canvas: var(--ds-bg-canvas);
+  --bg-stage: var(--ds-bg-stage);
   --bg-track: var(--ds-border);
   --bg-chrome: var(--ds-bg-surface);
   --bg-inset: transparent;
@@ -445,6 +450,7 @@ a.brand, a.btn { text-decoration: none; }
 /* Banner de erro                                                      */
 
 .banner {
+  flex: none;
   padding: var(--sp-2) var(--sp-3);
   font: 12px var(--font-mono);
   color: var(--danger-text);
@@ -618,7 +624,7 @@ a.brand, a.btn { text-decoration: none; }
 
 
 .viz-panel {
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
   overflow: hidden;
   /* A Régua vive dentro da Prancha: o stacking context mantém o histórico
    * acima do desenho sem deixar os controles cobrirem as gavetas. */
@@ -725,7 +731,7 @@ a.brand, a.btn { text-decoration: none; }
   height: var(--viz-head-h);
   flex: none;
   padding: 0 14px 0 22px;
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
 }
 
 
@@ -747,6 +753,11 @@ a.brand, a.btn { text-decoration: none; }
   font: 600 var(--text-stage)/1.2 var(--font-ui);
   letter-spacing: -0.012em;
 }
+
+
+/* Sem estrutura detectada não existe título: a mensagem do palco já
+ * explica o estado, e "automático" como título parecia status de agente. */
+.canvas-title:empty { display: none; }
 
 
 .canvas-sub {
@@ -793,6 +804,32 @@ a.brand, a.btn { text-decoration: none; }
 .viz-tools { display: flex; align-items: center; gap: 10px; flex: none; }
 
 
+/* O seletor de estrutura vive na legenda da Prancha a partir de 1024px.
+ * Abaixo disso, o mesmo nó volta à topbar pelo controlador. */
+.topbar-structure-slot,
+.viz-structure-slot {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+}
+
+
+/* O seletor é uma saída de emergência, não um status permanente: só ocupa
+ * o chrome quando há mais de uma estrutura detectada ou uma escolha manual. */
+.topbar-structure-slot.is-contextual-hidden,
+.viz-structure-slot.is-contextual-hidden { display: none; }
+
+
+.viz-structure-slot .select {
+  max-width: 170px;
+  height: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 11px;
+}
+
+
 .viz-tools-sep {
   width: 1px;
   height: 16px;
@@ -802,81 +839,20 @@ a.brand, a.btn { text-decoration: none; }
 }
 
 
-.viz-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font: 11px var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* O estado da execução não ocupa chrome visível: play/pause, banner de erro,
+ * faixa de edição e Régua já o comunicam. O live region mantém o anúncio
+ * para leitores de tela sem repetir um status de agente na tela. */
+.viz-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-  transition: color var(--dur-fast);
-}
-
-
-.viz-state-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  flex: none;
-  transition: background var(--dur-fast);
-}
-
-
-.viz-state[data-state="running"] { color: var(--accent-text); }
-
-
-.viz-state[data-state="running"] .viz-state-dot {
-  background: var(--accent);
-  animation: viz-pulse 1.3s ease-in-out infinite;
-}
-
-
-.viz-state[data-state="paused"] { color: var(--text-secondary); }
-
-.viz-state[data-state="paused"] .viz-state-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--accent-muted);
-}
-
-
-/* primeiro contato: há conteúdo no palco, mas nada foi reproduzido ainda */
-.viz-state[data-state="preview"] { color: var(--text-muted); }
-
-.viz-state[data-state="preview"] .viz-state-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-
-
-.viz-state[data-state="debug"] { color: var(--accent-text); }
-
-
-.viz-state[data-state="debug"] .viz-state-dot { background: var(--accent); }
-
-
-.viz-state[data-state="stale"] { color: var(--warn); }
-
-
-.viz-state[data-state="stale"] .viz-state-dot { background: var(--warn); }
-
-
-.viz-state[data-state="error"] { color: var(--danger); }
-
-
-.viz-state[data-state="error"] .viz-state-dot { background: var(--danger); }
-
-
-@keyframes viz-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  border: 0;
 }
 
 
@@ -1508,11 +1484,12 @@ kbd {
 
 
 .gline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: var(--line-h);
-  line-height: var(--line-h);
-  text-align: right;
-  padding-right: 10px;
-  font: 10.5px var(--font-mono);
+  padding: 0 6px;
+  font: 500 clamp(11.5px, calc(var(--line-h) * 0.52), 15px) var(--font-mono);
   color: var(--text-muted);
   user-select: none;
   font-variant-numeric: tabular-nums;
@@ -1575,25 +1552,18 @@ kbd {
   color: transparent;
   caret-color: var(--accent-text);
   overflow: auto;
-  scrollbar-width: thin;
+  /* A barra de rolagem lateral fica fora do editor: a rolagem continua
+   * disponível por roda, teclado e arrasto, mas sem a coluna visual. */
+  scrollbar-width: none;
 }
 
 
-/* scrollbars do editor: mais discretas que as do chrome */
-.code-input::-webkit-scrollbar { width: 9px; height: 9px; }
-
-.code-input::-webkit-scrollbar-thumb {
-  border-width: 2px;
-  border-radius: var(--radius-lg);
-}
+/* esconde a barra do editor sem bloquear a rolagem */
+.code-input::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 
-.code-input:focus-visible {
-  /* O caret já marca o foco dentro do texto; o anel confirma a área ativa
-   * sem virar uma moldura Ocean de 2px em volta de todo o editor. */
-  outline: 1px solid var(--accent-muted);
-  outline-offset: -1px;
-}
+/* O caret já marca o foco dentro do texto. O editor não desenha moldura ao
+ * receber o clique; o realce da linha em execução continua sendo o foco. */
 
 
 .code-input::selection { background: var(--selection); }
@@ -1960,7 +1930,7 @@ kbd {
   min-height: 0;
   position: relative;
   z-index: 30;
-  background: var(--bg-canvas);
+  background: var(--bg-stage);
   border-top: 1px solid var(--border-soft);
 }
 
@@ -3096,7 +3066,7 @@ dialog.help form.help-foot {
   #btnRun { padding: 0 10px; min-width: 0; }
   .select-compact { max-width: 190px; }
   .canvas-badge { max-width: 38%; }
-  .viz-state { padding: 0; }
+  .viz-structure-slot .select { max-width: 130px; }
 
   /* no Roteiro o Executar continua com o ícone e o rótulo; o ajuste acima
    * existe para a topbar, onde o espaço é mais escasso */
@@ -3215,6 +3185,18 @@ dialog.help form.help-foot {
   .dock-tab { padding: 0; }
   .statusbar { padding: 3px var(--sp-3); }
 }
+
+
+/* Ampliar o Roteiro: a coluna ocupa a grade inteira e a Prancha sai de cena.
+ * A Margem e a divisória também ficam ocultas; o estado das gavetas é
+ * preservado para quando o gesto for desfeito. */
+.layout.code-expanded {
+  grid-template-columns: minmax(0, 1fr) 0 0 0;
+}
+
+.layout.code-expanded > .viz-panel,
+.layout.code-expanded > .side-panel,
+.layout.code-expanded > #splitLeft { display: none; }
 
 
 /* O app ocupa a tela inteira em qualquer largura: nada de rolagem de página

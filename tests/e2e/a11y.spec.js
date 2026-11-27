@@ -42,6 +42,16 @@ async function conferirEstruturaA11y(page) {
    * acessível seja computado como um controle visível */
   if (!(await page.locator('#codePanel').isVisible())) await page.click('#btnToggleCode');
   await expect(page.locator('#codePanel')).toBeVisible();
+  /* o seletor é contextual: com uma única estrutura detectada ele some do
+   * chrome. Um trace com duas estruturas o traz de volta para o teste. */
+  if (!(await page.locator('#structureSelect').isVisible())) {
+    await page.evaluate(() => {
+      document.getElementById('code').value = 'const pilha = []; pilha.push(1); const fila = []; fila.push(1); fila.shift();';
+      document.getElementById('btnRun').click();
+    });
+    if ((await page.locator('#btnPlay').textContent()) === '❚❚') await page.click('#btnPlay');
+  }
+  await expect(page.locator('#structureSelect')).toBeVisible();
   await expect(page.locator('#structureSelect')).toHaveAccessibleName('Estrutura exibida');
   await expect(page.locator('#exampleSelect')).toHaveAccessibleName('Abrir exemplo');
   await expect(page.locator('#speedSelect')).toHaveAccessibleName('Velocidade de reprodução');

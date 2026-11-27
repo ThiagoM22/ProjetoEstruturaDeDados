@@ -35,7 +35,7 @@
     </a>
   </div>
   <div class="topbar-actions">
-    <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
+    <div id="topbarStructureSlot" class="topbar-structure-slot"></div>
     <div id="topbarRunSlot" class="topbar-run-slot"></div>
     <button id="btnToggleCode" class="btn ghost small toggle" title="Abrir o editor de código" aria-label="Abrir o editor de código" aria-controls="codePanel" aria-pressed="false">
       <svg class="ico" aria-hidden="true"><use href="#i-code"></use></svg>
@@ -62,8 +62,6 @@
     </details>
   </div>
 </header>
-
-<div id="banner" class="banner hidden" role="alert" aria-live="assertive"></div>
 
 <main id="layout" class="layout code-collapsed side-collapsed" data-zone="caderno" aria-label="Caderno de Execução">
 
@@ -115,16 +113,18 @@
   <section id="vizPanel" class="panel viz-panel" data-zone="prancha" aria-label="Prancha da estrutura">
     <div class="viz-head">
       <div class="viz-identity">
-        <span id="canvasTitle" class="canvas-title">automático</span>
+        <span id="canvasTitle" class="canvas-title"></span>
         <span id="canvasSub" class="canvas-sub"></span>
         <span id="canvasBadge" class="canvas-badge"></span>
       </div>
       <div class="viz-tools">
-        <span id="vizRunState" class="viz-state" data-state="idle" role="status" aria-live="polite" title="Estado da execução">
-          <span class="viz-state-dot" aria-hidden="true"></span>
+        <div id="vizStructureSlot" class="viz-structure-slot">
+          <select id="structureSelect" class="select" title="Estrutura exibida" aria-label="Estrutura exibida"><button><selectedcontent></selectedcontent></button></select>
+        </div>
+        <span id="vizRunState" class="viz-sr-only" data-state="idle" role="status" aria-live="polite">
           <span id="vizRunStateText">pronto</span>
         </span>
-        <span class="viz-tools-sep" aria-hidden="true"></span>
+        <span id="vizToolsSep" class="viz-tools-sep" aria-hidden="true"></span>
         <div class="canvas-controls">
           <button id="btnZoomOut" class="zbtn" title="Diminuir zoom" aria-label="Diminuir zoom">
             <svg class="ico" aria-hidden="true"><use href="#i-minus"></use></svg>
@@ -151,6 +151,7 @@
       <span id="debugInfo" class="debug-info"></span>
       <button id="btnExitDebug" class="btn ghost small">Sair (Esc)</button>
     </div>
+    <div id="banner" class="banner hidden" role="alert" aria-live="assertive"></div>
     <div id="structure" class="structure"></div>
 
     <footer id="dock" class="dock regua" data-zone="regua" aria-label="Régua de reprodução">
@@ -328,6 +329,9 @@
 
     <p><b>Teclado no editor:</b> <b>Tab</b> insere dois espaços e <b>Esc</b> sai do editor para os controles.
     Para navegar sem inserir espaços, use <b>Ctrl+M</b> para alternar o modo em que <b>Tab</b> move o foco.</p>
+
+    <p><b>Zoom do editor:</b> segure <b>Ctrl</b> e use a roda do mouse, ou <b>Ctrl + +</b> / <b>Ctrl + −</b>.
+    <b>Ctrl+0</b> volta ao tamanho padrão; o tamanho fica salvo para a próxima visita.</p>
 
     <h3>O que é detectado automaticamente</h3>
     <ul>
