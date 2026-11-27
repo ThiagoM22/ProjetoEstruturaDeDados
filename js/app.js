@@ -8,6 +8,7 @@
 
   var els = {
     code: $('code'),
+    editor: $('editor'),
     codeViewport: $('codeViewport'),
     varTip: $('varTip'),
     highlight: $('highlight'),
@@ -129,6 +130,14 @@
   var LINE_HEIGHT = 22;
   var PAD_TOP = 14;
   var CODE_PAD_LEFT = 16;   /* padding esquerdo do editor (.code-input) */
+  /* Zoom do editor: só a tipografia do código cresce (fonte e altura de
+   * linha), sem alterar a largura da coluna. O gutter acompanha pelo CSS. */
+  var CODE_FONT_BASE = 13;          /* mesma base de --code-font */
+  var CODE_FONT_BASE_SMALL = 12.5;  /* breakpoint de 1366 no CSS */
+  var CODE_LINE_BASE = 22;
+  var CODE_ZOOM_MIN = 0.8;
+  var CODE_ZOOM_MAX = 2;
+  var CODE_ZOOM_STEP = 0.1;
   var HOVER_DELAY = 350;    /* tempo com o mouse parado sobre a variável */
   var STORAGE_CODE = 'edviz.code';        /* legado: migrado para STORAGE_BUFFERS */
   var STORAGE_EX = 'edviz.example';
@@ -153,6 +162,7 @@
     codeUserResized: false,
     codeExpanded: false,
     codeRatioBeforeExpand: null,
+    codeZoom: 1,
     collapsed: { code: viewportWidth() < 1024, side: true },
     dockOpen: false,
     dockTab: 'commands',
@@ -202,6 +212,12 @@
     return isFinite(v) && v > 0 && v < 1 ? v : fallback;
   }
 
+  function clampCodeZoom(v, fallback) {
+    v = parseFloat(v);
+    if (!isFinite(v)) return fallback;
+    return Math.round(Math.min(CODE_ZOOM_MAX, Math.max(CODE_ZOOM_MIN, v)) * 100) / 100;
+  }
+
   function loadWorkspace() {
     var raw = null;
     try { raw = localStorage.getItem(STORAGE_WORKSPACE); } catch (e) { /* ignora */ }
@@ -221,6 +237,7 @@
       workspace.codeUserResized = typeof saved.codeRatio === 'number' && isFinite(saved.codeRatio);
       workspace.codeExpanded = false;
       workspace.codeRatioBeforeExpand = null;
+      workspace.codeZoom = 1;
       workspace.collapsed.code = viewportWidth() < 1024;
       workspace.grid = saved.grid !== false;
       if (saved.dockTab === 'commands' || saved.dockTab === 'events' || saved.dockTab === 'output') {
@@ -234,6 +251,7 @@
     workspace.codeRatio = clamp01(saved.codeRatio, DEFAULT_CODE_RATIO);
     workspace.codeUserResized = saved.codeUserResized === true;
     workspace.codeExpanded = saved.codeExpanded === true;
+    workspace.codeZoom = clampCodeZoom(saved.codeZoom, 1);
     var beforeExpand = parseFloat(saved.codeRatioBeforeExpand);
     workspace.codeRatioBeforeExpand = isFinite(beforeExpand) && beforeExpand > 0 && beforeExpand < 1
       ? beforeExpand
@@ -424,6 +442,57 @@
     markCurrentLineInGutter(line);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Zoom do editor (Ctrl + roda, Ctrl + + / − / 0)                     */
+  /* ------------------------------------------------------------------ */
+
+  function codeBaseFont() {
+    return viewportWidth() > 0 && viewportWidth() <= 1366
+      ? CODE_FONT_BASE_SMALL
+      : CODE_FONT_BASE;
+  }
+
+  /* A tipografia do editor mora nas variáveis do painel: fonte e altura de
+   * linha crescem juntas para o texto não se sobrepor; a coluna não muda. */
+  function applyCodeZoom() {
+    var zoom = clampCodeZoom(workspace.codeZoom, 1);
+    workspace.codeZoom = zoom;
+    LINE_HEIGHT = Math.round(CODE_LINE_BASE * zoom * 100) / 100;
+    if (els.codePanel && els.codePanel.style && typeof els.codePanel.style.setProperty === 'function') {
+      els.codePanel.style.setProperty('--code-font', (Math.round(codeBaseFont() * zoom * 100) / 100) + 'px');
+      els.codePanel.style.setProperty('--line-h', LINE_HEIGHT + 'px');
+    }
+    codeCharW = 0; /* o hover remede a largura do caractere no novo tamanho */
+  }
+
+  function refreshLineHighlight() {
+    var step = steps()[state.index];
+    if (!step || state.stale || !state.trace) {
+      setCurrentLine(null);
+      return;
+    }
+    var isError = state.errorLine === step.line &&
+      state.index === steps().length - 1 && !!state.trace.error;
+    setCurrentLine(step.line, isError);
+  }
+
+  function setCodeZoom(next) {
+    var zoom = clampCodeZoom(next, workspace.codeZoom);
+    if (Math.abs(zoom - workspace.codeZoom) < 0.001) return;
+    workspace.codeZoom = zoom;
+    applyCodeZoom();
+    refreshLineHighlight();
+    updateCodeOverflow();
+    var step = steps()[state.index];
+    if (step) ensureLineVisible(step.line);
+    else syncScroll();
+    saveWorkspace();
+  }
+
+  function zoomCodeBy(dir) {
+    setCodeZoom(workspace.codeZoom + dir * CODE_ZOOM_STEP);
+  }
+
   function ensureLineVisible(line) {
     var top = (line - 1) * LINE_HEIGHT;
     var vh = els.code.clientHeight;
@@ -565,6 +634,35 @@
       }
     }
   });
+
+  /* Ctrl + roda do mouse sobre o editor: o texto cresce/diminui sem mexer
+   * na largura da coluna. O preventDefault impede o zoom da página. */
+  if (els.editor && typeof els.editor.addEventListener === 'function') {
+    els.editor.addEventListener('wheel', function (ev) {
+      if (!ev.ctrlKey && !ev.metaKey) return;
+      if (ev.preventDefault) ev.preventDefault();
+      zoomCodeBy((ev.deltaY || 0) < 0 ? 1 : -1);
+    }, { passive: false });
+  }
+
+  /* Ctrl + + / Ctrl + − no Roteiro. Também cobre o teclado numérico e o
+   * layout em que Ctrl+'+' chega como '='. Ctrl+0 volta ao tamanho padrão. */
+  if (els.codePanel && typeof els.codePanel.addEventListener === 'function') {
+    els.codePanel.addEventListener('keydown', function (ev) {
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+      var k = ev.key;
+      if (k === '+' || k === '=') {
+        ev.preventDefault();
+        zoomCodeBy(1);
+      } else if (k === '-' || k === '_') {
+        ev.preventDefault();
+        zoomCodeBy(-1);
+      } else if (k === '0') {
+        ev.preventDefault();
+        setCodeZoom(1);
+      }
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Dica de variável (segurar o mouse sobre um identificador)           */
@@ -3082,12 +3180,14 @@
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('resize', function () {
       canvasFitKey = null;
+      applyCodeZoom(); /* a base muda em 1366 e o zoom salvo continua valendo */
       codeCharW = 0; /* remede a largura do caractere (zoom/fonte podem mudar) */
       /* reaplica a grade ao cruzar os breakpoints responsivos e reajusta a
        * coluna do editor ao código (a fonte muda em 1366, a largura muda) */
       fitCodeColumn();
       applyLayout();
       syncScroll();
+      refreshLineHighlight();
       if (!canvasSupported()) return;
       var narrow = typeof window.innerWidth === 'number' ? window.innerWidth <= 1100 : false;
       var crossed = narrow !== canvasNarrow;
@@ -3269,6 +3369,7 @@
     workspace.collapsed.code = collapsed.code;
     workspace.collapsed.side = collapsed.side;
     codeUserResized = workspace.codeUserResized === true;
+    applyCodeZoom();
 
     setupSplitters();
     setupLayoutControls();

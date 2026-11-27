@@ -1484,11 +1484,12 @@ kbd {
 
 
 .gline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: var(--line-h);
-  line-height: var(--line-h);
-  text-align: right;
-  padding-right: 10px;
-  font: 10.5px var(--font-mono);
+  padding: 0 6px;
+  font: 500 clamp(11.5px, calc(var(--line-h) * 0.52), 15px) var(--font-mono);
   color: var(--text-muted);
   user-select: none;
   font-variant-numeric: tabular-nums;
@@ -1551,25 +1552,18 @@ kbd {
   color: transparent;
   caret-color: var(--accent-text);
   overflow: auto;
-  scrollbar-width: thin;
+  /* A barra de rolagem lateral fica fora do editor: a rolagem continua
+   * disponível por roda, teclado e arrasto, mas sem a coluna visual. */
+  scrollbar-width: none;
 }
 
 
-/* scrollbars do editor: mais discretas que as do chrome */
-.code-input::-webkit-scrollbar { width: 9px; height: 9px; }
-
-.code-input::-webkit-scrollbar-thumb {
-  border-width: 2px;
-  border-radius: var(--radius-lg);
-}
+/* esconde a barra do editor sem bloquear a rolagem */
+.code-input::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 
-.code-input:focus-visible {
-  /* O caret já marca o foco dentro do texto; o anel confirma a área ativa
-   * sem virar uma moldura Ocean de 2px em volta de todo o editor. */
-  outline: 1px solid var(--accent-muted);
-  outline-offset: -1px;
-}
+/* O caret já marca o foco dentro do texto. O editor não desenha moldura ao
+ * receber o clique; o realce da linha em execução continua sendo o foco. */
 
 
 .code-input::selection { background: var(--selection); }
